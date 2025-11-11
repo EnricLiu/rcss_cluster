@@ -32,6 +32,11 @@ pub enum Error {
     ClientNotFound {
         client_id: Uuid,
     },
+
+    #[snafu(display("Cluster: Client[{client_id}] is already released."))]
+    ClientReleased {
+        client_id: Uuid,
+    },
     
     #[snafu(transparent)]
     Client {

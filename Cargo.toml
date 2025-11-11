@@ -3,6 +3,9 @@ name = "rcss_cluster"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+signal-parsing = []
+
 [dependencies]
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }

@@ -12,6 +12,7 @@ use super::client::{self, Client};
 
 use error::*;
 
+#[derive(Debug)]
 pub struct Cluster {
     rooms: DashMap<Uuid, Room>,
     clients: DashMap<Uuid, Weak<Client>>,
@@ -69,6 +70,15 @@ impl Cluster {
 
         self.clients.insert(id, client);
         Ok(id)
+    }
+    
+    pub async fn client(&self, client_id: Uuid) -> Result<Arc<Client>> {
+        match self.clients.get(&client_id) {
+            Some(client) => {
+                client.value().upgrade().ok_or(ClientReleasedSnafu { client_id }.build())
+            },
+            None => ClientNotFoundSnafu { client_id }.fail(),
+        }
     }
 
     // pub async fn client_send(&self, client_id: Uuid, message: impl rcss::Message) -> Result<()> {
