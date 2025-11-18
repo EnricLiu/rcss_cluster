@@ -9,12 +9,16 @@ signal-parsing = []
 [dependencies]
 futures = "0.3"
 tokio = { version = "1", features = ["full"] }
-snafu = {  version = "0.8", features = ["backtrace"] }
+
+log = "0.4.28"
+dashmap = "6"
 uuid = { version = "1", features = ["v7", "serde"] }
+snafu = {  version = "0.8", features = ["backtrace"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-dashmap = "6"
-log = "0.4.28"
+chrono = { version = "0.4", features = ["serde"] }
 
 axum = { version = "0.8", features = ["tokio", "ws"] }
-chrono = { version = "0.4", features = ["serde"] }
+tower-http = { version = "0.6", features = ["trace"] }
+
+env_logger = "0.11"
