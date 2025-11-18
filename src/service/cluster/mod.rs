@@ -1,4 +1,4 @@
-mod error;
+pub mod error;
 
 use std::sync::{Arc, Weak};
 use dashmap::DashMap;
@@ -9,8 +9,10 @@ use super::team::{self, Team};
 use super::room::{self, Room};
 use super::client::{self, Client};
 
+use crate::model::room::Info as RoomInfo;
 
 use error::*;
+pub use error::{Error, Result};
 
 #[derive(Debug)]
 pub struct Cluster {
@@ -39,6 +41,20 @@ impl Cluster {
         Ok(())
     }
 
+    pub async fn room_info(&self, room_id: Uuid) -> Result<RoomInfo> {
+        let room = self.room(room_id)?;
+        Ok(room.info().await)
+    }
+
+    pub async fn all_rooms_info(&self) -> Result<Vec<RoomInfo>> {
+        let mut infos = Vec::with_capacity(self.rooms.len());
+        for room in self.rooms.iter() {
+            infos.push(room.info().await);
+        }
+
+        Ok(infos)
+    }
+
     fn room(&'_ self, room_id: Uuid) -> Result<Ref<'_, Uuid, Room>> {
         match self.rooms.get(&room_id) {
             Some(room) => Ok(room),
@@ -46,7 +62,7 @@ impl Cluster {
         }
     }
 
-    pub async fn create_team_in_room(&self, room_id: Uuid, config: team::Config) -> Result<String> {
+    pub async fn create_team(&self, room_id: Uuid, config: team::Config) -> Result<String> {
         let team_name = self.room(room_id)?.add_team(None, config).await?;
         Ok(team_name)
     }

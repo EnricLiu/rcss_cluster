@@ -1,15 +1,18 @@
-use std::sync::Arc;
-use std::collections::HashMap;
+use std::sync::{Arc, LazyLock};
+use std::collections::{HashMap, HashSet};
+use std::ops::Sub;
 use log::{debug, trace, warn};
 
 use uuid::Uuid;
 use tokio::sync::RwLock;
 use dashmap::DashMap;
 use dashmap::mapref::one::Ref;
+
+use crate::model::room;
 use crate::service::team::{Team, Config as TeamConfig, Side as TeamSide};
 use crate::service::client::Client;
 
-use super::{Status, Config};
+use super::{AtomicStatus, Config};
 use super::error::*;
 
 #[derive(Default, Debug)]
@@ -18,15 +21,16 @@ pub struct Room {
     config:     Config,
 
     teams:      RwLock<DashMap<String, Team>>,
-    team_l:     DashMap<String, TeamSide>,
-    team_r:     DashMap<String, TeamSide>,
     trainer:    DashMap<Uuid, Arc<Client>>,
 
-    status:     Status,
+    status:     Arc<AtomicStatus>,
 }
 
 impl Room {
     pub const NUM_TEAMS: usize = 2;
+    pub const SIDES: LazyLock<HashSet<TeamSide>> = LazyLock::new(
+        || HashSet::from([TeamSide::Left, TeamSide::Right, ])
+    );
 
     pub fn new(config: Config) -> Self {
         Room {
@@ -38,6 +42,30 @@ impl Room {
 
     pub fn name(&self) -> &str {
         &self.config.name
+    }
+
+    pub async fn info(&self) -> room::Info {
+        let (team_l, team_r) = {
+            let teams = self.teams.read().await;
+            let map: HashMap<_,_> = teams.iter().map(|team| (team.side(), team)).collect();
+            let team_l = match map.get(&TeamSide::Left) {
+                Some(team) => Some(team.value().info().await),
+                None => None,
+            };
+            let team_r = match map.get(&TeamSide::Right) {
+                Some(team) => Some(team.value().info().await),
+                None => None,
+            };
+            (team_l, team_r)
+        };
+
+        room::Info {
+            room_id: self.id,
+            name: self.name().to_string(),
+            team_l,
+            team_r,
+            status: self.status.kind(),
+        }
     }
 
     pub async fn add_team(&self, side: Option<TeamSide>, config: TeamConfig) -> Result<String> {
@@ -94,7 +122,8 @@ impl Room {
                         side
                     }
                     None => {
-                        all_side.into_iter().next().expect("No side available").0
+                        let side_remain = Self::SIDES.sub(&all_side.into_keys().collect());
+                        side_remain.into_iter().next().expect("No side available")
                     }
                 }
             };

@@ -3,8 +3,9 @@ use std::sync::{Arc, Weak};
 use uuid::Uuid;
 use dashmap::DashMap;
 use tokio::sync::RwLock;
+use crate::model::team;
 use crate::service::client::{self, Client};
-use crate::service::team::{Config, Side, Status};
+use crate::service::team::{Config, Side, AtomicStatus};
 
 use super::error::{Result};
 
@@ -13,7 +14,7 @@ pub struct Team {
     side:       Side,
     config:     Config,
     clients:    RwLock<DashMap<Uuid, Arc<Client>>>,
-    status:     RwLock<Status>,
+    status:     Arc<AtomicStatus>,
 }
 
 impl Team {
@@ -27,8 +28,7 @@ impl Team {
 
     pub async fn reset(&mut self) -> Result<()> {
         self.clients.write().await.clear();
-
-        *self.status.write().await = Status::Idle;
+        self.status.set(team::Status::Idle);
         Ok(())
     }
 
@@ -42,6 +42,14 @@ impl Team {
 
     pub fn name(&self) -> &str {
         &self.config.name
+    }
+    
+    pub async fn info(&self) -> team::Info {
+        team::Info {
+            name: self.name().to_string(),
+            n_client: self.clients.read().await.len(),
+            status: self.status.kind(),
+        }
     }
 
     pub fn is_some(&self) -> bool {

@@ -5,5 +5,5 @@ pub mod error;
 
 pub use room::Room;
 pub use config::RoomConfig as Config;
-pub use status::RoomStatusKind as Status;
+pub use status::AtomicRoomStatus as AtomicStatus;
 pub use error::{Error, Result};
