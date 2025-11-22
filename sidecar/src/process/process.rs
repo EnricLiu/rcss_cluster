@@ -30,8 +30,8 @@ impl ServerProcess {
         ServerProcessSpawner::new(pgm_name).await
     }
 
-    async fn try_from(child: Child) -> Result<Self> {
-        let pid = child.id().ok_or_else(Error::ChildAlreadyCompleted)?;
+    pub(crate) async fn try_from(child: Child) -> Result<Self> {
+        let pid = child.id().ok_or(Error::ChildAlreadyCompleted)?;
         let arc_pid = Arc::new(AtomicU32::new(pid));
         let pid = Pid::from_raw(pid as i32);
 
@@ -39,9 +39,10 @@ impl ServerProcess {
         let (stdout_tx, stdout_rx) = mpsc::channel(16);
         let (stderr_tx, stderr_rx) = mpsc::channel(16);
 
+        let arc_pid_ = Arc::clone(&arc_pid);
         let handle = tokio::spawn(async move {
             let mut child = child;
-            let arc_pid = Arc::clone(&arc_pid);
+            let arc_pid = arc_pid_;
             let stdout = child.stdout.take().expect("Failed to open stdout");
             let stderr = child.stderr.take().expect("Failed to open stderr");
 

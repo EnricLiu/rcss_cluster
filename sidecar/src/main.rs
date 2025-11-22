@@ -31,7 +31,7 @@ async fn main() {
     unsafe { env::set_var("RUST_LOG", "trace") };
     env_logger::init();
 
-    let mut builder = process::ServerProcess::spawner("rcssserver").await;
+    let builder = process::ServerProcess::spawner("rcssserver").await;
     let process = builder.spawn().await.unwrap();
     println!("Process running, pid = {:?}", process.pid());
 
