@@ -3,12 +3,14 @@ mod kind;
 mod error;
 mod status;
 mod client;
+mod signal;
 
 pub use error::{Error, Result};
 pub use config::ClientConfig as Config;
 pub use kind::ClientKind as Kind;
 pub use status::AtomicClientStatus as AtomicStatus;
 pub use status::ClientStatusKind as StatusKind;
+pub use signal::ClientSignal as Signal;
 pub use client::Client;
 
 

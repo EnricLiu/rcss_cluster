@@ -1,8 +1,10 @@
 mod coach;
-mod control;
+mod signal;
+mod error;
 
 use common::client;
 
 pub use coach::OfflineCoach;
 pub use coach::OfflineCoach as Trainer;
-pub use control::ControlMessage;
+pub use signal::CoachSignal;
+pub use error::{Error, Result};

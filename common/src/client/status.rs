@@ -7,6 +7,7 @@ pub enum ClientStatusKind {
     WaitingRedirection = 1,
     Connected = 2,
     Disconnected = 3,
+    Died = 4, // 🫥
 }
 
 impl Default for ClientStatusKind {
@@ -21,6 +22,7 @@ impl From<u8> for ClientStatusKind {
             1 => ClientStatusKind::WaitingRedirection,
             2 => ClientStatusKind::Connected,
             3 => ClientStatusKind::Disconnected,
+            4 => ClientStatusKind::Died,
             _ => panic!("Invalid ClientStateEnum"),
         }
     }

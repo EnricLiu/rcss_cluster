@@ -4,32 +4,35 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
+use arcstr::ArcStr;
 use dashmap::DashMap;
+use futures::FutureExt;
 use log::{debug, info, trace, warn};
-
 use super::error::*;
-use super::{AtomicStatus, StatusKind, Config};
+use super::{AtomicStatus, StatusKind, Config, Signal};
 use super::{INIT_MSG_TIMEOUT_MS, BUFFER_SIZE, CHANNEL_CAPACITY};
 
 use crate::udp::UdpConnection;
 
-type ConsumersDashMap = DashMap<Uuid, mpsc::WeakSender<Arc<str>>>;
+type ConsumersDashMap = DashMap<Uuid, mpsc::Sender<ArcStr>>;
 #[derive(Default, Debug)]
 pub struct Client {
     config: Config,
-    tx:     OnceLock<mpsc::Sender<Arc<str>>>,
-    
-    consumers:  Arc<ConsumersDashMap>,
-
+    handle: OnceLock<JoinHandle<Result<()>>>,
+    tx:     OnceLock<mpsc::Sender<Signal>>,
     state:  Arc<AtomicStatus>,
+
+    consumers:  Arc<ConsumersDashMap>,
 }
 
 impl Client {
+    pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
+
     pub fn new(config: Config) -> Self {
         Self { config, ..Default::default() }
     }
 
-    pub async fn conn(&self) -> Result<JoinHandle<Result<()>>> {
+    pub async fn conn(&mut self) -> Result<()> {
         let (tx, sender_rx) = mpsc::channel(CHANNEL_CAPACITY);
         self.tx.set(tx).expect("Client tx OnceLock set failed");
 
@@ -39,22 +42,34 @@ impl Client {
             status: self.state.clone(), // todo!(Arc inside the state might confusing, refactor later)
         };
 
+        if self.handle.get().is_some() {
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
+        }
+
         #[cfg(not(debug_assertions))]
         let handle = tokio::spawn(run(sender_rx, consumers, context));
         #[cfg(debug_assertions)]
         let handle = tokio::spawn(run_debug(sender_rx, consumers, context));
+        if let Err(handle) = self.handle.set(handle) {
+            handle.abort();
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
+        }
 
-        Ok(handle)
+        Ok(())
     }
 
-    pub async fn send(&self, data: Arc<str>) -> Result<()> {
-        self.tx.get().unwrap().send(data).await
+    pub async fn send(&self, signal: Signal) -> Result<()> {
+        self.tx.get().unwrap().send(signal).await
             .map_err(|e| Error::ChannelSend { client_name: self.config.name.clone(), source: e })?;
 
         Ok(())
     }
 
-    pub async fn subscribe(&self, tx: mpsc::WeakSender<Arc<str>>) -> Result<Uuid> {
+    pub async fn subscribe(&self, tx: mpsc::Sender<ArcStr>) -> Result<Uuid> {
         let id = Uuid::now_v7();
         self.consumers.insert(id, tx);
         Ok(id)
@@ -68,6 +83,48 @@ impl Client {
         self.config.name.as_str()
     }
 
+    pub async fn close(mut self) -> Result<()> {
+        if self.handle.get().is_none() {
+            return Err(Error::NotConnected { client: self });
+        }
+
+        let mut handle = self.handle.take()
+            .expect("WTF? Client handle OnceLock get failed");
+
+        if let Err(_e) = self.send(Signal::Shutdown).await {
+            // channel closed here, maybe already closed
+            info!("Client[{}]: channel closed while trying to send Signal::Shutdown", self.name());
+        }
+
+        match tokio::time::timeout(Self::SHUTDOWN_TIMEOUT, &mut handle).await {
+            Err(_) => { // Timeout Elapsed
+                warn!("Client[{}]: timeout while waiting for shutdown returns, aborting", self.name());
+                handle.abort();
+                self.state.set(StatusKind::Died);
+                Err(Error::CloseTimeout {
+                    duration: Self::SHUTDOWN_TIMEOUT,
+                    client_name: self.name().to_string(),
+                })
+            },
+            Ok(Err(join)) => {
+                if join.is_cancelled() {
+                    debug!("Client[{}]: Failed to join: Task already cancelled.", self.name());
+                    self.state.set(StatusKind::Disconnected);
+                    Ok(())
+                } else {
+                    warn!("Client[{}]: Failed to join: Task panicked.", self.name());
+                    self.state.set(StatusKind::Died);
+                    Err(Error::ClosePanic {
+                        client_name: self.name().to_string(),
+                    })
+                }
+            },
+            Ok(Ok(res)) => {
+                self.state.set(StatusKind::Disconnected);
+                res
+            },
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -77,7 +134,7 @@ struct Context {
 }
 
 async fn run_debug(
-    mut sender_rx: mpsc::Receiver<Arc<str>>,
+    sender_rx: mpsc::Receiver<Signal>,
     consumers: Arc<ConsumersDashMap>,
     context: Context,
 ) -> Result<()> {
@@ -87,7 +144,7 @@ async fn run_debug(
 }
 
 async fn run(
-    mut sender_rx: mpsc::Receiver<Arc<str>>,
+    mut sender_rx: mpsc::Receiver<Signal>,
     consumers: Arc<ConsumersDashMap>,
     context: Context,
 ) -> Result<()> {
@@ -107,7 +164,7 @@ async fn run(
 
     let init_resp = wait_init_resp_recv(&init_msg, &mut udp_conn, &context).await?;
     trace!("Client[{}]: received init resp from server: {}", context.cfg.name, init_resp);
-    let success_cnt = sync_messages(&init_resp, &consumers).await?;
+    let success_cnt = sync_messages(&init_resp, &consumers, &context).await?;
     if success_cnt == 0 {
         warn!("Client[{}]: No consumers to receive init response message.", context.cfg.name);
     }
@@ -116,16 +173,20 @@ async fn run(
 }
 
 async fn wait_init_msg_from_tx(
-    rx: &mut mpsc::Receiver<Arc<str>>,
+    rx: &mut mpsc::Receiver<Signal>,
     context: &Context,
-) -> Result<Arc<str>> {
+) -> Result<ArcStr> {
     let msg = tokio::time::timeout(
         Duration::from_millis(INIT_MSG_TIMEOUT_MS), rx.recv(),
     ).await;
 
     match msg {
-        Ok(Some(msg)) => {
-            Ok(msg)
+        Ok(Some(Signal::Data(msg))) => Ok(msg),
+        Ok(Some(Signal::Shutdown)) => {
+            context.status.set(StatusKind::Disconnected);
+            Err(Error::ChannelClosed {
+                client_name: context.cfg.name.clone()
+            })
         },
         Ok(None) => { // Channel closed
             context.status.set(StatusKind::Disconnected);
@@ -147,7 +208,7 @@ async fn wait_init_resp_recv(
     init_msg: &str,
     udp_conn: &mut UdpConnection,
     context: &Context,
-) -> Result<Arc<str>> {
+) -> Result<ArcStr> {
     let mut buf = [0u8; BUFFER_SIZE];
 
     udp_conn.send(init_msg.as_bytes()).await
@@ -180,32 +241,40 @@ async fn wait_init_resp_recv(
 }
 
 async fn sync_messages(
-    msg: &Arc<str>, consumers: &ConsumersDashMap
+    msg: &ArcStr, consumers: &ConsumersDashMap, context: &Context,
 ) -> Result<usize> {
     let mut tasks = Vec::with_capacity(consumers.len());
 
     for consumer in consumers.iter() {
-        match consumer.value().upgrade() {
-            Some(tx) => tasks.push(async move {
-                match tx.send(Arc::clone(msg)).await {
-                    Ok(_) => Ok(()),
-                    Err(_e) => {
-                        warn!("Failed to send message to consumer");
-                        Err(())
-                    },
-                }
-            }),
-            None => { consumers.remove(consumer.key()); }, // The consumer has been dropped
-        };
+        tasks.push(async move {
+            let (id, tx) = consumer.pair();
+            match tx.send(msg.clone()).await {
+                Err(_e) => {
+                    trace!("Channel[{id}] Closed, winding up..");
+                    Some(*id)
+                },
+                Ok(_) => None,
+            }
+        });
     }
 
     let res = futures::future::join_all(tasks).await;
+    let mut success_cnt = res.len();
 
-    Ok(res.into_iter().filter(|res| res.is_ok()).count())
+    let deleted = res.into_iter().filter_map(|res| res);
+    for id in deleted {
+        success_cnt -= 1;
+        if let None = consumers.remove(&id) {
+            warn!("Client[{}]: Consumer[{}] was removed from the list, but it was not found in the list.",
+                context.cfg.name, id);
+        }
+    }
+
+    Ok(success_cnt)
 }
 
 async fn listen_and_transmit(
-    mut rx: mpsc::Receiver<Arc<str>>,
+    mut rx: mpsc::Receiver<Signal>,
     udp: Arc<UdpConnection>,
     consumers: Arc<ConsumersDashMap>,
     context: Context,
@@ -216,8 +285,13 @@ async fn listen_and_transmit(
     let context_ = Arc::clone(&context);
     let mut udp_send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
-            udp_.send(msg.as_bytes()).await
-                .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
+            match msg {
+                Signal::Shutdown => break,
+                Signal::Data(msg) => {
+                    udp_.send(msg.as_bytes()).await
+                        .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
+                }
+            }
         }
         Ok::<(), Error>(())
     });
@@ -232,7 +306,7 @@ async fn listen_and_transmit(
             let msg = String::from_utf8_lossy(&buf[..len])
                 .to_string().into_boxed_str().into();
 
-            let cnt = sync_messages(&msg, &consumers).await?;
+            let cnt = sync_messages(&msg, &consumers, &context_).await?;
             if cnt == 0 {
                 warn!("Client[{}]: No consumers to receive UDP message.", context_.cfg.name);
             }

@@ -17,6 +17,7 @@ impl Into<Response> for &Error {
             => {
                 Response::error(self.into(), &self.to_string())
             },
+            _ => todo!(),
         }
     }
 }

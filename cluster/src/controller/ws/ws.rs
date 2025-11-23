@@ -7,6 +7,7 @@ use axum::extract::{Path, State, WebSocketUpgrade};
 use axum::extract::ws::{Message, WebSocket};
 use snafu::ResultExt;
 use tokio::sync::mpsc;
+use common::client;
 use crate::model::signal::Signal;
 use crate::service::cluster::Cluster;
 use super::AppState;
@@ -28,7 +29,7 @@ async fn handle_upgrade(socket: WebSocket, cluster: Arc<Cluster>, client_id: Uui
     let client = ws_ensure!(cluster.client(client_id).await, &mut tx);
 
     let (client_tx, mut client_rx) = mpsc::channel(32);
-    let _sub_id = ws_ensure!(client.subscribe(client_tx.downgrade()).await, &mut tx);
+    let _sub_id = ws_ensure!(client.subscribe(client_tx).await, &mut tx);
 
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = client_rx.recv().await {
@@ -39,7 +40,7 @@ async fn handle_upgrade(socket: WebSocket, cluster: Arc<Cluster>, client_id: Uui
             };
 
             #[cfg(not(feature = "signal-parsing"))]
-            let msg = Message::Text(msg.as_ref().into());
+            let msg = Message::Text(msg.to_string().into());
 
             tx.send(msg).await.context(WsSendSnafu { client_id })?;
         };
@@ -48,19 +49,19 @@ async fn handle_upgrade(socket: WebSocket, cluster: Arc<Cluster>, client_id: Uui
 
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(msg)) = rx.next().await {
-            // #[cfg(not(feature = "signal-parsing"))]
+            // #[cfg(feature = "signal-parsing")]
             // let msg = {
             //     let signal: Signal = msg.into();
-            //     serde_json::to_string(&signal).unwrap().into_boxed_str().into()
+            //     serde_json::to_string(&signal).unwrap().into()
             // };
 
             #[cfg(not(feature = "signal-parsing"))]
             let msg = {
                 let signal = msg.into_text().expect("todo maybe no need to clone");
-                signal.to_string().into_boxed_str().into()
+                signal.to_string().into()
             };
 
-            client.send(msg).await.context(ClientSendSnafu { client_id })?;
+            client.send(client::Signal::Data(msg)).await.context(ClientSendSnafu { client_id })?;
         }
         Ok::<_, Error>(())
     });

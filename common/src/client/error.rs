@@ -1,10 +1,8 @@
-use std::backtrace::Backtrace;
-use std::net::SocketAddr;
-use std::sync::Arc;
-
+use arcstr::ArcStr;
 use tokio::sync::mpsc;
 use strum_macros::IntoStaticStr;
 
+use crate::client;
 use crate::udp::Error as UdpError;
 
 #[derive(thiserror::Error, IntoStaticStr, Debug)]
@@ -35,7 +33,7 @@ pub enum Error {
     #[error("Client[{client_name}]: Failed to send to channel, {source}")]
     ChannelSend {
         client_name: String,
-        source: mpsc::error::SendError<Arc<str>>,
+        source: mpsc::error::SendError<client::Signal>,
     },
 
     #[error("Client[{client_name}]: Task Join Error in \"{task_desc}\", {source}")]
@@ -43,6 +41,27 @@ pub enum Error {
         client_name: String,
         task_desc: String,
         source: tokio::task::JoinError,
+    },
+
+    #[error("Client[{client_name}]: Already connected.")]
+    AlreadyConnected {
+        client_name: String,
+    },
+    
+    #[error("Client Not connected, try to call Client::conn first.")]
+    NotConnected {
+        client: client::Client,
+    },
+    
+    #[error("Client[{client_name}]: Failed to close connection due to Timeout={duration:?}.")]
+    CloseTimeout {
+        client_name: String,
+        duration: std::time::Duration,
+    },
+
+    #[error("Client[{client_name}]: Failed to close connection due to Panic.")]
+    ClosePanic {
+        client_name: String,
     }
     
 }
