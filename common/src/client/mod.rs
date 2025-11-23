@@ -1,14 +1,14 @@
-mod udp;
 mod config;
 mod kind;
 mod error;
-mod state;
+mod status;
 mod client;
 
 pub use error::{Error, Result};
 pub use config::ClientConfig as Config;
 pub use kind::ClientKind as Kind;
-pub use state::ClientStateEnum as State;
+pub use status::AtomicClientStatus as AtomicStatus;
+pub use status::ClientStatusKind as StatusKind;
 pub use client::Client;
 
 

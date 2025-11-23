@@ -5,28 +5,27 @@ use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 use dashmap::DashMap;
-use snafu::ResultExt;
 use log::{debug, info, trace, warn};
 
-use super::config::ClientConfig;
-use super::udp::UdpConnection;
-use super::State;
-use super::state::ClientState;
 use super::error::*;
+use super::{AtomicStatus, StatusKind, Config};
 use super::{INIT_MSG_TIMEOUT_MS, BUFFER_SIZE, CHANNEL_CAPACITY};
+
+use crate::udp::UdpConnection;
 
 type ConsumersDashMap = DashMap<Uuid, mpsc::WeakSender<Arc<str>>>;
 #[derive(Default, Debug)]
 pub struct Client {
-    config: ClientConfig,
+    config: Config,
     tx:     OnceLock<mpsc::Sender<Arc<str>>>,
-    consumers: Arc<ConsumersDashMap>,
+    
+    consumers:  Arc<ConsumersDashMap>,
 
-    state: ClientState,
+    state:  Arc<AtomicStatus>,
 }
 
 impl Client {
-    pub fn new(config: ClientConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self { config, ..Default::default() }
     }
 
@@ -37,7 +36,7 @@ impl Client {
         let consumers = self.consumers.clone();
         let context = Context {
             cfg: self.config.clone(),
-            state: self.state.clone(), // todo!(Arc inside the state might confusing, refactor later)
+            status: self.state.clone(), // todo!(Arc inside the state might confusing, refactor later)
         };
 
         #[cfg(not(debug_assertions))]
@@ -50,7 +49,7 @@ impl Client {
 
     pub async fn send(&self, data: Arc<str>) -> Result<()> {
         self.tx.get().unwrap().send(data).await
-            .context(ChannelSendSnafu { client_name: self.config.name.clone() })?;
+            .map_err(|e| Error::ChannelSend { client_name: self.config.name.clone(), source: e })?;
 
         Ok(())
     }
@@ -73,8 +72,8 @@ impl Client {
 
 #[derive(Clone)]
 struct Context {
-    cfg: ClientConfig,
-    state: ClientState,
+    cfg:    Config,
+    status:  Arc<AtomicStatus>,
 }
 
 async fn run_debug(
@@ -92,18 +91,18 @@ async fn run(
     consumers: Arc<ConsumersDashMap>,
     context: Context,
 ) -> Result<()> {
-    assert_eq!(context.state, State::Disconnected); // todo!()
+    assert_eq!(*context.status, StatusKind::Disconnected); // todo!()
     debug!("Client[{}]: starting connection...", context.cfg.name);
     trace!("Client[{}]: Waiting for init msg from tx.", context.cfg.name);
 
-    context.state.set(State::Idle);
+    context.status.set(StatusKind::Idle);
     let init_msg = wait_init_msg_from_tx(&mut sender_rx, &context).await?;
     trace!("Client[{}]: received init msg from tx: {}", context.cfg.name, init_msg);
 
-    context.state.set(State::WaitingRedirection);
+    context.status.set(StatusKind::WaitingRedirection);
     trace!("Client[{}]: opening UDP connection to {}...", context.cfg.name, context.cfg.peer);
     let mut udp_conn = UdpConnection::open(context.cfg.host, context.cfg.peer).await
-        .context(UdpSnafu { client_name: context.cfg.name.clone() })?;
+        .map_err(|e| Error::Udp { client_name: context.cfg.name.clone(), source: e })?;
     trace!("Client[{}]: UDP connection opened.", context.cfg.name);
 
     let init_resp = wait_init_resp_recv(&init_msg, &mut udp_conn, &context).await?;
@@ -129,17 +128,17 @@ async fn wait_init_msg_from_tx(
             Ok(msg)
         },
         Ok(None) => { // Channel closed
-            context.state.set(State::Disconnected);
-            Err(ChannelClosedSnafu {
+            context.status.set(StatusKind::Disconnected);
+            Err(Error::ChannelClosed {
                 client_name: context.cfg.name.clone()
-            }.build())
+            })
         },
         Err(_elapsed) => { // Timeout
-            context.state.set(State::Disconnected);
-            Err(TimeoutInitReqSnafu {
+            context.status.set(StatusKind::Disconnected);
+            Err(Error::TimeoutInitReq {
                 client_name: context.cfg.name.clone(),
                 duration_s: INIT_MSG_TIMEOUT_MS as f32 / 1000.0,
-            }.build())
+            })
         },
     }
 }
@@ -152,7 +151,7 @@ async fn wait_init_resp_recv(
     let mut buf = [0u8; BUFFER_SIZE];
 
     udp_conn.send(init_msg.as_bytes()).await
-        .context(UdpSnafu { client_name: context.cfg.name.clone() })?;
+        .map_err(|e| Error::Udp { client_name: context.cfg.name.clone(), source: e })?;
 
     let recv_result = tokio::time::timeout(
         Duration::from_millis(INIT_MSG_TIMEOUT_MS),
@@ -164,17 +163,18 @@ async fn wait_init_resp_recv(
             Ok(String::from_utf8_lossy(&buf[..len]).to_string().into_boxed_str().into())
         },
         Ok(Err(e)) => {
-            context.state.set(State::Disconnected);
-            Err(e).context(UdpSnafu {
+            context.status.set(StatusKind::Disconnected);
+            Err(Error::Udp {
                 client_name: context.cfg.name.clone(),
+                source: e,
             })
         },
         Err(_elapsed) => { // Timeout
-            context.state.set(State::Disconnected);
-            Err(TimeoutInitRespSnafu {
+            context.status.set(StatusKind::Disconnected);
+            Err(Error::TimeoutInitResp {
                 client_name: context.cfg.name.clone(),
                 duration_s: INIT_MSG_TIMEOUT_MS as f32 / 1000.0,
-            }.build())
+            })
         },
     }
 }
@@ -217,7 +217,7 @@ async fn listen_and_transmit(
     let mut udp_send_task = tokio::spawn(async move {
         while let Some(msg) = rx.recv().await {
             udp_.send(msg.as_bytes()).await
-                .context(UdpSnafu { client_name: context_.cfg.name.clone() })?;
+                .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
         }
         Ok::<(), Error>(())
     });
@@ -227,7 +227,7 @@ async fn listen_and_transmit(
         let mut buf = [0u8; BUFFER_SIZE];
         loop {
             let len = udp.recv(&mut buf).await
-                .context(UdpSnafu { client_name: context_.cfg.name.clone() })?;
+                .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
 
             let msg = String::from_utf8_lossy(&buf[..len])
                 .to_string().into_boxed_str().into();
@@ -248,12 +248,13 @@ async fn listen_and_transmit(
 
     udp_send_task.abort();
     udp_recv_task.abort();
-    context.state.set(State::Disconnected);
+    context.status.set(StatusKind::Disconnected);
     debug!("Client[{}]: {} ended, shutting down connection.", context.cfg.name, task_name);
 
 
-    task_res.context(TaskJoinSnafu {
+    task_res.map_err(|e| Error::TaskJoin {
         client_name: context.cfg.name.clone(),
         task_desc: task_name.to_string(),
+        source: e,
     })?
 }
