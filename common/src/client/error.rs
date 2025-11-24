@@ -48,7 +48,7 @@ pub enum Error {
         client_name: String,
     },
     
-    #[error("Client Not connected, try to call Client::conn first.")]
+    #[error("Client Not connected, try to call Client::connect first.")]
     NotConnected {
         client: client::Client,
     },

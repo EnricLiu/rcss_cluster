@@ -1,3 +1,4 @@
+use std::process::ExitStatus;
 use nix::sys::signal::Signal;
 
 #[derive(thiserror::Error, Debug)]
@@ -24,8 +25,29 @@ pub enum Error {
         error: std::io::Error,
     },
     
-    #[error("Can not get pid, for the child process is already completed.")]
-    ChildAlreadyCompleted,
+    #[error("The child process is already completed.")]
+    ChildAlreadyCompleted(ExitStatus),
+
+    #[error("The child process is running without PID?????")]
+    ChildRunningWithoutPid,
+
+    #[error("FATAL: The child process is without a PID and can not be tracked, due to: {0}")]
+    ChildUntrackableWithoutPid(tokio::io::Error),
+
+    #[error("The child process returned with status: {0}")]
+    ChildReturned(ExitStatus),
+
+    #[error("The child process[pid={pid:?}] is dead with error: {error}")]
+    ChildDead {
+        pid: Option<u32>,
+        error: String,
+    },
+
+    #[error("Timeout waiting for child process to be ready")]
+    TimeoutWaitingReady,
+
+    #[error("The child process is not ready anyway :(")]
+    ChildNotReady,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

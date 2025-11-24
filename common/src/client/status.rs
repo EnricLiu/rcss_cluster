@@ -10,6 +10,22 @@ pub enum ClientStatusKind {
     Died = 4, // 🫥
 }
 
+impl ClientStatusKind {
+    pub fn is_connected(&self) -> bool {
+        match self {
+            ClientStatusKind::Connected => true,
+            _ => false,
+        }
+    }
+    
+    pub fn is_running(&self) -> bool {
+        match self {
+            ClientStatusKind::Disconnected | ClientStatusKind::Died => false,
+            _ => true,
+        }
+    }
+}
+
 impl Default for ClientStatusKind {
     fn default() -> Self {
         ClientStatusKind::Disconnected

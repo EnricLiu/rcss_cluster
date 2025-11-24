@@ -14,13 +14,14 @@ use super::{INIT_MSG_TIMEOUT_MS, BUFFER_SIZE, CHANNEL_CAPACITY};
 
 use crate::udp::UdpConnection;
 
+pub type ClientBuilder = super::config::ClientConfigBuilder;
 type ConsumersDashMap = DashMap<Uuid, mpsc::Sender<ArcStr>>;
 #[derive(Default, Debug)]
 pub struct Client {
     config: Config,
     handle: OnceLock<JoinHandle<Result<()>>>,
     tx:     OnceLock<mpsc::Sender<Signal>>,
-    state:  Arc<AtomicStatus>,
+    status: Arc<AtomicStatus>,
 
     consumers:  Arc<ConsumersDashMap>,
 }
@@ -28,18 +29,26 @@ pub struct Client {
 impl Client {
     pub const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(5);
 
+    pub fn builder() -> ClientBuilder {
+        ClientBuilder::new()
+    }
+
     pub fn new(config: Config) -> Self {
         Self { config, ..Default::default() }
     }
 
-    pub async fn conn(&mut self) -> Result<()> {
+    pub async fn connect(&mut self) -> Result<()> {
         let (tx, sender_rx) = mpsc::channel(CHANNEL_CAPACITY);
-        self.tx.set(tx).expect("Client tx OnceLock set failed");
+        if let Err(_) = self.tx.set(tx) {
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
+        }
 
         let consumers = self.consumers.clone();
         let context = Context {
             cfg: self.config.clone(),
-            status: self.state.clone(), // todo!(Arc inside the state might confusing, refactor later)
+            status: self.status.clone(), // todo!(Arc inside the status might confusing, refactor later)
         };
 
         if self.handle.get().is_some() {
@@ -100,7 +109,7 @@ impl Client {
             Err(_) => { // Timeout Elapsed
                 warn!("Client[{}]: timeout while waiting for shutdown returns, aborting", self.name());
                 handle.abort();
-                self.state.set(StatusKind::Died);
+                self.status.set(StatusKind::Died);
                 Err(Error::CloseTimeout {
                     duration: Self::SHUTDOWN_TIMEOUT,
                     client_name: self.name().to_string(),
@@ -109,21 +118,40 @@ impl Client {
             Ok(Err(join)) => {
                 if join.is_cancelled() {
                     debug!("Client[{}]: Failed to join: Task already cancelled.", self.name());
-                    self.state.set(StatusKind::Disconnected);
+                    self.status.set(StatusKind::Disconnected);
                     Ok(())
                 } else {
                     warn!("Client[{}]: Failed to join: Task panicked.", self.name());
-                    self.state.set(StatusKind::Died);
+                    self.status.set(StatusKind::Died);
                     Err(Error::ClosePanic {
                         client_name: self.name().to_string(),
                     })
                 }
             },
             Ok(Ok(res)) => {
-                self.state.set(StatusKind::Disconnected);
+                self.status.set(StatusKind::Disconnected);
                 res
             },
         }
+    }
+
+    pub fn config_then(&mut self, f: impl FnOnce(&mut Config)) -> Result<()> {
+        if self.status().is_running() {
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
+        }
+
+        f(&mut self.config);
+        Ok(())
+    }
+
+    pub fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
+
+    pub fn status(&self) -> StatusKind {
+        self.status.kind()
     }
 }
 

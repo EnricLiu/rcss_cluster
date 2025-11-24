@@ -59,4 +59,8 @@ impl ServerProcessSpawner {
 
         ServerProcess::try_from(child).await
     }
+    
+    pub fn config_mut(&mut self) -> &mut Config {
+        &mut self.config
+    }
 }

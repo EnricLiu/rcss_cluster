@@ -12,6 +12,7 @@ pub use status::AtomicClientStatus as AtomicStatus;
 pub use status::ClientStatusKind as StatusKind;
 pub use signal::ClientSignal as Signal;
 pub use client::Client;
+pub use client::ClientBuilder as Builder;
 
 
 pub const INIT_MSG_TIMEOUT_MS: u64 = 5000;
