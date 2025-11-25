@@ -24,6 +24,9 @@ pub enum Error {
     Recv {
         source: std::io::Error,
     },
+    
+    #[error("Timeout to receive")]
+    TimeoutRecv,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

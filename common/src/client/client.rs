@@ -1,3 +1,4 @@
+use std::net::SocketAddr;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
@@ -176,7 +177,7 @@ async fn run(
     consumers: Arc<ConsumersDashMap>,
     context: Context,
 ) -> Result<()> {
-    assert_eq!(*context.status, StatusKind::Disconnected); // todo!()
+    assert_eq!(context.status.kind(), StatusKind::Disconnected); // todo!()
     debug!("Client[{}]: starting connection...", context.cfg.name);
     trace!("Client[{}]: Waiting for init msg from tx.", context.cfg.name);
 
@@ -186,11 +187,11 @@ async fn run(
 
     context.status.set(StatusKind::WaitingRedirection);
     trace!("Client[{}]: opening UDP connection to {}...", context.cfg.name, context.cfg.peer);
-    let mut udp_conn = UdpConnection::open(context.cfg.host, context.cfg.peer).await
+    let mut udp_conn = UdpConnection::bind(context.cfg.host).await
         .map_err(|e| Error::Udp { client_name: context.cfg.name.clone(), source: e })?;
     trace!("Client[{}]: UDP connection opened.", context.cfg.name);
 
-    let init_resp = wait_init_resp_recv(&init_msg, &mut udp_conn, &context).await?;
+    let init_resp = wait_init_resp_recv(&init_msg, &mut udp_conn, context.cfg.peer, &context).await?;
     trace!("Client[{}]: received init resp from server: {}", context.cfg.name, init_resp);
     let success_cnt = sync_messages(&init_resp, &consumers, &context).await?;
     if success_cnt == 0 {
@@ -235,24 +236,28 @@ async fn wait_init_msg_from_tx(
 async fn wait_init_resp_recv(
     init_msg: &str,
     udp_conn: &mut UdpConnection,
+    peer_addr: SocketAddr,
     context: &Context,
 ) -> Result<ArcStr> {
     let mut buf = [0u8; BUFFER_SIZE];
 
-    udp_conn.send(init_msg.as_bytes()).await
-        .map_err(|e| Error::Udp { client_name: context.cfg.name.clone(), source: e })?;
 
+
+    trace!("Client[{}]: sending init msg to server: {} and waiting for response.", context.cfg.name, init_msg);
     let recv_result = tokio::time::timeout(
         Duration::from_millis(INIT_MSG_TIMEOUT_MS),
-        udp_conn.recv_set_peer(&mut buf),
+        udp_conn.send_and_conn_new_recv(init_msg.as_bytes(), &mut buf, peer_addr),
     ).await;
 
     match recv_result {
         Ok(Ok(len)) => {
-            Ok(String::from_utf8_lossy(&buf[..len]).to_string().into_boxed_str().into())
+            let resp = String::from_utf8_lossy(&buf[..len]).to_string().into();
+            trace!("Client[{}]: received init response from server: {}", context.cfg.name, resp);
+            Ok(resp)
         },
         Ok(Err(e)) => {
             context.status.set(StatusKind::Disconnected);
+            info!("Client[{}]: Failed to receive init response from server: {}", context.cfg.name, e);
             Err(Error::Udp {
                 client_name: context.cfg.name.clone(),
                 source: e,
@@ -260,6 +265,7 @@ async fn wait_init_resp_recv(
         },
         Err(_elapsed) => { // Timeout
             context.status.set(StatusKind::Disconnected);
+            info!("Client[{}]: Failed to receive init response from server: Timeout", context.cfg.name);
             Err(Error::TimeoutInitResp {
                 client_name: context.cfg.name.clone(),
                 duration_s: INIT_MSG_TIMEOUT_MS as f32 / 1000.0,
