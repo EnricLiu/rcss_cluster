@@ -15,6 +15,8 @@ use tokio::task::JoinHandle;
 use super::*;
 use super::builder::ServerProcessSpawner;
 
+pub const READY_LINE: &str = "Hit CTRL-C to exit";
+
 #[derive(Debug)]
 pub struct ServerProcess {
     pid:        Arc<AtomicU32>,
@@ -89,6 +91,9 @@ impl ServerProcess {
                         match result {
                             Ok(Some(line)) => {
                                 trace!("stdout: {}", line);
+                                if line == READY_LINE {
+                                    status_tx.send(Status::Running).expect("Failed to send status");
+                                }
                                 // if stdout_tx.send(line).await.is_err() {
                                 //     // Channel closed, probably the receiver was dropped.
                                 //     break;

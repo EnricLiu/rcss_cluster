@@ -34,7 +34,8 @@ impl OfflineCoach {
     }
 
     pub async fn connect(&mut self) -> Result<()> {
-        self.conn.connect().await.expect(todo!());
+        self.conn.connect().await.expect("Failed to connect");
+        self.send_ctrl(Signal::Init { version: 5 }).await.expect("Failed to send init signal");
         Ok(())
     }
 

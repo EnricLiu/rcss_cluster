@@ -7,6 +7,7 @@ mod test;
 compile_error!("This program currently not supported on Windows.");
 
 use std::env;
+use std::io::BufRead;
 use env_logger;
 use log::info;
 
@@ -15,15 +16,14 @@ pub const PEER_IP: std::net::IpAddr = std::net::IpAddr::V4(std::net::Ipv4Addr::L
 
 #[tokio::main]
 async fn main() {
-    unsafe { env::set_var("RUST_LOG", "info") };
+    unsafe { env::set_var("RUST_LOG", "trace") };
     env_logger::init();
-    
-    let builder = process::ServerProcess::spawner("rcssserver").await;
-    let process = builder.spawn().await.unwrap();
-    info!("Process running, pid = {:?}", process.pid());
-    
-    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-    
-    let ret = process.shutdown().await.unwrap();
-    info!("Process terminated, ret code = {ret}")
+
+    let builder = sidecar::Server::spawner().await;
+    let mut server = builder.spawn().await.unwrap();
+
+    tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+
+    let ret = server.shutdown().await.unwrap();
 }
+

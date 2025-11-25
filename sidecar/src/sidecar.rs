@@ -33,15 +33,13 @@ impl ServerSpawner {
     pub async fn spawn(&self) -> Result<Server, Box<dyn std::error::Error>> {
         let process = {
             let mut process = self.process.spawn().await?;
-            match process.until_ready(Some(Duration::from_secs(1))).await {
+            match process.until_ready(Some(Duration::from_secs(2))).await {
                 Ok(()) => {}
                 Err(process::Error::TimeoutWaitingReady) => todo!("into"),
                 Err(_) => todo!("fatal"),
             }
             process
         };
-        
-        tokio::time::sleep(Duration::from_secs(1)).await; // todo!("remove this")
         
         let coach = {
             let mut coach = self.coach.build();
@@ -60,6 +58,10 @@ pub struct Server {
 }
 
 impl Server {
+    pub async fn spawner() -> ServerSpawner {
+        ServerSpawner::new().await
+    }
+
     fn from_started(coach: OfflineCoach, process: ServerProcess) -> Self {
         Server {
             coach,
