@@ -11,4 +11,18 @@ impl EyeMode {
             EyeMode::Off => "off"
         }
     }
+    pub fn decode(s: &str) -> Option<Self> {
+        match s {
+            "on" => Some(EyeMode::On),
+            "off" => Some(EyeMode::Off),
+            _ => None,
+        }
+    }
+}
+
+impl std::str::FromStr for EyeMode {
+    type Err = ();
+    fn from_str(s: &str) -> Result<Self, <EyeMode as std::str::FromStr>::Err> {
+        Self::decode(s).ok_or(())
+    }
 }

@@ -29,7 +29,7 @@ async fn handle_upgrade(socket: WebSocket, cluster: Arc<Cluster>, client_id: Uui
     let client = ws_ensure!(cluster.client(client_id).await, &mut tx);
 
     let (client_tx, mut client_rx) = mpsc::channel(32);
-    let _sub_id = ws_ensure!(client.subscribe(client_tx).await, &mut tx);
+    let _sub_id = client.subscribe(client_tx);
 
     let mut send_task = tokio::spawn(async move {
         while let Some(msg) = client_rx.recv().await {

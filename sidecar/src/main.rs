@@ -7,7 +7,6 @@ mod test;
 compile_error!("This program currently not supported on Windows.");
 
 use std::env;
-use std::io::BufRead;
 use env_logger;
 use log::info;
 

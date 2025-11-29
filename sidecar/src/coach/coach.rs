@@ -1,6 +1,14 @@
-use super::client;
-use super::{Signal, Error, Result, Builder};
+use dashmap::DashMap;
+use std::collections::VecDeque;
 use std::net::SocketAddr;
+use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
+use arcstr::ArcStr;
+use uuid::Uuid;
+use crate::coach::signal::{Signal, SignalKind};
+use super::{client, signal};
+use super::{Error, Result, Builder};
 
 #[derive(Debug)]
 pub struct OfflineCoach {
@@ -35,21 +43,33 @@ impl OfflineCoach {
 
     pub async fn connect(&mut self) -> Result<()> {
         self.conn.connect().await.expect("Failed to connect");
-        self.send_ctrl(Signal::Init { version: 5 }).await.expect("Failed to send init signal");
+        self.send_ctrl(signal::Init { version: Some(5) }).await.expect("Failed to send init signal");
         Ok(())
     }
 
-    pub async fn send_ctrl(&mut self, ctrl: Signal) -> Result<()> {
+    pub fn sender(&self) -> mpsc::WeakSender<client::Signal> {
+        self.conn.sender()
+    }
+
+    pub fn subscribe(&self, tx: mpsc::Sender<ArcStr>) -> Uuid {
+        self.conn.subscribe(tx)
+    }
+
+    pub fn unsubscribe(&self, id: Uuid) -> bool {
+        self.conn.unsubscribe(id)
+    }
+
+    pub async fn send_ctrl(&self, ctrl: impl Signal) -> Result<()> {
         let ctrl = ctrl.encode();
         self.conn
-            .send(client::Signal::Data(ctrl))
-            .await
+            .send(client::Signal::Data(ctrl)).await
             .map_err(|e| Error::ClientClosed { source: e })?;
         Ok(())
     }
 
     pub async fn shutdown(self) -> Result<()> {
-        self.conn.close().await.map_err(|e| Error::ClientCloseFailed { source: e })?;
+        self.conn.close().await
+            .map_err(|e| Error::ClientCloseFailed { source: e })?;
         Ok(())
     }
     

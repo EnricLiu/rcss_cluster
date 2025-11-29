@@ -1,10 +1,12 @@
 mod play_mode;
 mod ear_mode;
 mod eye_mode;
+mod ball_position;
 
 pub use play_mode::PlayMode;
 pub use ear_mode::EarMode;
 pub use eye_mode::EyeMode;
+pub use ball_position::BallPosition;
 
 pub static STR_HAY: [&'static str; 100] = [
      "0",  "1",  "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",
