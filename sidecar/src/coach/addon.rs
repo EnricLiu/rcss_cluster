@@ -6,24 +6,26 @@ use arcstr::ArcStr;
 use common::client::{RxData, TxData, TxSignal};
 
 
-pub trait AddOn: Debug + Send + 'static {
-    fn from_weak(
-        sig_tx:  mpsc::WeakSender<TxSignal>,
-        data_tx: mpsc::WeakSender<TxData>,
-        data_rx: mpsc::Receiver<RxData>,
-    ) -> Self where Self: Sized {
-        let sig_tx = sig_tx.upgrade().expect("Failed to upgrade TxSignal weak sender");
-        let data_tx = data_tx.upgrade().expect("Failed to upgrade TxData weak sender");
-        Self::new(sig_tx, data_tx, data_rx)
+pub trait Addon: Debug + Send + 'static {
+    fn close(&self) {
+        
     }
-    
-    fn new(
+}
+
+pub trait RawAddon: Addon {
+    fn from_raw(
         sig_tx:  mpsc::Sender<TxSignal>,
         data_tx: mpsc::Sender<TxData>,
         data_rx: mpsc::Receiver<RxData>,
     ) -> Self where Self: Sized;
+}
+
+pub trait CallerAddon: Addon {
+    type Handle: Sync + Send + 'static;
+    fn handle(&self) -> Self::Handle;
     
-    fn close(&self) {
-        
-    }
+    fn from_caller(
+        sig_tx:  mpsc::Sender<TxSignal>,
+        caller:  super::resolver::Sender,
+    ) -> Self where Self: Sized;
 }

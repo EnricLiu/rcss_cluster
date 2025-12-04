@@ -42,7 +42,7 @@ impl CoachedProcessSpawner {
         };
         
         let coach = {
-            let mut coach = self.coach.build();
+            let coach = self.coach.build();
             coach.connect().await?;
             coach
         };
@@ -79,4 +79,3 @@ impl CoachedProcess {
         &self.coach
     }
 }
-

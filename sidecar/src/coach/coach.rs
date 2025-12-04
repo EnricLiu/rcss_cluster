@@ -10,7 +10,7 @@ use uuid::Uuid;
 
 use common::client;
 
-use super::addon::AddOn;
+use super::addon::{Addon, CallerAddon, RawAddon};
 use super::command::{self, Command};
 use super::resolver::{CallResolver, Sender};
 use super::{Error, Result, Builder};
@@ -19,7 +19,7 @@ use super::{Error, Result, Builder};
 pub struct OfflineCoach {
     conn: client::Client,
     resolver_tx: OnceCell<Sender>,
-    addons: DashMap<&'static str, Box<dyn AddOn>>,
+    addons: DashMap<&'static str, Box<dyn Addon>>,
 }
 
 impl OfflineCoach {
@@ -48,23 +48,34 @@ impl OfflineCoach {
         Self { conn, resolver_tx: OnceCell::new(), addons: DashMap::new() }
     }
 
-    fn add_addon<A: AddOn>(&self, name: &'static str) -> Uuid {
-        trace!("[Coach] Adding addon '{name}'");
+    fn add_raw_addon<A: RawAddon>(&self, name: &'static str) -> Uuid {
+        trace!("[Coach] Adding raw addon '{name}'");
         let (tx, rx) = mpsc::channel(32);
         let id = self.conn.subscribe(tx);
         self.addons.insert(name, Box::new(
-            A::new(self.conn.signal_sender(), self.conn.data_sender(), rx)
+            A::from_raw(self.conn.signal_sender(), self.conn.data_sender(), rx)
         ));
 
         trace!("[Coach] Addon '{name}' added, id = {id}");
         id
     }
 
+    pub fn add_caller_addon<A: CallerAddon>(&self, name: &'static str) -> A::Handle {
+        trace!("[Coach] Adding caller-based addon '{name}'");
+        let addon = A::from_caller(self.conn.signal_sender(), self.caller());
+        let handle = addon.handle();
+
+        self.addons.insert(name, Box::new(addon));
+        trace!("[Coach] Addon '{name}' added");
+
+        handle
+    }
+
     fn init_resolver(&self) -> Result<Uuid> {
         trace!("[Coach] Initializing CallResolver addon.");
         let resolver = CallResolver::new(32);
         self.resolver_tx.set(resolver.sender(self.conn.data_sender())).unwrap();
-        let id = self.subscribe(resolver.ingest_tx());
+        let id = self.subscribe(resolver.ingest_tx().expect("CallResolver is not singleton"));
         trace!("[Coach] CallResolver addon initialized, id = {id}");
         self.addons.insert("call_resolver", Box::new(resolver));
 
@@ -82,7 +93,7 @@ impl OfflineCoach {
         Ok(())
     }
 
-    pub fn caller<T: Command>(&self) -> Sender {
+    pub fn caller(&self) -> Sender {
         self.resolver_tx.get().expect("CallResolver not initialized").clone()
     }
 
@@ -102,8 +113,8 @@ impl OfflineCoach {
         self.conn.data_sender_weak()
     }
 
-    pub fn subscribe(&self, tx: mpsc::Sender<ArcStr>) -> Uuid {
-        self.conn.subscribe(tx)
+    pub fn subscribe(&self, ingest_tx: mpsc::Sender<client::RxData>) -> Uuid {
+        self.conn.subscribe(ingest_tx)
     }
 
     pub fn unsubscribe(&self, id: Uuid) -> bool {

@@ -9,7 +9,7 @@ use log::debug;
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::error::Elapsed;
 use common::client::{TxData, RxData, TxSignal};
-use super::addon::AddOn;
+use super::addon::{Addon, RawAddon};
 use super::command::{Command, CommandKind};
 
 pub const TIMEOUT: Duration = Duration::from_millis(2000);
@@ -17,24 +17,28 @@ pub const TIMEOUT: Duration = Duration::from_millis(2000);
 #[derive(Clone, Debug)]
 pub struct CallResolver {
     rx: Arc<Receiver>,
-    tx: mpsc::Sender<ArcStr>,
+    rx_ingest: Option<mpsc::Sender<RxData>>, // bind to rx Receiver
 }
 
 impl CallResolver {
     pub fn from_rx(receiver: mpsc::Receiver<ArcStr>) -> Self {
-        let (tx, rx_channel) = mpsc::channel(32);
         let rx = Arc::new(Receiver::new(receiver));
-        Self { rx, tx: tx.clone() }
+        Self { rx, rx_ingest: None }
+    }
+
+    pub fn from_caller(caller: Sender) -> Self {
+        let rx = caller.resolver.clone();
+        Self { rx, rx_ingest: None }
     }
 
     pub fn new(buffer: usize) -> Self {
         let (tx, rx) = mpsc::channel(buffer);
         let rx = Arc::new(Receiver::new(rx));
-        Self { rx, tx }
+        Self { rx, rx_ingest: Some(tx) }
     }
 
-    pub fn ingest_tx(&self) -> mpsc::Sender<ArcStr> {
-        self.tx.clone()
+    pub fn ingest_tx(&self) -> Option<mpsc::Sender<ArcStr>> {
+        self.rx_ingest.clone()
     }
 
     pub fn sender(&self, tx: mpsc::Sender<ArcStr>) -> Sender {
@@ -50,20 +54,23 @@ impl CallResolver {
     }
 }
 
-impl AddOn for CallResolver {
-    fn new(
+impl Addon for CallResolver {
+    fn close(&self) {
+        CallResolver::close(&self);
+    }
+}
+
+impl RawAddon for CallResolver {
+    fn from_raw(
         _: mpsc::Sender<TxSignal>,
         _: mpsc::Sender<TxData>,
         data_rx: mpsc::Receiver<RxData>
     ) -> Self where Self: Sized {
         Self::from_rx(data_rx)
     }
-
-    fn close(&self) {
-        CallResolver::close(&self);
-    }
 }
 
+/// Receive from the ArcStr channel,
 #[derive(Debug)]
 struct Receiver {
     recv_task: tokio::task::JoinHandle<()>,
@@ -75,7 +82,7 @@ struct Receiver {
 }
 
 impl Receiver {
-    fn new(mut receiver: mpsc::Receiver<ArcStr>) -> Self {
+    fn new(mut receiver: mpsc::Receiver<RxData>) -> Self {
         let tasks: Arc<DashMap<
             CommandKind,
             VecDeque<
@@ -178,12 +185,12 @@ impl Receiver {
 
 #[derive(Clone, Debug)]
 pub struct Sender {
-    tx: mpsc::Sender<ArcStr>,
+    tx: mpsc::Sender<TxData>,
     resolver: Arc<Receiver>,
 }
 
 impl Sender {
-    fn new(tx: mpsc::Sender<ArcStr>, resolver: Arc<Receiver>) -> Self {
+    fn new(tx: mpsc::Sender<TxData>, resolver: Arc<Receiver>) -> Self {
         Self { tx, resolver }
     }
 
@@ -218,12 +225,12 @@ impl Sender {
 
 #[derive(Clone, Debug)]
 pub struct WeakSender {
-    tx: mpsc::WeakSender<ArcStr>,
+    tx: mpsc::WeakSender<TxData>,
     resolver: Arc<Receiver>,
 }
 
 impl WeakSender {
-    fn new(tx: mpsc::WeakSender<ArcStr>, resolver: Arc<Receiver>) -> Self {
+    fn new(tx: mpsc::WeakSender<TxData>, resolver: Arc<Receiver>) -> Self {
         Self { tx, resolver }
     }
 
