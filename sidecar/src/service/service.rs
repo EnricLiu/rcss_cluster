@@ -18,7 +18,7 @@ impl Service {
         Self::from_coached_process(process)
     }
 
-    pub(super) fn from_coached_process(process: CoachedProcess) -> Self {
+    pub fn from_coached_process(process: CoachedProcess) -> Self {
         let time_rx = process.coach()
             .add_caller_addon::<addons::TimeStatusAddon>("time");
         info!("[Service] Time status addon registered");

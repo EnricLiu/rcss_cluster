@@ -1,16 +1,15 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
-use crate::coach::command::CommandKind;
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandTeamNames;
-impl super::Command for CommandTeamNames {
+impl Command for CommandTeamNames {
+    type Kind = TrainerCommand;
     type Ok = (Option<String>, Option<String>); // (left_team_name, right_team_name)
     type Error = CommandTeamNamesError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::TeamNames
-    }
+    fn kind(&self) -> Self::Kind { TrainerCommand::TeamNames }
 
     fn encode(&self) -> ArcStr {
         literal!("(team_names)")

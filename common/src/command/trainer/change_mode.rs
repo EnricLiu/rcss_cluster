@@ -1,20 +1,21 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
-use common::types;
+use crate::types;
 
-use super::CommandKind;
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandChangeMode {
     pub play_mode: types::PlayMode,
 }
 
-impl super::Command for CommandChangeMode {
+impl Command for CommandChangeMode {
+    type Kind = TrainerCommand;
     type Ok = ();
     type Error = CommandChangeModeError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::ChangeMode
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::ChangeMode
     }
     
     fn encode(&self) -> ArcStr {

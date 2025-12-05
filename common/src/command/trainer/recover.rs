@@ -1,17 +1,19 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
-use common::types;
-use crate::coach::command::CommandKind;
+use crate::types;
+
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandRecover;
 
-impl super::Command for CommandRecover {
+impl Command for CommandRecover {
+    type Kind = TrainerCommand;
     type Ok = ();
     type Error = CommandRecoverError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Recover
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::Recover
     }
 
     fn encode(&self) -> ArcStr {

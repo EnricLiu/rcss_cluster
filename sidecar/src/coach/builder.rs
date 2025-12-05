@@ -1,60 +1,40 @@
-use std::net::SocketAddr;
+use std::ops::{Deref, DerefMut};
 use common::client;
-use super::OfflineCoach;
+use crate::coach::OfflineCoach;
+use crate::client::RichClientBuilder;
 
-pub const DEFAULT_LOCAL_TRAINER_PORT: u16 = 6001;
-
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct OfflineCoachBuilder {
-    conn_builder: client::Builder,
+    pub builder: RichClientBuilder,
 }
 
 impl Default for OfflineCoachBuilder {
     fn default() -> Self {
-        let mut conn_builder = client::Builder::new();
-        conn_builder
-            .with_kind(client::Kind::Trainer)
-            .with_name("Default Offline Coach".to_string())
-            .with_local_peer(DEFAULT_LOCAL_TRAINER_PORT);
-
-        Self {
-            conn_builder
-        }
+        let mut builder = RichClientBuilder::trainer();
+        Self { builder }
     }
 }
 
 impl OfflineCoachBuilder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn with_name(&mut self, name: String) -> &mut Self {
-        self.conn_builder.with_name(name);
-        self
-    }
-    pub fn with_peer(&mut self, peer: SocketAddr) -> &mut Self {
-        self.conn_builder.with_peer(peer);
-        self
-    }
-    pub fn with_host(&mut self, host: SocketAddr) -> &mut Self {
-        self.conn_builder.with_host(host);
-        self
-    }
-    pub fn with_local_peer(&mut self, port: u16) -> &mut Self {
-        self.conn_builder.with_local_peer(port);
-        self
-    }
-    pub fn with_local_host(&mut self, port: u16) -> &mut Self {
-        self.conn_builder.with_local_host(port);
-        self
-    }
-
     pub fn build(&self) -> OfflineCoach {
-        OfflineCoach::from_client_config(self.conn_builder.build())
+        OfflineCoach::from_client_config(self.builder.conn_builder.build())
     }
 
     pub fn build_into(self) -> OfflineCoach {
-        OfflineCoach::from_client_config(self.conn_builder.build_into())
+        OfflineCoach::from_client_config(self.builder.conn_builder.build_into())
     }
 }
 
+impl Deref for OfflineCoachBuilder {
+    type Target = RichClientBuilder;
+
+    fn deref(&self) -> &Self::Target {
+        &self.builder
+    }
+}
+
+impl DerefMut for OfflineCoachBuilder {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.builder
+    }
+}

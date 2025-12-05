@@ -1,23 +1,24 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
-use common::types::EarMode;
+use crate::types::EyeMode;
 
-use super::CommandKind;
+use super::{Command, CommandAny, TrainerCommand};
 
-pub struct CommandEar{
-    pub mode: EarMode,
+pub struct CommandEye {
+    pub mode: EyeMode,
 }
 
-impl super::Command for CommandEar {
-    type Ok = EarMode;
-    type Error = CommandEarError;
+impl Command for CommandEye {
+    type Kind = TrainerCommand;
+    type Ok = EyeMode;
+    type Error = CommandEyeError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Ear
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::Eye
     }
     fn encode(&self) -> ArcStr {
-        format!("(ear {})", self.mode.encode())
+        format!("(eye {})", self.mode.encode())
     }
 
     fn parse_ret_ok(tokens: &[&str]) -> Option<Self::Ok> {
@@ -27,21 +28,24 @@ impl super::Command for CommandEar {
 
     fn parse_ret_err(tokens: &[&str]) -> Option<Self::Error> {
         if tokens.len() != 1 { return None }
-        tokens[0].parse().ok()
+        let tokens = tokens.join(" ");
+        if tokens.is_empty() { return None }
+
+        tokens.parse().ok()
     }
 }
 
 #[derive(thiserror::Error, Debug)]
-pub enum CommandEarError {
+pub enum CommandEyeError {
     #[error("MODE did not match on or off.")]
     IllegalMode,
     #[error("The MODE argument was omitted.")]
     IllegalCommandForm,
 }
 
-impl FromStr for CommandEarError {
+impl FromStr for CommandEyeError {
     type Err = ();
-    fn from_str(s: &str) -> Result<Self, <CommandEarError as FromStr>::Err> {
+    fn from_str(s: &str) -> Result<Self, <CommandEyeError as FromStr>::Err> {
         match s {
             "illegal_mode" => Ok(Self::IllegalMode),
             "illegal_command_form" => Ok(Self::IllegalCommandForm),

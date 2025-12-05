@@ -1,18 +1,19 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal, format};
-use crate::coach::command::CommandKind;
+use super::{Command, CommandAny, PlayerCommand};
 
 pub struct CommandInit {
     pub version: Option<u8>,
 }
 
-impl super::Command for CommandInit {
+impl Command for CommandInit {
+    type Kind = PlayerCommand;
     type Ok = ();
     type Error = CommandInitError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Init
+    fn kind(&self) -> Self::Kind {
+        PlayerCommand::Init
     }
 
     fn encode(&self) -> ArcStr {
@@ -26,7 +27,7 @@ impl super::Command for CommandInit {
     fn parse_ret_ok(tokens: &[&str]) -> Option<Self::Ok> {
         tokens.is_empty().then_some(())
     }
-    
+
     // never error
 }
 

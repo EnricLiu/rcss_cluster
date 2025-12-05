@@ -1,19 +1,21 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
-use common::types;
-use crate::coach::command::CommandKind;
+use crate::types;
+
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandMove {
     pub todo: (),
 }
 
-impl super::Command for CommandMove {
+impl Command for CommandMove {
+    type Kind = TrainerCommand;
     type Ok = ();
     type Error = CommandMoveError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Move
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::Move
     }
 
     fn encode(&self) -> ArcStr {

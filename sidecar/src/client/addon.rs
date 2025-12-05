@@ -4,9 +4,9 @@ use tokio::sync::mpsc;
 use arcstr::ArcStr;
 
 use common::client::{RxData, TxData, TxSignal};
+use common::command::CommandAny;
 
-
-pub trait Addon: Debug + Send + 'static {
+pub trait Addon: Debug + Send + Sync + 'static {
     fn close(&self) {
         
     }
@@ -20,12 +20,12 @@ pub trait RawAddon: Addon {
     ) -> Self where Self: Sized;
 }
 
-pub trait CallerAddon: Addon {
+pub trait CallerAddon<CMD: CommandAny>: Addon {
     type Handle: Sync + Send + 'static;
     fn handle(&self) -> Self::Handle;
     
     fn from_caller(
         sig_tx:  mpsc::Sender<TxSignal>,
-        caller:  super::resolver::Sender<TxData, RxData>,
+        caller:  super::resolver::Sender<CMD, TxData, RxData>,
     ) -> Self where Self: Sized;
 }

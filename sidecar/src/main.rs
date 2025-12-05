@@ -5,6 +5,7 @@ mod process;
 mod coach;
 mod test;
 mod service;
+mod client;
 
 use std::env;
 use env_logger;

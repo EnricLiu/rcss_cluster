@@ -1,15 +1,18 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
-use crate::coach::command::CommandKind;
+use crate::types;
+
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandStart;
-impl super::Command for CommandStart {
+impl Command for CommandStart {
+    type Kind = TrainerCommand;
     type Ok = ();
     type Error = CommandStartError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Start
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::Start
     }
 
     fn encode(&self) -> ArcStr {

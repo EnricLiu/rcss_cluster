@@ -5,9 +5,9 @@ use tokio::task::JoinHandle;
 use log::debug;
 
 use common::client::{RxData, TxData, TxSignal};
-
-use crate::coach::command;
-use crate::coach::{Addon, CallerAddon, CallerSender};
+use common::command;
+use common::command::trainer::TrainerCommand;
+use crate::client::{Addon, CallerAddon, CallSender};
 
 #[derive(Debug)]
 pub struct TimeStatusAddon<const POLL_INT_MS: u64 = 2000> {
@@ -16,11 +16,11 @@ pub struct TimeStatusAddon<const POLL_INT_MS: u64 = 2000> {
 }
 
 impl<const POLL_INT_MS: u64> TimeStatusAddon<POLL_INT_MS> {
-    fn start(caller: CallerSender<TxData, RxData>) -> Self {
+    fn start(caller: CallSender<TrainerCommand, TxData, RxData>) -> Self {
         let (time_tx, time_rx) = watch::channel(None);
         let task = tokio::spawn(async move {
             loop {
-                if let Ok(Ok((time, _))) = caller.call(command::CheckBall).await {
+                if let Ok(Ok((time, _))) = caller.call(command::trainer::CheckBall).await {
                     time_tx.send(Some(time)).expect("Channel Closed"); // TODO: Handle error
                 } else {
                     debug!("[TimeStatusAddon] Failed to get time: Caller closed.");
@@ -51,14 +51,17 @@ impl<const POLL_INT_MS: u64> Addon for TimeStatusAddon<POLL_INT_MS> {
     }
 }
 
-impl<const POLL_INT_MS: u64> CallerAddon for TimeStatusAddon<POLL_INT_MS> {
+impl<const POLL_INT_MS: u64> CallerAddon<TrainerCommand> for TimeStatusAddon<POLL_INT_MS> {
     type Handle = watch::Receiver<Option<u16>>;
     
     fn handle(&self) -> Self::Handle {
         self.watcher()
     }
     
-    fn from_caller(_: mpsc::Sender<TxSignal>, caller: CallerSender<TxData, RxData>) -> Self {
+    fn from_caller(
+        _: mpsc::Sender<TxSignal>,
+        caller: CallSender<TrainerCommand, TxData, RxData>
+    ) -> Self {
         Self::start(caller)
     }
 }
@@ -75,7 +78,7 @@ mod tests {
 
         let rx = server.coach().add_caller_addon::<TimeStatusAddon>("time");
         let caller = server.coach().caller();
-        caller.call(command::Start).await.expect("Start failed").expect("Failed to start");
+        caller.call(command::trainer::Start).await.expect("Start failed").expect("Failed to start");
 
         let time_task = tokio::spawn(async move {
             let mut rx = rx;
@@ -84,7 +87,7 @@ mod tests {
                 println!("Timestep:\t{t:?}.");
                 if let Some(t) = t {
                     if t == 3000 {
-                        caller.call(command::Start).await.expect("Start failed")
+                        caller.call(command::trainer::Start).await.expect("Start failed")
                             .expect("Failed to start at half-time");
                         continue
                     }

@@ -1,15 +1,16 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
-use crate::coach::command::CommandKind;
+use super::{Command, CommandAny, TrainerCommand};
 
 pub struct CommandLook;
-impl super::Command for CommandLook {
+impl Command for CommandLook {
+    type Kind = TrainerCommand;
     type Ok = ();
     type Error = CommandLookError;
 
-    fn kind(&self) -> CommandKind {
-        CommandKind::Look
+    fn kind(&self) -> Self::Kind {
+        TrainerCommand::Look
     }
 
     fn encode(&self) -> ArcStr {
