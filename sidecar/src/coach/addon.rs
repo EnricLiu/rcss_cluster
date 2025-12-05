@@ -26,6 +26,6 @@ pub trait CallerAddon: Addon {
     
     fn from_caller(
         sig_tx:  mpsc::Sender<TxSignal>,
-        caller:  super::resolver::Sender,
+        caller:  super::resolver::Sender<TxData, RxData>,
     ) -> Self where Self: Sized;
 }

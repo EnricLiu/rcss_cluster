@@ -9,7 +9,7 @@ use tokio::time::error::Elapsed;
 use uuid::Uuid;
 
 use common::client;
-
+use common::client::{RxData, TxData};
 use super::addon::{Addon, CallerAddon, RawAddon};
 use super::command::{self, Command};
 use super::resolver::{CallResolver, Sender};
@@ -18,7 +18,7 @@ use super::{Error, Result, Builder};
 #[derive(Debug)]
 pub struct OfflineCoach {
     conn: client::Client,
-    resolver_tx: OnceCell<Sender>,
+    resolver_tx: OnceCell<Sender<TxData, RxData>>,
     addons: DashMap<&'static str, Box<dyn Addon>>,
 }
 
@@ -60,6 +60,7 @@ impl OfflineCoach {
         id
     }
 
+    #[must_use]
     pub fn add_caller_addon<A: CallerAddon>(&self, name: &'static str) -> A::Handle {
         trace!("[Coach] Adding caller-based addon '{name}'");
         let addon = A::from_caller(self.conn.signal_sender(), self.caller());
@@ -93,7 +94,7 @@ impl OfflineCoach {
         Ok(())
     }
 
-    pub fn caller(&self) -> Sender {
+    pub fn caller(&self) -> Sender<TxData, RxData> {
         self.resolver_tx.get().expect("CallResolver not initialized").clone()
     }
 

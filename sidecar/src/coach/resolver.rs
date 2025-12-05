@@ -1,5 +1,6 @@
 use std::any::Any;
 use std::collections::VecDeque;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::time::Duration;
 use arcstr::ArcStr;
@@ -15,37 +16,49 @@ use super::command::{Command, CommandKind};
 pub const TIMEOUT: Duration = Duration::from_millis(2000);
 
 #[derive(Clone, Debug)]
-pub struct CallResolver {
-    rx: Arc<Receiver>,
-    rx_ingest: Option<mpsc::Sender<RxData>>, // bind to rx Receiver
+pub struct CallResolver<RX>
+where RX: Debug + Send + Sync + 'static
+{
+    rx: Arc<Receiver<RX>>,
+    rx_ingest: Option<mpsc::Sender<RX>>, // bind to rx Receiver
 }
 
-impl CallResolver {
-    pub fn from_rx(receiver: mpsc::Receiver<ArcStr>) -> Self {
+impl CallResolver<RxData> {
+    pub fn from_rx(receiver: mpsc::Receiver<RxData>) -> Self {
         let rx = Arc::new(Receiver::new(receiver));
         Self { rx, rx_ingest: None }
     }
-
-    pub fn from_caller(caller: Sender) -> Self {
-        let rx = caller.resolver.clone();
-        Self { rx, rx_ingest: None }
-    }
-
     pub fn new(buffer: usize) -> Self {
         let (tx, rx) = mpsc::channel(buffer);
         let rx = Arc::new(Receiver::new(rx));
         Self { rx, rx_ingest: Some(tx) }
     }
+}
 
-    pub fn ingest_tx(&self) -> Option<mpsc::Sender<ArcStr>> {
+impl<RX> CallResolver<RX>
+where RX: Debug + Send + Sync + 'static,
+{
+    pub fn from_caller<TX>(caller: Sender<TX, RX>) -> Self
+    where TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    {
+        let rx = caller.resolver.clone();
+        Self { rx, rx_ingest: None }
+    }
+
+
+    pub fn ingest_tx(&self) -> Option<mpsc::Sender<RX>> {
         self.rx_ingest.clone()
     }
 
-    pub fn sender(&self, tx: mpsc::Sender<ArcStr>) -> Sender {
+    pub fn sender<TX>(&self, tx: mpsc::Sender<TX>) -> Sender<TX, RX>
+    where TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    {
         Sender::new(tx, Arc::clone(&self.rx))
     }
 
-    pub fn weak(&self, tx: mpsc::WeakSender<ArcStr>) -> WeakSender {
+    pub fn weak<TX>(&self, tx: mpsc::WeakSender<TX>) -> WeakSender<TX, RX>
+    where TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    {
         WeakSender::new(tx, Arc::clone(&self.rx))
     }
 
@@ -54,13 +67,13 @@ impl CallResolver {
     }
 }
 
-impl Addon for CallResolver {
+impl Addon for CallResolver<RxData> {
     fn close(&self) {
         CallResolver::close(&self);
     }
 }
 
-impl RawAddon for CallResolver {
+impl RawAddon for CallResolver<RxData> {
     fn from_raw(
         _: mpsc::Sender<TxSignal>,
         _: mpsc::Sender<TxData>,
@@ -72,16 +85,18 @@ impl RawAddon for CallResolver {
 
 /// Receive from the ArcStr channel,
 #[derive(Debug)]
-struct Receiver {
+struct Receiver<RX: Debug + Send + Sync + 'static> {
     recv_task: tokio::task::JoinHandle<()>,
 
     queue: Arc<DashMap<
         CommandKind,
         VecDeque<oneshot::Sender<Result<Box<dyn Any + Send>, Box<dyn Any + Send>>>>
     >>,
+
+    _phantom: std::marker::PhantomData<RX>,
 }
 
-impl Receiver {
+impl Receiver<RxData> {
     fn new(mut receiver: mpsc::Receiver<RxData>) -> Self {
         let tasks: Arc<DashMap<
             CommandKind,
@@ -117,12 +132,12 @@ impl Receiver {
                             match ret {
                                 Some(ok) => (sig_kind, Ok(ok)),
                                 None => {
-                                    debug!("[CallResolver] Ignore \"ok\" for [{}]: {raw_msg}", sig_kind.encode());
+                                    debug!("[CallResolver] Ignore \"ok\" for [{}]: {raw_msg:?}", sig_kind.encode());
                                     continue;
                                 }
                             }
                         } else {
-                            debug!("[CallResolver] Ignore \"ok\" for unknown Sig: {raw_msg}");
+                            debug!("[CallResolver] Ignore \"ok\" for unknown Sig: {raw_msg:?}");
                             continue;
                         }
                     },
@@ -144,13 +159,13 @@ impl Receiver {
                         match ret {
                             Some(error) => error,
                             None => {
-                                debug!("[CallResolver] Ignore \"error\" for unknown Sig: {raw_msg}");
+                                debug!("[CallResolver] Ignore \"error\" for unknown Sig: {raw_msg:?}");
                                 continue;
                             }
                         }
                     },
                     _ => {
-                        debug!("[CallResolver] Ignore unknown msg: {raw_msg}");
+                        debug!("[CallResolver] Ignore unknown msg: {raw_msg:?}");
                         continue;
                     }
                 };
@@ -168,9 +183,12 @@ impl Receiver {
         Self {
             recv_task,
             queue: tasks,
+            _phantom: Default::default(),
         }
     }
+}
 
+impl<RX: Debug + Send + Sync + 'static> Receiver<RX> {
     fn add_queue(
         &self, signal: CommandKind,
         tx: oneshot::Sender<Result<Box<dyn Any + Send>, Box<dyn Any + Send>>>
@@ -184,20 +202,28 @@ impl Receiver {
 }
 
 #[derive(Clone, Debug)]
-pub struct Sender {
-    tx: mpsc::Sender<TxData>,
-    resolver: Arc<Receiver>,
+pub struct Sender<TX, RX>
+where
+    TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    RX: Debug + Send + Sync + 'static,
+{
+    tx: mpsc::Sender<TX>,
+    resolver: Arc<Receiver<RX>>,
 }
 
-impl Sender {
-    fn new(tx: mpsc::Sender<TxData>, resolver: Arc<Receiver>) -> Self {
+impl<TX, RX> Sender<TX, RX>
+where
+    TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    RX: Debug + Send + Sync + 'static,
+{
+    fn new(tx: mpsc::Sender<TX>, resolver: Arc<Receiver<RX>>) -> Self {
         Self { tx, resolver }
     }
 
     async fn send<T: Command>(&self, sig: T) -> Result<T::Ok, T::Error> {
         let sig_kind = sig.kind();
         let sender = &self.tx;
-        sender.send(sig.encode()).await.expect("todo!");
+        sender.send(sig.encode().into()).await.expect("todo!");
 
         let (tx, rx) = oneshot::channel();
         self.resolver.add_queue(sig_kind, tx);
@@ -217,27 +243,35 @@ impl Sender {
         tokio::time::timeout(TIMEOUT, self.send(sig)).await
     }
 
-    pub fn downgrade(&self) -> WeakSender {
+    pub fn downgrade(&self) -> WeakSender<TX, RX> {
         let tx = self.tx.downgrade();
         WeakSender::new(tx, Arc::clone(&self.resolver))
     }
 }
 
 #[derive(Clone, Debug)]
-pub struct WeakSender {
-    tx: mpsc::WeakSender<TxData>,
-    resolver: Arc<Receiver>,
+pub struct WeakSender<TX, RX>
+where
+    TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    RX: Debug + Send + Sync + 'static,
+{
+    tx: mpsc::WeakSender<TX>,
+    resolver: Arc<Receiver<RX>>,
 }
 
-impl WeakSender {
-    fn new(tx: mpsc::WeakSender<TxData>, resolver: Arc<Receiver>) -> Self {
+impl<TX, RX> WeakSender<TX, RX>
+where
+    TX: From<ArcStr> + Debug + Send + Sync + 'static,
+    RX: Debug + Send + Sync + 'static,
+{
+    fn new(tx: mpsc::WeakSender<TX>, resolver: Arc<Receiver<RX>>) -> Self {
         Self { tx, resolver }
     }
 
     pub async fn send<T: Command>(&self, sig: T) -> Result<T::Ok, T::Error> {
         let sig_kind = sig.kind();
         let sender = self.tx.upgrade().expect("todo!");
-        sender.send(sig.encode()).await.expect("todo!");
+        sender.send(sig.encode().into()).await.expect("todo!");
 
         let (tx, rx) = oneshot::channel();
         self.resolver.add_queue(sig_kind, tx);
@@ -253,7 +287,7 @@ impl WeakSender {
         }
     }
 
-    pub fn upgrade(self) -> Option<Sender> {
+    pub fn upgrade(self) -> Option<Sender<TX, RX>> {
         let tx = self.tx.upgrade()?;
         Some(Sender::new(tx, self.resolver))
     }
