@@ -30,6 +30,10 @@ impl CoachedProcessSpawner {
         self
     }
 
+    pub fn process_config_mut(&mut self) -> &mut process::Config {
+        self.process.config_mut()
+    }
+
     pub async fn spawn(&self) -> Result<CoachedProcess, Box<dyn std::error::Error>> {
         let process = {
             let mut process = self.process.spawn().await?;

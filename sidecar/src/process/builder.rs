@@ -21,15 +21,26 @@ impl ServerProcessSpawner {
     }
 
     async fn validate(pgm_name: &'static str) {
+        // let is_exist = {
+        //     let mut validate_cmd = Command::new("whereis");
+        //     validate_cmd.arg(pgm_name);
+        //     let out = validate_cmd.output().await
+        //         .expect("error calling whereis when creating RcssServer Process");
+        //
+        //     let out = String::from_utf8_lossy(&out.stdout);
+        //     trace!("RcssServer::validate: whereis returned: {out}");
+        //     !out.ends_with(":")
+        // };
+
         let is_exist = {
-            let mut validate_cmd = Command::new("whereis");
+            let mut validate_cmd = Command::new("which");
             validate_cmd.arg(pgm_name);
             let out = validate_cmd.output().await
-                .expect("error calling whereis when creating RcssServer Process");
+                .expect("error calling `which` when creating RcssServer Process");
 
             let out = String::from_utf8_lossy(&out.stdout);
-            trace!("RcssServer::validate: whereis returned: {out}");
-            !out.ends_with(":")
+            trace!("RcssServer::validate: `which` returned: {out}");
+            !out.trim().is_empty()
         };
 
         if !is_exist {

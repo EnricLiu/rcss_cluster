@@ -35,7 +35,7 @@ impl Config {
     pub fn default_trainer_on() -> Self {
         let mut ret = Self::default();
         ret.server_then(|cfg| {
-            cfg.coach(true).coach_w_referee(true);
+            cfg.coach(true).coach_w_referee(true).synch_mode(true);
         });
         ret
     }
