@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
 use std::time::Duration;
+use log::error;
 use crate::coach::{self, OfflineCoach};
 use crate::process::{self, ServerProcess, ServerProcessSpawner};
 
@@ -40,7 +41,10 @@ impl CoachedProcessSpawner {
             match process.until_ready(Some(Duration::from_secs(2))).await {
                 Ok(()) => {}
                 Err(process::Error::TimeoutWaitingReady) => todo!("into"),
-                Err(_) => todo!("fatal"),
+                Err(e) => {
+                    panic!("{}", e);
+                    todo!("fatal")
+                },
             }
             process
         };
