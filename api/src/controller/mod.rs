@@ -3,8 +3,9 @@ mod response;
 mod http;
 mod ws;
 
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 use axum::Router;
+use dashmap::DashMap;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::task::JoinHandle;
 
@@ -16,13 +17,14 @@ use sidecar::Service;
 
 #[derive(Clone)]
 pub struct AppState {
-    service: Arc<Service>
+    service: Arc<Service>,
+    players: DashMap<String, Weak<common::client::Client>>
 }
 
 pub async fn listen<A: ToSocketAddrs>(
     addr: A,
 ) -> JoinHandle<Result<(), String>> {
-    let state = AppState { service: Arc::new(Service::new().await), };
+    let state = AppState { service: Arc::new(Service::new().await), players: DashMap::new() };
     
     let app = Router::new()
         .merge(http::route("/", state.clone()))

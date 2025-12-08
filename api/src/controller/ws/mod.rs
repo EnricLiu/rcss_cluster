@@ -1,6 +1,7 @@
 mod ws;
 mod message;
 mod error;
+mod player;
 
 use axum::Router;
 use super::{AppState, Response};
