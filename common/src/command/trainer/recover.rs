@@ -1,15 +1,17 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
+use serde::{Deserialize, Serialize};
 use crate::types;
 
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandRecover;
 
 impl Command for CommandRecover {
     type Kind = TrainerCommand;
-    type Ok = ();
+    type Ok = CommandRecoverOk;
     type Error = CommandRecoverError;
 
     fn kind(&self) -> Self::Kind {
@@ -26,6 +28,8 @@ impl Command for CommandRecover {
 
     // never error
 }
+
+pub type CommandRecoverOk = ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommandRecoverError {}

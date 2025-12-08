@@ -1,6 +1,7 @@
 use log::info;
 use tokio::sync::watch;
-
+use common::command::{Command, CommandResult};
+use common::command::trainer::TrainerCommand;
 use super::addons;
 use super::CoachedProcess;
 
@@ -27,6 +28,10 @@ impl Service {
             process,
             time_rx,
         }
+    }
+    
+    pub async fn send_trainer_command<C: Command<Kind=TrainerCommand>>(&self, command: C) -> CommandResult<C> { 
+        self.process.coach().call(command).await.unwrap()
     }
 
     pub fn time_watch(&self) -> watch::Receiver<Option<u16>> {

@@ -1,17 +1,19 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
+use serde::{Deserialize, Serialize};
 use crate::types;
 
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandMove {
     pub todo: (),
 }
 
 impl Command for CommandMove {
     type Kind = TrainerCommand;
-    type Ok = ();
+    type Ok = CommandMoveOk;
     type Error = CommandMoveError;
 
     fn kind(&self) -> Self::Kind {
@@ -30,6 +32,8 @@ impl Command for CommandMove {
         todo!("really complex too")
     }
 }
+
+pub type CommandMoveOk = ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommandMoveError {

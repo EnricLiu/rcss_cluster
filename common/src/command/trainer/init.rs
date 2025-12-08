@@ -1,15 +1,17 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal, format};
+use serde::{Deserialize, Serialize};
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandInit {
     pub version: Option<u8>,
 }
 
 impl Command for CommandInit {
     type Kind = TrainerCommand;
-    type Ok = ();
+    type Ok = CommandInitOk;
     type Error = CommandInitError;
 
     fn kind(&self) -> Self::Kind {
@@ -30,6 +32,8 @@ impl Command for CommandInit {
     
     // never error
 }
+
+pub type CommandInitOk = ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommandInitError {}

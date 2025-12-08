@@ -1,12 +1,14 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
+use serde::{Deserialize, Serialize};
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandLook;
 impl Command for CommandLook {
     type Kind = TrainerCommand;
-    type Ok = ();
+    type Ok = CommandLookOk;
     type Error = CommandLookError;
 
     fn kind(&self) -> Self::Kind {
@@ -23,6 +25,8 @@ impl Command for CommandLook {
 
     // never error
 }
+
+pub type CommandLookOk = ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommandLookError {}

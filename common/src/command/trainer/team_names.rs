@@ -1,12 +1,14 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
+use serde::{Deserialize, Serialize};
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandTeamNames;
 impl Command for CommandTeamNames {
     type Kind = TrainerCommand;
-    type Ok = (Option<String>, Option<String>); // (left_team_name, right_team_name)
+    type Ok = CommandTeamNamesOk;
     type Error = CommandTeamNamesError;
 
     fn kind(&self) -> Self::Kind { TrainerCommand::TeamNames }
@@ -39,10 +41,21 @@ impl Command for CommandTeamNames {
             _ => return None,
         };
 
-        Some(teams)
+        Some(
+            CommandTeamNamesOk {
+                left: teams.0,
+                right: teams.1,
+            }
+        )
     }
 
     // never error
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CommandTeamNamesOk {
+    pub left: Option<String>,
+    pub right: Option<String>,
 }
 
 #[derive(thiserror::Error, Debug)]

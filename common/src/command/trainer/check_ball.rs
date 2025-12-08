@@ -10,7 +10,7 @@ use super::{Command, CommandAny, TrainerCommand};
 pub struct CommandCheckBall;
 impl Command for CommandCheckBall {
     type Kind = TrainerCommand;
-    type Ok = (u16, BallPosition);
+    type Ok = CommandCheckBallOk;
     type Error = CommandCheckBallError;
 
     fn kind(&self) -> Self::Kind { TrainerCommand::CheckBall }
@@ -22,10 +22,16 @@ impl Command for CommandCheckBall {
         if tokens.len() != 2 { return None }
         let time = tokens[0].parse::<u16>().ok()?;
         let position = tokens[1].parse::<BallPosition>().ok()?;
-        Some((time, position))
+        Some(CommandCheckBallOk { time, position, })
     }
 
     // never error
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CommandCheckBallOk {
+    pub time: u16,
+    pub position: BallPosition,
 }
 
 #[derive(thiserror::Error, Debug)]

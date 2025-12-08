@@ -1,17 +1,19 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
+use serde::{Deserialize, Serialize};
 use crate::types;
 
 use super::{Command, CommandAny, TrainerCommand};
 
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandChangeMode {
     pub play_mode: types::PlayMode,
 }
 
 impl Command for CommandChangeMode {
     type Kind = TrainerCommand;
-    type Ok = ();
+    type Ok = CommandChangeModeOk;
     type Error = CommandChangeModeError;
 
     fn kind(&self) -> Self::Kind {
@@ -30,6 +32,7 @@ impl Command for CommandChangeMode {
         tokens.parse().ok()
     }
 }
+pub type CommandChangeModeOk = ();
 
 #[derive(thiserror::Error, Debug)]
 pub enum CommandChangeModeError {

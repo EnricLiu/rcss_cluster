@@ -65,3 +65,4 @@ impl PlayMode {
         super::usize_to_str(self as usize)
     }
 }
+

@@ -1,11 +1,13 @@
 use std::str::FromStr;
 
 use arcstr::{ArcStr, format};
+use serde::{Deserialize, Serialize};
 use crate::types::EarMode;
 
 use super::{Command, CommandAny, TrainerCommand};
 
-pub struct CommandEar{
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CommandEar {
     pub mode: EarMode,
 }
 
@@ -30,6 +32,11 @@ impl Command for CommandEar {
         if tokens.len() != 1 { return None }
         tokens[0].parse().ok()
     }
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct CommandEarOk {
+    pub mode: EarMode,
 }
 
 #[derive(thiserror::Error, Debug)]

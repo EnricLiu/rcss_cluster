@@ -9,7 +9,7 @@ use uuid::Uuid;
 use common::client;
 use common::client::{RxData, TxData};
 use super::addon::{Addon, CallerAddon, RawAddon};
-use common::command::{Command, CommandAny};
+use common::command::{Command, CommandAny, CommandResult};
 use super::{CallSender, Error, Result};
 
 pub const DEFAULT_LOCAL_PLAYER_PORT: u16 = 6000;
@@ -156,7 +156,7 @@ where CMD: CommandAny,
 
     pub async fn call<T: Command<Kind=CMD>>(
         &self, cmd: T
-    ) -> std::result::Result<std::result::Result<T::Ok, T::Error>, Elapsed> {
+    ) -> std::result::Result<CommandResult<T>, Elapsed> {
         self.resolver_tx.get()
             .expect("CallResolver not initialized")
             .call(cmd).await

@@ -6,7 +6,7 @@ use log::debug;
 
 use common::client::{RxData, TxData, TxSignal};
 use common::command;
-use common::command::trainer::TrainerCommand;
+use common::command::trainer::{TrainerCommand};
 use crate::client::{Addon, CallerAddon, CallSender};
 
 #[derive(Debug)]
@@ -20,8 +20,8 @@ impl<const POLL_INT_MS: u64> TimeStatusAddon<POLL_INT_MS> {
         let (time_tx, time_rx) = watch::channel(None);
         let task = tokio::spawn(async move {
             loop {
-                if let Ok(Ok((time, _))) = caller.call(command::trainer::CheckBall).await {
-                    time_tx.send(Some(time)).expect("Channel Closed"); // TODO: Handle error
+                if let Ok(Ok(res)) = caller.call(command::trainer::CheckBall).await {
+                    time_tx.send(Some(res.time)).expect("Channel Closed"); // TODO: Handle error
                 } else {
                     debug!("[TimeStatusAddon] Failed to get time: Caller closed.");
                     break;
