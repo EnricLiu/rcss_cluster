@@ -1,4 +1,9 @@
+mod trainer;
+
 use serde::Serialize;
+
+use super::{AppState, Response};
+
 use common::command::{Command, CommandResult};
 
 #[derive(Debug)]
@@ -38,4 +43,8 @@ impl<C: Command> From<CommandResult<C>> for CommandResponse<C> {
     fn from(result: CommandResult<C>) -> Self {
         CommandResponse(result)
     }
+}
+
+pub fn route(path: &str) -> axum::Router<AppState> {
+    trainer::route(path)
 }

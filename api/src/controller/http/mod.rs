@@ -1,5 +1,4 @@
 mod gateway;
-mod trainer;
 mod command;
 mod health;
 
@@ -15,7 +14,7 @@ async fn fallback_404(State(_state): State<AppState>) -> AxumResponse {
 
 pub fn route(path: &str, app_state: AppState) -> Router {
     let inner = Router::new()
-        .merge(trainer::route("/team"))
+        .merge(command::route("/"))
         .merge(gateway::route("/gateway"))
         .fallback(fallback_404)
         .with_state(app_state);

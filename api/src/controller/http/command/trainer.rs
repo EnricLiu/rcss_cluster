@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 use axum::{routing, Json, Router};
 use axum::extract::State;
-use super::{AppState, Response};
 
 use common::command::{Command, CommandResult};
 use common::command::trainer::*;
 
-use super::command::CommandResponse;
+use super::{AppState, Response};
+use super::CommandResponse;
 
 impl AppState {
     pub async fn send_trainer_command<C: Command<Kind = TrainerCommand>>(
