@@ -1,6 +1,7 @@
-mod room;
 mod gateway;
-mod team;
+mod trainer;
+mod command;
+mod health;
 
 use axum::Router;
 use axum::response::{IntoResponse, Response as AxumResponse};
@@ -14,8 +15,7 @@ async fn fallback_404(State(_state): State<AppState>) -> AxumResponse {
 
 pub fn route(path: &str, app_state: AppState) -> Router {
     let inner = Router::new()
-        .merge(room::route("/room"))
-        .merge(team::route("/team"))
+        .merge(trainer::route("/team"))
         .merge(gateway::route("/gateway"))
         .fallback(fallback_404)
         .with_state(app_state);

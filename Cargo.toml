@@ -2,7 +2,7 @@
 members = [
     "sidecar",
     "common",
-    "cluster",
+    "api",
 ]
 resolver = "3"
 

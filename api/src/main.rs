@@ -1,4 +1,3 @@
-mod service;
 mod controller;
 mod model;
 

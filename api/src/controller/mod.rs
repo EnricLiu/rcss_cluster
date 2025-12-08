@@ -8,20 +8,21 @@ use axum::Router;
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::task::JoinHandle;
 
-use crate::service::cluster::Cluster;
 pub use response::Response;
 
 use tower_http::trace::TraceLayer;
 
+use sidecar::Service;
+
 #[derive(Clone)]
 pub struct AppState {
-    cluster: Arc<Cluster>
+    service: Arc<Service>
 }
 
 pub async fn listen<A: ToSocketAddrs>(
     addr: A,
 ) -> JoinHandle<Result<(), String>> {
-    let state = AppState { cluster: Arc::new(Cluster::new()), };
+    let state = AppState { service: Arc::new(Service::new().await), };
     
     let app = Router::new()
         .merge(http::route("/", state.clone()))
