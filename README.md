@@ -2,6 +2,8 @@
 
 A Rust-based cluster management system for RoboCup Soccer Simulator (rcssserver) with Agones integration for Kubernetes game server orchestration.
 
+> **⚠️ Work in Progress**: This project is currently under active development. Agones and Docker integrations are not yet available.
+
 ## Overview
 
 `rcss_cluster` provides infrastructure for running and managing multiple RoboCup Soccer Simulator instances in a distributed environment. It consists of three main components:
@@ -26,7 +28,7 @@ rcss_cluster/
 - Rust (Edition 2024)
 - Linux (Windows is not currently supported)
 - [rcssserver](https://github.com/rcsoccersim/rcssserver) installed
-- [Agones](https://agones.dev/) (for Kubernetes deployment)
+- [Agones](https://agones.dev/) (planned for Kubernetes deployment, not yet integrated)
 
 ## Building
 
@@ -48,11 +50,13 @@ The API server provides HTTP and WebSocket endpoints for interacting with the cl
 
 ### Sidecar
 
-The sidecar manages rcssserver processes and communicates with the Agones SDK for game server lifecycle management. It handles:
+The sidecar manages rcssserver processes. It handles:
 
 - Process spawning and management
 - Trainer/coach command execution
 - Status tracking (Uninitialized, Idle, Simulating, Finished)
+
+> **Note**: Agones SDK integration for game server lifecycle management is planned but not yet implemented.
 
 ### Common Library
 
