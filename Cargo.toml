@@ -2,7 +2,7 @@
 members = [
     "sidecar",
     "common",
-    "api",
+    "api", "client",
 ]
 resolver = "3"
 
