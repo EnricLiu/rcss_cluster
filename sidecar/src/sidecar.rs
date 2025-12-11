@@ -170,7 +170,7 @@ impl Sidecar {
         info!("[Sidecar] Service spawned");
 
         let time_rx = service.time_watch();
-        Sidecar::status_tracing_task(self.status.clone(), time_rx).await;
+        Sidecar::status_tracing_task(self.status.clone(), time_rx);
 
         *service_guard = SidecarService::Running(service);
         self.set_status(SidecarStatus::Idle);
