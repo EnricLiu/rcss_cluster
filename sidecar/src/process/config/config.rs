@@ -17,7 +17,7 @@ impl Default for Config {
             csv_saver: CsvSaverConfig::default(),
         };
 
-        ret.with_log_dir(LOG_DIR);
+        ret.with_all_log_dir(LOG_DIR);
 
         ret
     }
@@ -57,6 +57,15 @@ impl Config {
             c.game_log_dir(log_dir);
         })
     }
+
+    pub fn with_all_log_dir(&mut self, log_dir: &'static str) -> &mut Self {
+        self.server_then(|c| {
+            c.game_log_dir(log_dir);
+            c.text_log_dir(log_dir);
+            c.keepaway_log_dir(log_dir);
+        })
+    }
+
     #[inline]
     pub fn with_server(&mut self, server: ServerConfig) -> &mut Self {
         self.server = server;
