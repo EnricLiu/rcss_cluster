@@ -7,6 +7,10 @@ edition = "2024"
 name = "sidecar"
 path = "src/lib.rs"
 
+[features]
+default = ["restart"]
+restart = []
+
 [dependencies]
 common = { path = "../common" }
 

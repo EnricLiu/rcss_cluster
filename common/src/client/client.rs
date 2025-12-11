@@ -123,9 +123,9 @@ impl Client {
         self.config.name.as_str()
     }
 
-    pub async fn close(mut self) -> Result<()> {
+    pub async fn close(&mut self) -> Result<()> {
         if self.handle.get().is_none() {
-            return Err(Error::NotConnected { client: self });
+            return Err(Error::NotConnected);
         }
 
         let mut handle = self.handle.take()

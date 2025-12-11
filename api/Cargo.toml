@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = []
+default = ["restart"]
 signal-parsing = []
+restart = ["sidecar/restart"]
 
 [dependencies]
 common = { path = "../common" }

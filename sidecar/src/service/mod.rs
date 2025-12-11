@@ -20,7 +20,7 @@ pub async fn start_singleton_service() -> Result<(), Box<dyn std::error::Error>>
 
     loop {
 
-        let service = Service::from_coached_process(spawner.spawn().await?);
+        let mut service = Service::from_coached_process(spawner.spawn().await?);
         info!("[Service] Spawned.");
 
         let mut time_watcher = service.time_watch();

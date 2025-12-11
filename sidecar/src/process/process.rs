@@ -145,7 +145,7 @@ impl ServerProcess {
         })
     }
 
-    pub async fn shutdown(self) -> Result<ExitStatus> {
+    pub async fn shutdown(&mut self) -> Result<ExitStatus> {
         let signal = Signal::SIGINT;
 
         if let Err(Error::ChildReturned(status)) = self.try_ready() {
@@ -153,14 +153,14 @@ impl ServerProcess {
         }
 
         let join_result = match self.sig_tx.send(signal).await {
-            Ok(_) => tokio::time::timeout(Self::TERM_TIMEOUT_S, self.handle).await
+            Ok(_) => tokio::time::timeout(Self::TERM_TIMEOUT_S, &mut self.handle).await
                 .map_err(Error::ProcessJoinTimeout)?,
             Err(e) => {
                 // should be due to channel close, check if the process is finished
                 if !self.handle.is_finished() {
                     return Err(Error::SignalSend(e))
                 }
-                self.handle.await
+                (&mut self.handle).await
             },
         };
 
@@ -230,6 +230,8 @@ impl ServerProcess {
                 tokio::time::timeout(timeout, task).await.map_err(|_|Error::TimeoutWaitingReady)?,
             None => task.await,
         };
+
+        debug!("RcssServer::until_ready: process status: {:?}", ret);
 
         if ret.is_ok() {
             debug!("RcssServer::until_ready: process ready to accept Udp conn.");

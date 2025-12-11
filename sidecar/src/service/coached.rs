@@ -78,7 +78,7 @@ impl CoachedProcess {
         }
     }
 
-    pub async fn shutdown(self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.coach.shutdown().await?;
         self.process.shutdown().await?;
         Ok(())

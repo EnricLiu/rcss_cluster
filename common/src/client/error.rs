@@ -55,9 +55,7 @@ pub enum Error {
     },
     
     #[error("Client Not connected, try to call Client::connect first.")]
-    NotConnected {
-        client: client::Client,
-    },
+    NotConnected,
     
     #[error("Client[{client_name}]: Failed to close connection due to Timeout={duration:?}.")]
     CloseTimeout {

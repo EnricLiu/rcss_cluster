@@ -43,7 +43,7 @@ impl Service {
         self.time_rx.borrow().clone()
     }
 
-    pub async fn shutdown(self) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {
         self.process.shutdown().await?;
         Ok(())
     }

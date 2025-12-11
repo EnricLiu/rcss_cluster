@@ -176,11 +176,12 @@ where CMD: CommandAny,
         Ok(())
     }
 
-    pub async fn shutdown(self) -> Result<()> {
+    pub async fn shutdown(&mut self) -> Result<()> {
         self.conn.close().await
             .map_err(|e| Error::ClientCloseFailed { source: e })?;
 
-        for (key, addon) in self.addons.into_iter() {
+        for kv in self.addons.iter_mut() {
+            let (key, addon) = kv.pair();
             addon.close();
             trace!("Addon '{}' closed", key);
         }

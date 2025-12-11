@@ -49,7 +49,7 @@ impl OfflineCoach {
         Ok(())
     }
 
-    pub async fn shutdown(self) -> Result<()> {
+    pub async fn shutdown(&mut self) -> Result<()> {
         self.client.shutdown().await
     }
 }

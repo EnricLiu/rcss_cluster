@@ -102,6 +102,7 @@ mod tests {
         tokio::time::timeout(Duration::from_secs(10), time_task)
             .await.expect("Timeout waiting for timestep >= 6000").unwrap();
 
+        let mut server = server;
         server.shutdown().await.expect("Shutdown failed");
 
         Ok(())

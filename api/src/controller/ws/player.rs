@@ -154,7 +154,7 @@ async fn handle_upgrade(mut socket: WebSocket, state: &AppState, client_id: Uuid
     }
 
     // if is the last reference, close the connection
-    if let Some(client) = Arc::into_inner(player_client) {
+    if let Some(mut client) = Arc::into_inner(player_client) {
         if let Err(e) = client.close().await {
             error!("[Player WS] Client[{client_id}] Failed to close client: {e}");
         } else {
