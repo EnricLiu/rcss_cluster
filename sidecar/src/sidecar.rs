@@ -114,7 +114,7 @@ impl Sidecar {
             status,
         }
     }
-    async fn status_tracing_task(
+    fn status_tracing_task(
         atomic: Arc<AtomicU8>,
         mut time_rx: watch::Receiver<Option<u16>>
     ) -> JoinHandle<()> {
