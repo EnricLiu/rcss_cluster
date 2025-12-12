@@ -5,6 +5,7 @@ use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use futures::future;
 use log::{debug, info, warn};
+use serde::Serialize;
 use tokio::sync::{mpsc, watch, OnceCell};
 use tokio::task::JoinHandle;
 
@@ -17,13 +18,13 @@ use super::{
     Error, Result,
 };
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoomStatus {
     Running,
     Shutdown(DateTime<Utc>), // stopped at
 }
 
-#[derive(Debug, Clone)]
+#[derive(Serialize, Debug, Clone)]
 pub struct RoomInfo {
     pub config: RoomConfig,
     pub status: RoomStatus,
@@ -83,7 +84,6 @@ impl LazyRoom {
     pub fn info(&self) -> Option<RoomInfo> {
         self.room.get().map(|room| room.info())
     }
-
 }
 
 #[derive(Debug)]
@@ -94,6 +94,12 @@ pub struct Room {
     cleanup_task: JoinHandle<()>,
     status_rx: watch::Receiver<RoomStatus>,
     created_at: DateTime<Utc>,
+}
+
+impl Drop for Room {
+    fn drop(&mut self) {
+        info!("Room[{}] Shutting down", self.cfg.name);
+    }
 }
 
 impl Room {
@@ -272,12 +278,5 @@ impl Room {
 
     pub fn uptime(&self) -> Duration {
         (Utc::now() - self.created_at).to_std().unwrap_or_default()
-    }
-    
-    pub fn shutdown(&self) {
-        info!("Room[{}] Shutting down", self.cfg.name);
-        self.udp_listen_task.abort();
-        self.cleanup_task.abort();
-        self.connections.clear();
     }
 }

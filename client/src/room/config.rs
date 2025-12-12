@@ -1,9 +1,11 @@
 use std::net::SocketAddr;
 use std::time::Duration;
 use reqwest::Url;
+use serde::ser::SerializeMap;
+use serde::Serialize;
 use crate::utils::local_addr;
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct RoomConfig {
     pub name: String,
     pub ws: WsConfig,
@@ -116,6 +118,16 @@ impl Default for WsConfig {
             reconnect_delay: Duration::from_millis(500),
             max_reconnect_attempts: 5,
         }
+    }
+}
+
+impl Serialize for WsConfig {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+        let mut map = serializer.serialize_map(Some(3))?;
+        map.serialize_entry("base_url", &self.base_url.to_string())?;
+        map.serialize_entry("reconnect_delay", &self.reconnect_delay.as_millis())?;
+        map.serialize_entry("max_reconnect_attempts", &self.max_reconnect_attempts)?;
+        map.end()
     }
 }
 

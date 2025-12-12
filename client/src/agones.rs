@@ -51,10 +51,13 @@ impl AgonesClient {
         }
     }
 
+    #[cfg(not(feature = "agones"))]
     pub async fn allocate(&self) -> Result<Url, reqwest::Error> {
-        #[cfg(debug_assertions)]
-        return Ok("ws://localhost:55555/".parse().unwrap());
+        Ok("ws://localhost:55555/".parse().unwrap())
+    }
 
+    #[cfg(feature = "agones")]
+    pub async fn allocate(&self) -> Result<Url, reqwest::Error> {
         let req = Request::new(Method::POST, self.url_buf.allocate_room.clone());
         let resp = self.client.execute(req).await?;
         let resp = resp.json::<serde_json::Value>().await?;

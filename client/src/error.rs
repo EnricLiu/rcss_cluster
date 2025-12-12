@@ -1,5 +1,6 @@
 use std::net::SocketAddr;
-use crate::room::RoomConfig;
+use std::sync::Arc;
+use crate::room::{Room, RoomConfig};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -11,6 +12,17 @@ pub enum Error {
     #[error("Room[{room_name}] already dropped")]
     RoomDropped {
         room_name: String,
+    },
+
+    #[error("Room[{room_name}] was locked and can not drop, insert it back to the room.")]
+    RoomDropRetrieved {
+        room_name: String,
+    },
+
+    #[error("Room[{room_name}] was locked and can not drop or insert back.")]
+    RoomDropDangled {
+        room_name: String,
+        room: Arc<Room>,
     },
     
     #[error(transparent)]
