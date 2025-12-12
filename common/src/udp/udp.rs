@@ -65,4 +65,12 @@ impl UdpConnection {
         self.socket().connect(peer).await
             .map_err(|e| Error::Connect { peer, source: e })
     }
+    
+    pub fn local_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket().local_addr()
+    }
+
+    pub fn peer_addr(&self) -> std::io::Result<SocketAddr> {
+        self.socket().peer_addr()
+    }
 }

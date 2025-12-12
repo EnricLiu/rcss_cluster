@@ -18,7 +18,6 @@ pub const DEFAULT_SERVER_UDP_PORT: u16 = 6000;
 #[derive(Deserialize, Debug)]
 struct UpdateRequest {
     name: Option<String>,
-    team_name: String,
 }
 async fn upgrade(
     State(s): State<AppState>,

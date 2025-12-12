@@ -1,8 +1,10 @@
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response as AxumResponse};
 use serde_json::Value;
-use crate::controller::error::sidecar::SidecarError;
+
 use super::Response;
+use super::{RoomError, ProxyError};
+use crate::{room, self as proxy};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -26,10 +28,11 @@ pub enum Error {
         value: String,
     },
 
-    #[error("Sidecar error: {source}")]
-    Sidecar {
-        #[from] source: sidecar::Error,
-    }
+    #[error("Room error: {0}")]
+    Room(#[from] room::Error),
+    
+    #[error("Proxy error: {0}")]
+    Proxy(#[from] proxy::Error),
 }
 
 
@@ -39,9 +42,8 @@ impl Error {
             Error::IO { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
             Error::JSON { source: _ } => StatusCode::INTERNAL_SERVER_ERROR,
             Error::InvalidArgument { value: _ } => StatusCode::BAD_REQUEST,
-            Error::Sidecar { source } => {
-                SidecarError(source).status_code()
-            },
+            Error::Room(e) => RoomError(e).status_code(),
+            Error::Proxy(e) => ProxyError(e).status_code(),
             Error::Genetic { value: _ } => StatusCode::OK,
         }
     }
@@ -51,7 +53,8 @@ impl From<Error> for Response {
     fn from(e: Error) -> Self {
         match e {
             Error::Genetic { value } => Response::fail(StatusCode::OK, value),
-            Error::Sidecar { source } => SidecarError(&source).into(),
+            Error::Room(e) => RoomError(&e).into(),
+            Error::Proxy(e) => ProxyError(&e).into(),
             _ => Response::fail::<()>(e.status_code(), None),
         }
     }
