@@ -3,38 +3,29 @@ use axum::response::{IntoResponse, Response as AxumResponse};
 use serde_json::Value;
 
 use super::Response;
-use super::{RoomError, ProxyError};
-use crate::{room, self as proxy};
+use super::{ProxyError, RoomError};
+use crate::{self as proxy, room};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("{value:?}")]
-    Genetic {
-        value: Option<Value>
-    },
+    Genetic { value: Option<Value> },
 
     #[error("I/O error: {source}")]
-    IO {
-        source: std::io::Error,
-    },
+    IO { source: std::io::Error },
 
     #[error("JSON error: {source}")]
-    JSON {
-        source: serde_json::Error,
-    },
+    JSON { source: serde_json::Error },
 
     #[error("Invalid argument: {value}")]
-    InvalidArgument {
-        value: String,
-    },
+    InvalidArgument { value: String },
 
     #[error("Room error: {0}")]
     Room(#[from] room::Error),
-    
+
     #[error("Proxy error: {0}")]
     Proxy(#[from] proxy::Error),
 }
-
 
 impl Error {
     pub fn status_code(&self) -> StatusCode {

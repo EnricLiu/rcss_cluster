@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
-use arcstr::{ArcStr, literal, format};
+use super::{Command, TrainerCommand};
+use arcstr::{ArcStr, format, literal};
 use serde::{Deserialize, Serialize};
-use super::{Command, CommandAny, TrainerCommand};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandInit {
@@ -29,7 +29,7 @@ impl Command for CommandInit {
     fn parse_ret_ok(tokens: &[&str]) -> Option<Self::Ok> {
         tokens.is_empty().then_some(())
     }
-    
+
     // never error
 }
 
@@ -41,8 +41,6 @@ pub enum CommandInitError {}
 impl FromStr for CommandInitError {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, <CommandInitError as FromStr>::Err> {
-        match s {
-            _ => Err(()),
-        }
+        Err(())
     }
 }

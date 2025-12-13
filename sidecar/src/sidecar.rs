@@ -1,16 +1,15 @@
-use std::ops::Deref;
-use std::sync::Arc;
-use std::sync::atomic::AtomicU8;
+use common::command::trainer::TrainerCommand;
+use common::command::{Command, CommandResult};
 use futures::AsyncReadExt;
 use log::{debug, info};
-use tokio::sync::{watch, RwLock};
+use std::sync::Arc;
+use std::sync::atomic::AtomicU8;
+use tokio::sync::{RwLock, watch};
 use tokio::task::JoinHandle;
-use common::command::{Command, CommandResult};
-use common::command::trainer::TrainerCommand;
 
-use crate::{Error, Result};
 use crate::process;
-use crate::service::{Service, CoachedProcess, CoachedProcessSpawner};
+use crate::service::{CoachedProcess, CoachedProcessSpawner, Service};
+use crate::{Error, Result};
 
 #[derive(Copy, Clone, Debug)]
 #[repr(u8)]
@@ -31,15 +30,15 @@ impl SidecarStatus {
     }
 }
 
-impl Into<u8> for SidecarStatus {
-    fn into(self) -> u8 {
-        self as u8
+impl From<SidecarStatus> for u8 {
+    fn from(val: SidecarStatus) -> Self {
+        val as u8
     }
 }
 
 impl TryFrom<u8> for SidecarStatus {
     type Error = ();
-    
+
     fn try_from(value: u8) -> std::result::Result<Self, Self::Error> {
         match value {
             0 => Ok(SidecarStatus::Uninitialized),
@@ -81,11 +80,12 @@ impl SidecarService {
     }
 
     pub async fn send_trainer_command<C>(&self, command: C) -> Option<CommandResult<C>>
-    where C: Command<Kind=TrainerCommand>,
+    where
+        C: Command<Kind = TrainerCommand>,
     {
         Some(self.service()?.send_trainer_command(command).await)
     }
-    
+
     pub fn is_initialized(&self) -> bool {
         !matches!(self, SidecarService::Uninitialized)
     }
@@ -116,7 +116,7 @@ impl Sidecar {
     }
     fn status_tracing_task(
         atomic: Arc<AtomicU8>,
-        mut time_rx: watch::Receiver<Option<u16>>
+        mut time_rx: watch::Receiver<Option<u16>>,
     ) -> JoinHandle<()> {
         tokio::spawn(async move {
             loop {
@@ -132,37 +132,52 @@ impl Sidecar {
                 let next_status = match (get_status(&atomic), timestep) {
                     (SidecarStatus::Uninitialized, Some(0)) => SidecarStatus::Idle,
                     (SidecarStatus::Uninitialized, Some(_)) => SidecarStatus::Simulating,
-                    (SidecarStatus::Idle, Some(t)) if t > 0 && t < 6000 => SidecarStatus::Simulating,
+                    (SidecarStatus::Idle, Some(t)) if t > 0 && t < 6000 => {
+                        SidecarStatus::Simulating
+                    }
                     (SidecarStatus::Idle, Some(t)) if t >= 6000 => SidecarStatus::Finished,
                     (SidecarStatus::Simulating, Some(t)) if t >= 6000 => SidecarStatus::Finished,
                     _ => continue,
                 };
 
-                debug!("[Sidecar] Status Tracking: {:?} -> {:?}", get_status(&atomic), next_status);
+                debug!(
+                    "[Sidecar] Status Tracking: {:?} -> {:?}",
+                    get_status(&atomic),
+                    next_status
+                );
                 set_status(&atomic, next_status);
             }
         })
     }
-    
+
     fn set_status(&self, status: SidecarStatus) {
         set_status(&self.status, status);
     }
-    
+
     pub fn status(&self) -> SidecarStatus {
         get_status(&self.status)
     }
 
-    pub async fn send_trainer_command<C: Command<Kind=TrainerCommand>>(&self, command: C) -> Result<CommandResult<C>> {
-        self.service.read().await.send_trainer_command(command).await.ok_or(Error::ServerNotRunning {
-            status: self.status()
-        })
+    pub async fn send_trainer_command<C: Command<Kind = TrainerCommand>>(
+        &self,
+        command: C,
+    ) -> Result<CommandResult<C>> {
+        self.service
+            .read()
+            .await
+            .send_trainer_command(command)
+            .await
+            .ok_or(Error::ServerNotRunning {
+                status: self.status(),
+            })
     }
 
     pub async fn spawn(&self) -> Result<()> {
         // >- service WRITE lock -<
         let mut service_guard = self.service.write().await;
 
-        if let Some(service) = service_guard.service_mut() { // is running
+        if let Some(service) = service_guard.service_mut() {
+            // is running
             service.shutdown().await.expect("JB 没关掉");
         }
         let process = self.spawner.spawn().await.expect("JB 没开起来");
@@ -187,7 +202,7 @@ impl Sidecar {
 
         Err(Error::ServerStillRunningToRestart)
     }
-    
+
     pub fn config(&self) -> &process::Config {
         &self.spawner.process.config
     }

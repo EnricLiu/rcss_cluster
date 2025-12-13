@@ -1,32 +1,33 @@
-use serde::{Deserialize, Serialize};
-use axum::{routing, Json, Router};
 use axum::extract::State;
-use log::{error, info};
-use common::command::{Command, CommandResult};
+use axum::{Json, Router, routing};
 use common::command::trainer::*;
+use common::command::Command;
+use serde::{Deserialize, Serialize};
 
-use super::{AppState, Response, Error};
 use super::CommandResponse;
+use super::{AppState, Error, Response};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PostRequest<C: Command<Kind=TrainerCommand>>(C);
+pub struct PostRequest<C: Command<Kind = TrainerCommand>>(C);
 #[derive(Debug)]
-pub struct PostResponse<C: Command<Kind=TrainerCommand>>(CommandResponse<C>);
+pub struct PostResponse<C: Command<Kind = TrainerCommand>>(CommandResponse<C>);
 
-impl<C: Command<Kind=TrainerCommand>> Serialize for PostResponse<C> {
+impl<C: Command<Kind = TrainerCommand>> Serialize for PostResponse<C> {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         self.0.serialize(serializer)
     }
 }
 
-pub async fn post<C: Command<Kind=TrainerCommand>>(
+pub async fn post<C: Command<Kind = TrainerCommand>>(
     State(s): State<AppState>,
     Json(req): Json<PostRequest<C>>,
 ) -> Json<Response> {
     let result = s.sidecar.send_trainer_command(req.0).await;
-    if let Err(e) = result { return Json(Error::from(e).into()) }
-    
+    if let Err(e) = result {
+        return Json(Error::from(e).into());
+    }
+
     let result: CommandResponse<C> = result.expect("WTF").into();
     let resp = PostResponse(result);
     println!("{:?}", serde_json::to_string(&resp));

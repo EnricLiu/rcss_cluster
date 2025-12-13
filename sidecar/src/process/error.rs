@@ -1,5 +1,5 @@
-use std::process::ExitStatus;
 use nix::sys::signal::Signal;
+use std::process::ExitStatus;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -24,7 +24,7 @@ pub enum Error {
         signal: Signal,
         error: std::io::Error,
     },
-    
+
     #[error("The child process is already completed.")]
     ChildAlreadyCompleted(ExitStatus),
 
@@ -38,10 +38,7 @@ pub enum Error {
     ChildReturned(ExitStatus),
 
     #[error("The child process[pid={pid:?}] is dead with error: {error}")]
-    ChildDead {
-        pid: Option<u32>,
-        error: String,
-    },
+    ChildDead { pid: Option<u32>, error: String },
 
     #[error("Timeout waiting for child process to be ready")]
     TimeoutWaitingReady,

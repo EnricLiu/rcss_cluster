@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use crate::types;
 use arcstr::{ArcStr, format};
 use serde::{Deserialize, Serialize};
-use crate::types;
 
 use super::{Command, CommandAny, TrainerCommand};
 
@@ -19,15 +19,19 @@ impl Command for CommandChangeMode {
     fn kind(&self) -> Self::Kind {
         TrainerCommand::ChangeMode
     }
-    
+
     fn encode(&self) -> ArcStr {
         format!("({} {})", self.kind().encode(), self.play_mode.encode())
     }
 
     fn parse_ret_err(tokens: &[&str]) -> Option<Self::Error> {
-        if tokens.len() != 1 { return None }
+        if tokens.len() != 1 {
+            return None;
+        }
         let tokens = tokens.join(" ");
-        if tokens.is_empty() { return None }
+        if tokens.is_empty() {
+            return None;
+        }
 
         tokens.parse().ok()
     }

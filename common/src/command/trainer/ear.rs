@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use crate::types::EarMode;
 use arcstr::{ArcStr, format};
 use serde::{Deserialize, Serialize};
-use crate::types::EarMode;
 
 use super::{Command, CommandAny, TrainerCommand};
 
@@ -24,12 +24,16 @@ impl Command for CommandEar {
     }
 
     fn parse_ret_ok(tokens: &[&str]) -> Option<Self::Ok> {
-        if tokens.len() != 1 { return None }
+        if tokens.len() != 1 {
+            return None;
+        }
         tokens[0].parse().ok()
     }
 
     fn parse_ret_err(tokens: &[&str]) -> Option<Self::Error> {
-        if tokens.len() != 1 { return None }
+        if tokens.len() != 1 {
+            return None;
+        }
         tokens[0].parse().ok()
     }
 }

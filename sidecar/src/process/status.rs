@@ -1,4 +1,3 @@
-use std::io;
 use std::process::ExitStatus;
 
 #[derive(Clone, Debug)]
@@ -18,7 +17,7 @@ impl ProcessStatus {
             _ => false,
         }
     }
-    
+
     pub fn is_ready(&self) -> bool {
         match self {
             ProcessStatus::Running => true,
@@ -36,4 +35,3 @@ impl ProcessStatus {
         }
     }
 }
-

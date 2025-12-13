@@ -1,9 +1,9 @@
+use super::CoachedProcess;
+use super::addons;
+use common::command::trainer::TrainerCommand;
+use common::command::{Command, CommandResult};
 use log::info;
 use tokio::sync::watch;
-use common::command::{Command, CommandResult};
-use common::command::trainer::TrainerCommand;
-use super::addons;
-use super::CoachedProcess;
 
 #[derive(Debug)]
 pub struct Service {
@@ -21,17 +21,18 @@ impl Service {
     }
 
     pub fn from_coached_process(process: CoachedProcess) -> Self {
-        let time_rx = process.coach()
+        let time_rx = process
+            .coach()
             .add_caller_addon::<addons::TimeStatusAddon>("time");
         info!("[Service] Time status addon registered");
 
-        Self {
-            process,
-            time_rx,
-        }
+        Self { process, time_rx }
     }
-    
-    pub async fn send_trainer_command<C: Command<Kind=TrainerCommand>>(&self, command: C) -> CommandResult<C> { 
+
+    pub async fn send_trainer_command<C: Command<Kind = TrainerCommand>>(
+        &self,
+        command: C,
+    ) -> CommandResult<C> {
         self.process.coach().call(command).await.unwrap()
     }
 
@@ -40,7 +41,7 @@ impl Service {
     }
 
     pub fn time(&self) -> Option<u16> {
-        self.time_rx.borrow().clone()
+        *self.time_rx.borrow()
     }
 
     pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {

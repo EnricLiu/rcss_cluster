@@ -1,8 +1,8 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
 
-use crate::model::{team, room};
+use crate::model::{room, team};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct RoomInfo {

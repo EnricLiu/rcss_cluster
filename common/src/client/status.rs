@@ -1,11 +1,12 @@
-use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Default)]
 pub enum ClientStatusKind {
     Idle = 0,
     WaitingRedirection = 1,
     Connected = 2,
+    #[default]
     Disconnected = 3,
     Died = 4, // 🫥
 }
@@ -17,7 +18,7 @@ impl ClientStatusKind {
             _ => false,
         }
     }
-    
+
     pub fn is_running(&self) -> bool {
         match self {
             ClientStatusKind::Disconnected | ClientStatusKind::Died => false,
@@ -26,11 +27,6 @@ impl ClientStatusKind {
     }
 }
 
-impl Default for ClientStatusKind {
-    fn default() -> Self {
-        ClientStatusKind::Disconnected
-    }
-}
 impl From<u8> for ClientStatusKind {
     fn from(value: u8) -> Self {
         match value {

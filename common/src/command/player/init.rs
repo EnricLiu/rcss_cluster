@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use arcstr::{ArcStr, literal, format};
-use super::{Command, CommandAny, PlayerCommand};
+use super::{Command, PlayerCommand};
+use arcstr::{ArcStr, format, literal};
 
 #[derive(Debug)]
 pub struct CommandInit {
@@ -38,8 +38,6 @@ pub enum CommandInitError {}
 impl FromStr for CommandInitError {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, <CommandInitError as FromStr>::Err> {
-        match s {
-            _ => Err(()),
-        }
+        Err(())
     }
 }

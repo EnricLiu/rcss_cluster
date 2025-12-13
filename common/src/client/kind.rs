@@ -2,17 +2,14 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 #[derive(Copy, Eq, PartialEq, Clone, Debug)]
 #[repr(u8)]
+#[derive(Default)]
 pub enum ClientKind {
+    #[default]
     Player = 0,
     OlCoach = 1,
     Trainer = 2,
 }
 
-impl Default for ClientKind { 
-    fn default() -> Self {
-        ClientKind::Player
-    }
-}
 
 impl TryFrom<u8> for ClientKind {
     type Error = ();
@@ -28,9 +25,7 @@ impl TryFrom<u8> for ClientKind {
 }
 
 impl Serialize for ClientKind {
-    fn serialize<S: Serializer>(
-        &self, serializer: S
-    ) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_u8(*self as u8)
     }
 }

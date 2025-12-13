@@ -1,9 +1,9 @@
 use std::str::FromStr;
 
-use arcstr::{ArcStr, format};
-use serde::{Deserialize, Serialize};
 use crate::command::trainer::ear::CommandEarOk;
 use crate::types::EyeMode;
+use arcstr::{ArcStr, format};
+use serde::{Deserialize, Serialize};
 
 use super::{Command, CommandAny, TrainerCommand};
 
@@ -25,15 +25,21 @@ impl Command for CommandEye {
     }
 
     fn parse_ret_ok(tokens: &[&str]) -> Option<Self::Ok> {
-        if tokens.len() != 1 { return None }
+        if tokens.len() != 1 {
+            return None;
+        }
         let eye_mode = tokens[0].parse().ok();
         eye_mode.map(|mode| CommandEarOk { mode })
     }
 
     fn parse_ret_err(tokens: &[&str]) -> Option<Self::Error> {
-        if tokens.len() != 1 { return None }
+        if tokens.len() != 1 {
+            return None;
+        }
         let tokens = tokens.join(" ");
-        if tokens.is_empty() { return None }
+        if tokens.is_empty() {
+            return None;
+        }
 
         tokens.parse().ok()
     }

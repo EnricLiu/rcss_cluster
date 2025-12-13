@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use super::{Command, TrainerCommand};
 use arcstr::{ArcStr, literal};
 use serde::{Deserialize, Serialize};
-use super::{Command, CommandAny, TrainerCommand};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandLook;
@@ -34,8 +34,6 @@ pub enum CommandLookError {}
 impl FromStr for CommandLookError {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, <CommandLookError as FromStr>::Err> {
-        match s {
-            _ => Err(()),
-        }
+        Err(())
     }
 }

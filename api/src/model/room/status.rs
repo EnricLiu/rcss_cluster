@@ -1,17 +1,14 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[repr(u8)]
 #[derive(Copy, PartialEq, Serialize, Deserialize, Clone, Debug)]
+#[derive(Default)]
 pub enum RoomStatus {
+    #[default]
     Idle,
     Waiting,
     Started,
     Finished,
-}
-impl Default for RoomStatus {
-    fn default() -> Self {
-        RoomStatus::Idle
-    }
 }
 impl From<u8> for RoomStatus {
     fn from(value: u8) -> Self {

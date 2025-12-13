@@ -1,9 +1,9 @@
-mod room;
-mod proxy;
 mod error;
+mod proxy;
+mod room;
 
-use room::RoomError;
 use proxy::ProxyError;
+use room::RoomError;
 
 pub use error::Error;
 

@@ -1,9 +1,8 @@
-use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use super::kind::ClientKind;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
 static DEFAULT_HOST: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0);
 static DEFAULT_PEER: SocketAddr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 6000);
-
 
 #[derive(Clone, Debug)]
 pub struct ClientConfig {
@@ -61,25 +60,33 @@ impl ClientConfigBuilder {
         self.peer = Some(peer);
         self
     }
-    
+
     pub fn with_local_host(&mut self, port: u16) -> &mut Self {
         self.with_host(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port))
     }
-    
+
     pub fn with_local_peer(&mut self, port: u16) -> &mut Self {
         self.with_peer(SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port))
     }
 
     pub fn build_into(self) -> ClientConfig {
         let mut config = ClientConfig::default();
-        if let Some(name) = self.name { config.name = name };
-        if let Some(kind) = self.kind { config.kind = kind };
-        if let Some(host) = self.host { config.host = host };
-        if let Some(peer) = self.peer { config.peer = peer };
+        if let Some(name) = self.name {
+            config.name = name
+        };
+        if let Some(kind) = self.kind {
+            config.kind = kind
+        };
+        if let Some(host) = self.host {
+            config.host = host
+        };
+        if let Some(peer) = self.peer {
+            config.peer = peer
+        };
 
         config
     }
-    
+
     pub fn build(&self) -> ClientConfig {
         self.clone().build_into()
     }

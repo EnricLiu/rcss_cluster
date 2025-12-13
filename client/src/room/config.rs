@@ -1,9 +1,9 @@
+use crate::utils::local_addr;
+use reqwest::Url;
+use serde::Serialize;
+use serde::ser::SerializeMap;
 use std::net::SocketAddr;
 use std::time::Duration;
-use reqwest::Url;
-use serde::ser::SerializeMap;
-use serde::Serialize;
-use crate::utils::local_addr;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct RoomConfig {
@@ -103,7 +103,6 @@ impl RoomConfigBuilder {
     }
 }
 
-
 #[derive(Clone, Debug)]
 pub struct WsConfig {
     pub base_url: Url,
@@ -122,7 +121,10 @@ impl Default for WsConfig {
 }
 
 impl Serialize for WsConfig {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: serde::Serializer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
         let mut map = serializer.serialize_map(Some(3))?;
         map.serialize_entry("base_url", &self.base_url.to_string())?;
         map.serialize_entry("reconnect_delay", &self.reconnect_delay.as_millis())?;
@@ -136,7 +138,6 @@ impl WsConfig {
         WsConfigBuilder::new()
     }
 }
-
 
 #[derive(Clone, Default, Debug)]
 pub struct WsConfigBuilder {
@@ -195,18 +196,26 @@ mod tests {
     fn test_room_config_builder() {
         let room_config = RoomConfig::builder()
             .with_name("test room".to_string())
-            .with_ws(WsConfig::builder()
-                .with_base_url(Url::parse("ws://test.ws.url/").unwrap())
-                .with_reconnect_delay(Duration::from_millis(114514))
-                .with_max_reconnect_attempts(1919810)
-                .build())
+            .with_ws(
+                WsConfig::builder()
+                    .with_base_url(Url::parse("ws://test.ws.url/").unwrap())
+                    .with_reconnect_delay(Duration::from_millis(114514))
+                    .with_max_reconnect_attempts(1919810)
+                    .build(),
+            )
             .with_player_udp(local_addr(6657))
             .with_trainer_udp(local_addr(5555))
             .with_coach_udp(local_addr(6666))
             .build();
         assert_eq!(room_config.name, "test room");
-        assert_eq!(room_config.ws.base_url, Url::parse("ws://test.ws.url/").unwrap());
-        assert_eq!(room_config.ws.reconnect_delay, Duration::from_millis(114514));
+        assert_eq!(
+            room_config.ws.base_url,
+            Url::parse("ws://test.ws.url/").unwrap()
+        );
+        assert_eq!(
+            room_config.ws.reconnect_delay,
+            Duration::from_millis(114514)
+        );
         assert_eq!(room_config.ws.max_reconnect_attempts, 1919810);
         assert_eq!(room_config.player_udp, local_addr(6657));
         assert_eq!(room_config.trainer_udp, local_addr(5555));

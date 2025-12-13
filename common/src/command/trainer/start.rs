@@ -2,9 +2,8 @@ use std::str::FromStr;
 
 use arcstr::{ArcStr, literal};
 use serde::{Deserialize, Serialize};
-use crate::types;
 
-use super::{Command, CommandAny, TrainerCommand};
+use super::{Command, TrainerCommand};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandStart;
@@ -36,8 +35,6 @@ pub enum CommandStartError {}
 impl FromStr for CommandStartError {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, <CommandStartError as FromStr>::Err> {
-        match s {
-            _ => Err(()),
-        }
+        Err(())
     }
 }

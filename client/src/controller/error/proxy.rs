@@ -1,5 +1,5 @@
-use axum::http::StatusCode;
 use crate as proxy;
+use axum::http::StatusCode;
 
 use super::Response;
 use super::RoomError;
@@ -28,7 +28,7 @@ impl<'a> From<ProxyError<'a>> for Response {
             RoomDropped { .. } => "RoomDropped",
             Room(_) => "Room",
         };
-        
+
         let desc = value.0.to_string();
         Self::error(err, &desc).with_status(value.status_code())
     }

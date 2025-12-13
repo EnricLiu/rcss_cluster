@@ -1,10 +1,9 @@
 use std::str::FromStr;
 
-use arcstr::{ArcStr, format};
+use arcstr::ArcStr;
 use serde::{Deserialize, Serialize};
-use crate::types;
 
-use super::{Command, CommandAny, TrainerCommand};
+use super::{Command, TrainerCommand};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandMove {

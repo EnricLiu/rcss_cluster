@@ -1,6 +1,6 @@
-use axum::http::StatusCode;
-use crate::room;
 use super::Response;
+use crate::room;
+use axum::http::StatusCode;
 
 pub struct RoomError<'a>(pub &'a room::Error);
 

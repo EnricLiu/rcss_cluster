@@ -60,7 +60,7 @@ pub enum PlayMode {
     PM_PenaltyScore_Right,
     PM_Illegal_Defense_Left,
     PM_Illegal_Defense_Right,
-    PM_MAX
+    PM_MAX,
 }
 
 impl PlayMode {
@@ -68,4 +68,3 @@ impl PlayMode {
         super::usize_to_str(self as usize)
     }
 }
-

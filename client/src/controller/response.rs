@@ -2,10 +2,10 @@ use std::sync::atomic::AtomicU32;
 
 use axum::Json;
 use axum::http::StatusCode;
-use axum::response::{ IntoResponse, Response as AxumResponse };
+use axum::response::{IntoResponse, Response as AxumResponse};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 static ID: AtomicU32 = AtomicU32::new(0);
 
@@ -17,7 +17,7 @@ fn get_id() -> u32 {
 pub struct Response {
     #[serde(skip)]
     status_code: StatusCode,
-    
+
     id: u32,
     success: bool,
     payload: Option<Value>,
@@ -28,36 +28,36 @@ impl Response {
     pub fn new(id: u32, success: bool, status_code: StatusCode, payload: Option<Value>) -> Self {
         Self {
             status_code,
-            
+
             id,
             success,
             payload,
             created_at: Utc::now(),
         }
     }
-    
+
     pub fn success<T: Serialize>(payload: Option<T>) -> Self {
         let payload = payload.map(|v| json!(v));
         Self::new(get_id(), true, StatusCode::OK, payload)
     }
-    
+
     pub fn code(status_code: StatusCode) -> Self {
         Self::new(get_id(), status_code == StatusCode::OK, status_code, None)
     }
-    
+
     pub fn code_u16(status_code: u16) -> Self {
         Self::code(StatusCode::from_u16(status_code).unwrap())
     }
-    
+
     pub fn fail<T: Serialize>(status_code: StatusCode, payload: Option<T>) -> Self {
         let payload = payload.map(|v| json!(v));
         Self::new(get_id(), false, status_code, payload)
     }
-    
+
     pub fn error(err: &str, desc: &str) -> Self {
         Self::fail(StatusCode::OK, Some(json!({ "error": err, "desc": desc })))
     }
-    
+
     pub fn with_status(self, status_code: StatusCode) -> Self {
         Self {
             status_code,
@@ -70,12 +70,16 @@ impl IntoResponse for Response {
     fn into_response(self) -> AxumResponse {
         if self.status_code.is_success() {
             return (self.status_code, Json(self)).into_response();
-        } 
+        }
         (self.status_code, self.status_code.to_string()).into_response()
     }
 }
 
-impl<T, E> From<Result<T, E>> for Response where T: Serialize, E: Into<Response> {
+impl<T, E> From<Result<T, E>> for Response
+where
+    T: Serialize,
+    E: Into<Response>,
+{
     fn from(value: Result<T, E>) -> Self {
         match value {
             Ok(v) => Response::success(Some(json!(v))),

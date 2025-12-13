@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[derive(Debug, Copy, Clone)]
 #[allow(non_camel_case_types)]
@@ -40,7 +40,8 @@ impl FromStr for BallPosition {
 
 impl Serialize for BallPosition {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         serializer.serialize_str(self.encode())
     }
@@ -48,7 +49,8 @@ impl Serialize for BallPosition {
 
 impl<'de> Deserialize<'de> for BallPosition {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         BallPosition::from_str(&s).map_err(|_| serde::de::Error::custom("invalid BallPosition"))

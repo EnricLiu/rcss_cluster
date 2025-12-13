@@ -1,31 +1,32 @@
 mod error;
-mod response;
 mod http;
+mod response;
 mod ws;
 
-use std::sync::{Arc, Weak};
 use axum::Router;
 use dashmap::DashMap;
+use std::sync::{Arc, Weak};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::task::JoinHandle;
 
-pub use response::Response;
 pub use error::Error;
+pub use response::Response;
 
+use sidecar::Sidecar;
 use tower_http::trace::TraceLayer;
 use uuid::Uuid;
-use sidecar::Sidecar;
 
 #[derive(Clone)]
 pub struct AppState {
     sidecar: Arc<Sidecar>,
-    players: Arc<DashMap<Uuid, Weak<common::client::Client>>>
+    players: Arc<DashMap<Uuid, Weak<common::client::Client>>>,
 }
 
-pub async fn listen<A: ToSocketAddrs>(
-    addr: A,
-) -> JoinHandle<Result<(), String>> {
-    let state = AppState { sidecar: Arc::new(Sidecar::new().await), players: Arc::new(DashMap::new()) };
+pub async fn listen<A: ToSocketAddrs>(addr: A) -> JoinHandle<Result<(), String>> {
+    let state = AppState {
+        sidecar: Arc::new(Sidecar::new().await),
+        players: Arc::new(DashMap::new()),
+    };
 
     state.sidecar.spawn().await;
 
@@ -36,8 +37,5 @@ pub async fn listen<A: ToSocketAddrs>(
 
     let listener = TcpListener::bind(addr).await.unwrap();
     println!("Listening on http://{}", listener.local_addr().unwrap());
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.map_err(|e| e.to_string())
-    })
+    tokio::spawn(async move { axum::serve(listener, app).await.map_err(|e| e.to_string()) })
 }
- 

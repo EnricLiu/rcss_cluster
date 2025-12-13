@@ -1,15 +1,12 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[repr(u8)]
 #[derive(Copy, PartialEq, Serialize, Deserialize, Clone, Debug)]
+#[derive(Default)]
 pub enum TeamStatus {
+    #[default]
     Idle,
     Playing,
-}
-impl Default for TeamStatus {
-    fn default() -> Self {
-        TeamStatus::Idle
-    }
 }
 impl From<u8> for TeamStatus {
     fn from(value: u8) -> Self {

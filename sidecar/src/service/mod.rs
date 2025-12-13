@@ -1,11 +1,11 @@
-mod coached;
 pub mod addons;
+mod coached;
 mod service;
 
 pub use coached::{CoachedProcess, CoachedProcessSpawner};
 pub use service::Service;
 
-use log::{info, trace, warn};
+use log::{info, trace};
 
 pub const GAME_END_TIMESTEP: u16 = 6000;
 
@@ -19,14 +19,14 @@ pub async fn start_singleton_service() -> Result<(), Box<dyn std::error::Error>>
     let config = spawner.process.config.clone();
 
     loop {
-
         let mut service = Service::from_coached_process(spawner.spawn().await?);
         info!("[Service] Spawned.");
 
         let mut time_watcher = service.time_watch();
         let restart_task = tokio::spawn(async move {
-            let res = time_watcher.wait_for(|t|
-                t.is_some_and(|t| t >= GAME_END_TIMESTEP)).await;
+            let res = time_watcher
+                .wait_for(|t| t.is_some_and(|t| t >= GAME_END_TIMESTEP))
+                .await;
             trace!("[Service] Time watcher: {:?}", res);
             res.map(|_| ())
         });
