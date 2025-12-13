@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use crate::types;
 use arcstr::{ArcStr, format};
 use serde::{Deserialize, Serialize};
-use crate::types;
 
 use super::{Command, CommandAny, TrainerCommand};
 

@@ -1,7 +1,7 @@
-use std::ops::{Deref, DerefMut};
-use common::client;
-use crate::trainer::OfflineCoach;
 use crate::client::RichClientBuilder;
+use crate::trainer::OfflineCoach;
+use common::client;
+use std::ops::{Deref, DerefMut};
 
 #[derive(Clone, Debug)]
 pub struct OfflineCoachBuilder {

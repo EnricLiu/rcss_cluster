@@ -1,13 +1,13 @@
-mod gateway;
 mod command;
-mod health;
 mod control;
+mod gateway;
+mod health;
 
+use super::{AppState, Error, Response};
 use axum::Router;
-use axum::response::{IntoResponse, Response as AxumResponse};
-use axum::http::StatusCode;
 use axum::extract::State;
-use super::{AppState, Response, Error};
+use axum::http::StatusCode;
+use axum::response::{IntoResponse, Response as AxumResponse};
 
 async fn fallback_404(State(_state): State<AppState>) -> AxumResponse {
     StatusCode::NOT_FOUND.into_response()

@@ -1,11 +1,11 @@
-use std::sync::Arc;
-use dashmap::DashMap;
-use log::debug;
-use reqwest::Url;
 use crate::agones::AgonesClient;
 use crate::room::{Room, RoomConfig, RoomInfo, WsConfig};
 use crate::utils::local_addr;
 use crate::{Error, Result};
+use dashmap::DashMap;
+use log::debug;
+use reqwest::Url;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct ProxyServerConfig {
@@ -40,7 +40,11 @@ impl ProxyServer {
     }
 
     pub async fn create_room(&self, room_name: String, udp_port: u16) -> Result<RoomConfig> {
-        let ws_url = self.agones.allocate().await.expect("Failed to allocate room");
+        let ws_url = self
+            .agones
+            .allocate()
+            .await
+            .expect("Failed to allocate room");
 
         let config = {
             let ws_config = {
@@ -62,7 +66,7 @@ impl ProxyServer {
         let room = Arc::new(room);
         self.rooms.insert(room_name.clone(), room);
 
-        if  let Some(room) = self.rooms.get(&room_name) {
+        if let Some(room) = self.rooms.get(&room_name) {
             Ok(room.config().clone())
         } else {
             Err(Error::RoomDropped { room_name })
@@ -72,7 +76,11 @@ impl ProxyServer {
     pub async fn drop_room(&self, room_name: &str) -> Result<()> {
         let room = match self.rooms.remove(room_name) {
             Some((_, room)) => room,
-            None => return Err(Error::RoomNotFound { room_name: room_name.to_string() }),
+            None => {
+                return Err(Error::RoomNotFound {
+                    room_name: room_name.to_string(),
+                });
+            }
         };
 
         let retry = 5;
@@ -85,21 +93,24 @@ impl ProxyServer {
                     Ok(r) => {
                         drop(r);
                         debug!("Room[{room_name}] successfully dropped.");
-                        return Ok(())
-                    },
+                        return Ok(());
+                    }
                     Err(arc) => Some(arc),
                 }
-            } else { break; }
-
-        };
+            } else {
+                break;
+            }
+        }
 
         let room = room.expect("WTF? Room dropped but still referenced");
 
         // failed to get ownership, try insert it back
         let mut insert_ok = false;
         let room_ = room.clone();
-        self.rooms.entry(room_name.to_string())
-            .or_insert_with(|| { insert_ok = true; room_ });
+        self.rooms.entry(room_name.to_string()).or_insert_with(|| {
+            insert_ok = true;
+            room_
+        });
 
         match insert_ok {
             true => Err(Error::RoomDropRetrieved { room_name }),
@@ -108,23 +119,31 @@ impl ProxyServer {
     }
 
     pub fn room(&self, room_name: &str) -> Result<Arc<Room>> {
-        self.rooms.get(room_name).map(|r| r.value().clone())
-            .ok_or(Error::RoomNotFound { room_name: room_name.to_string() })
+        self.rooms
+            .get(room_name)
+            .map(|r| r.value().clone())
+            .ok_or(Error::RoomNotFound {
+                room_name: room_name.to_string(),
+            })
     }
-    
+
     pub fn room_info(&self, room_name: &str) -> Result<RoomInfo> {
-        self.rooms.get(room_name).map(|r| r.info())
-            .ok_or(Error::RoomNotFound { room_name: room_name.to_string() })
+        self.rooms
+            .get(room_name)
+            .map(|r| r.info())
+            .ok_or(Error::RoomNotFound {
+                room_name: room_name.to_string(),
+            })
     }
 
     pub fn all_room_infos(&self) -> Vec<RoomInfo> {
         self.rooms.iter().map(|r| r.info()).collect()
     }
-    
+
     pub fn room_count(&self) -> usize {
         self.rooms.len()
     }
-    
+
     pub async fn shutdown(&self) -> Result<()> {
         for room in self.rooms.iter() {
             self.drop_room(room.key()).await?;

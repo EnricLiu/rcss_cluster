@@ -1,13 +1,13 @@
-mod room;
-mod conn;
-mod ws;
-mod error;
 mod config;
+mod conn;
+mod error;
+mod room;
+mod ws;
 
-pub use room::{LazyRoom, Room, RoomInfo, RoomStatus};
-pub use conn::{LazyProxyConnection, ProxyStatus};
 pub use config::{RoomConfig, WsConfig};
-pub use error::{Result, Error};
+pub use conn::{LazyProxyConnection, ProxyStatus};
+pub use error::{Error, Result};
+pub use room::{LazyRoom, Room, RoomInfo, RoomStatus};
 
 use ws::{WsConnection, WsConnector};
 

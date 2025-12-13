@@ -42,7 +42,9 @@ impl Config {
 
     pub fn with_ports(&mut self, port: u16, coach_port: u16, olcoach_port: u16) -> &mut Self {
         self.server_then(|c| {
-            c.port(port).coach_port(coach_port).olcoach_port(olcoach_port);
+            c.port(port)
+                .coach_port(coach_port)
+                .olcoach_port(olcoach_port);
         })
     }
 
@@ -97,5 +99,4 @@ impl Config {
         f(&mut self.csv_saver);
         self
     }
-
 }

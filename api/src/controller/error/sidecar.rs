@@ -1,7 +1,7 @@
-use std::borrow::Cow;
+use super::Response;
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
-use super::Response;
+use std::borrow::Cow;
 
 pub struct SidecarError<'a>(pub &'a sidecar::Error);
 
@@ -19,10 +19,11 @@ impl<'a> From<SidecarError<'a>> for Response {
         match &value.0 {
             sidecar::Error::ServerNotRunning { status: _ } => {
                 Response::error("ServerNotRunning", "The sidecar server is not running.")
-            },
-            sidecar::Error::ServerStillRunningToRestart => {
-                Response::error("ServerStillRunningToRestart", "The sidecar server is still running, try to call with `force=true` to ignore.")
-            },
+            }
+            sidecar::Error::ServerStillRunningToRestart => Response::error(
+                "ServerStillRunningToRestart",
+                "The sidecar server is still running, try to call with `force=true` to ignore.",
+            ),
         }
     }
 }

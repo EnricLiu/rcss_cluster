@@ -1,8 +1,8 @@
 use std::str::FromStr;
 
+use super::{Command, CommandAny, TrainerCommand};
 use arcstr::{ArcStr, literal};
 use serde::{Deserialize, Serialize};
-use super::{Command, CommandAny, TrainerCommand};
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct CommandLook;

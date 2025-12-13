@@ -1,7 +1,7 @@
+use super::{AppState, Error, Response};
 use axum::extract::State;
-use axum::{routing, Json, Router};
+use axum::{Json, Router, routing};
 use serde::{Deserialize, Serialize};
-use super::{AppState, Response, Error};
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct PostRequest {
@@ -14,25 +14,15 @@ pub struct PostResponse {
     pub name: String,
 }
 
-pub async fn post(
-    State(state): State<AppState>,
-    Json(req): Json<PostRequest>,
-) -> Response {
-    let config = state.server
-        .create_room(req.name, req.udp_port).await;
-    
+pub async fn post(State(state): State<AppState>, Json(req): Json<PostRequest>) -> Response {
+    let config = state.server.create_room(req.name, req.udp_port).await;
+
     match config {
-        Ok(config) => {
-            Response::success(Some(
-                PostResponse { name: config.name }
-            ))
-        },
-        Err(e) => Error::from(e).into()
+        Ok(config) => Response::success(Some(PostResponse { name: config.name })),
+        Err(e) => Error::from(e).into(),
     }
-    
 }
 
 pub fn route(path: &str) -> Router<AppState> {
-    Router::new()
-        .route(path, routing::post(post))
+    Router::new().route(path, routing::post(post))
 }

@@ -4,13 +4,14 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 #[repr(C)]
 pub enum EarMode {
-    On, Off
+    On,
+    Off,
 }
 impl EarMode {
     pub fn encode(self) -> &'static str {
         match self {
             EarMode::On => "on",
-            EarMode::Off => "off"
+            EarMode::Off => "off",
         }
     }
     pub fn decode(s: &str) -> Option<Self> {
@@ -31,7 +32,8 @@ impl std::str::FromStr for EarMode {
 
 impl Serialize for EarMode {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer,
+    where
+        S: serde::Serializer,
     {
         serializer.serialize_str(self.encode())
     }
@@ -39,7 +41,8 @@ impl Serialize for EarMode {
 
 impl<'de> Deserialize<'de> for EarMode {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: serde::Deserializer<'de>,
+    where
+        D: serde::Deserializer<'de>,
     {
         let s = String::deserialize(deserializer)?;
         EarMode::decode(&s).ok_or_else(|| serde::de::Error::custom("invalid EarMode"))

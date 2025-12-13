@@ -1,7 +1,7 @@
-use axum::{routing, Router};
+use super::{AppState, Response};
+use axum::{Router, routing};
 use chrono::Utc;
 use serde::Serialize;
-use super::{AppState, Response};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct GetResponse {
@@ -14,7 +14,7 @@ pub async fn get() -> Response {
         status: "ok".to_string(),
         timestamp: Utc::now().to_rfc3339(),
     };
-    
+
     Response::success(Some(payload))
 }
 

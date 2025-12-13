@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use arcstr::{ArcStr, literal, format};
 use super::{Command, CommandAny, PlayerCommand};
+use arcstr::{ArcStr, format, literal};
 
 #[derive(Debug)]
 pub struct CommandInit {

@@ -17,7 +17,7 @@ impl ClientStatusKind {
             _ => false,
         }
     }
-    
+
     pub fn is_running(&self) -> bool {
         match self {
             ClientStatusKind::Disconnected | ClientStatusKind::Died => false,

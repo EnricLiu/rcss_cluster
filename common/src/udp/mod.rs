@@ -1,5 +1,5 @@
-mod udp;
 mod error;
+mod udp;
 
-pub use udp::UdpConnection;
 pub use error::{Error, Result};
+pub use udp::UdpConnection;

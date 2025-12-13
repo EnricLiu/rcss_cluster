@@ -1,25 +1,19 @@
+use chrono::{DateTime, Utc};
+use futures::StreamExt;
+use log::{info, warn};
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Duration;
-use chrono::{DateTime, Utc};
-use tokio::sync::{mpsc, watch, OnceCell};
+use tokio::sync::{OnceCell, mpsc, watch};
 use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::Message;
-use futures::StreamExt;
-use log::{info, warn};
 use uuid::Uuid;
 
 use common::udp::UdpConnection;
 
+use super::{Error, HEARTBEAT_DURATION, Result, RoomConfig, WsConnection, WsConnector};
 use crate::utils::local_addr;
-use super::{
-    RoomConfig,
-    WsConnector,
-    WsConnection,
-    HEARTBEAT_DURATION,
-    Error, Result,
-};
 
 fn player_ws_url(addr: &SocketAddr) -> String {
     let uuid = Uuid::now_v7();
@@ -38,9 +32,9 @@ enum WsSessionSignal {
 struct ProxyConnection {
     room: Arc<RoomConfig>,
     handle: JoinHandle<()>,
-    udp_conn: Arc<UdpConnection>,      // connection with downstream client
-    ws_tx: mpsc::Sender<Message>,      // send data to ws (through internal task)
-    
+    udp_conn: Arc<UdpConnection>, // connection with downstream client
+    ws_tx: mpsc::Sender<Message>, // send data to ws (through internal task)
+
     status: watch::Receiver<ProxyStatus>,
 }
 
@@ -51,13 +45,14 @@ impl Drop for ProxyConnection {
 }
 
 impl ProxyConnection {
-    pub async fn spawn(
-        room_cfg: Arc<RoomConfig>,
-        proxy_udp_addr: SocketAddr,
-    ) -> Result<Self> {
+    pub async fn spawn(room_cfg: Arc<RoomConfig>, proxy_udp_addr: SocketAddr) -> Result<Self> {
         // >- Create UDP connection
-        let udp_conn = UdpConnection::open(local_addr(0), proxy_udp_addr).await
-            .map_err(|_| Error::OpenClientUdp { room: room_cfg.as_ref().clone(), addr: proxy_udp_addr })?;
+        let udp_conn = UdpConnection::open(local_addr(0), proxy_udp_addr)
+            .await
+            .map_err(|_| Error::OpenClientUdp {
+                room: room_cfg.as_ref().clone(),
+                addr: proxy_udp_addr,
+            })?;
         let udp_conn = Arc::new(udp_conn);
         // -<
 
@@ -85,27 +80,34 @@ impl ProxyConnection {
     pub(crate) fn ws_tx(&self) -> mpsc::Sender<Message> {
         self.ws_tx.clone()
     }
-    
+
     // send to upstream websocket
     pub async fn ws_send(&self, msg: Message) -> Result<()> {
-        self.ws_tx.send(msg).await.map_err(|e|
-            Error::WsSendFailed { room: self.room.as_ref().clone(), source: e })
+        self.ws_tx.send(msg).await.map_err(|e| Error::WsSendFailed {
+            room: self.room.as_ref().clone(),
+            source: e,
+        })
     }
 
     pub(crate) fn udp(&self) -> Arc<UdpConnection> {
         Arc::clone(&self.udp_conn)
     }
-    
+
     // send to downstream udp client
     pub(crate) async fn udp_send(&self, buf: &[u8]) -> Result<()> {
-        self.udp_conn.send(buf).await.map_err(|e|
-            Error::UdpSendFailed { room: self.room.as_ref().clone(), source: e })
+        self.udp_conn
+            .send(buf)
+            .await
+            .map_err(|e| Error::UdpSendFailed {
+                room: self.room.as_ref().clone(),
+                source: e,
+            })
     }
-    
+
     pub fn status(&self) -> watch::Receiver<ProxyStatus> {
         self.status.clone()
     }
-    
+
     pub fn status_now(&self) -> ProxyStatus {
         self.status.borrow().clone()
     }
@@ -117,7 +119,7 @@ impl ProxyConnection {
             status: self.status_now(),
         }
     }
-    
+
     async fn run_reconnect(
         ws_connector: WsConnector,
         udp: Arc<UdpConnection>,
@@ -185,7 +187,8 @@ impl ProxyConnection {
                 interval.tick().await;
                 let heart_rx = heartbeat_.load(Ordering::Relaxed);
 
-                if heart_rx < heart_tx { // last heartbeat was lost
+                if heart_rx < heart_tx {
+                    // last heartbeat was lost
                     let _ = sig_tx_.send(WsSessionSignal::HeartbeatTimeout).await;
                     break;
                 }
@@ -227,7 +230,9 @@ impl ProxyConnection {
         let ws_tx = ws_conn.tx();
         let ws_ext_fut = async {
             while let Some(msg) = external_rx.recv().await {
-                if ws_tx.send(msg).await.is_err() { break }
+                if ws_tx.send(msg).await.is_err() {
+                    break;
+                }
             }
         };
 
@@ -239,31 +244,29 @@ impl ProxyConnection {
         let ws2udp_task = tokio::spawn(async move {
             loop {
                 match ws_rx.next().await {
-                    Some(Ok(msg)) => {
-                        match msg {
-                            Message::Text(data) => {
-                                if let Err(e) = udp.send(data.as_bytes()).await {
-                                    warn!("[UDP] Failed to send: {}", e);
-                                    let _ = sig_tx_.send(WsSessionSignal::UdpError).await;
-                                    break;
-                                }
-                            }
-                            Message::Pong(payload) => {
-                                if payload.len() == 4 {
-                                    let val = u32::from_ne_bytes([
-                                        payload[0], payload[1], payload[2], payload[3]
-                                    ]);
-                                    heartbeat_.store(val, Ordering::Relaxed);
-                                }
-                            }
-                            Message::Close(_) => {
-                                info!("WebSocket received close frame");
-                                let _ = sig_tx_.send(WsSessionSignal::WsClosed).await;
+                    Some(Ok(msg)) => match msg {
+                        Message::Text(data) => {
+                            if let Err(e) = udp.send(data.as_bytes()).await {
+                                warn!("[UDP] Failed to send: {}", e);
+                                let _ = sig_tx_.send(WsSessionSignal::UdpError).await;
                                 break;
                             }
-                            _ => {}
                         }
-                    }
+                        Message::Pong(payload) => {
+                            if payload.len() == 4 {
+                                let val = u32::from_ne_bytes([
+                                    payload[0], payload[1], payload[2], payload[3],
+                                ]);
+                                heartbeat_.store(val, Ordering::Relaxed);
+                            }
+                        }
+                        Message::Close(_) => {
+                            info!("WebSocket received close frame");
+                            let _ = sig_tx_.send(WsSessionSignal::WsClosed).await;
+                            break;
+                        }
+                        _ => {}
+                    },
                     Some(Err(e)) => {
                         warn!("[WS] Recv error: {}", e);
                         let _ = sig_tx_.send(WsSessionSignal::WsDisconnected).await;
@@ -338,26 +341,29 @@ impl LazyProxyConnection {
     }
 
     pub async fn spawn(&self) -> Result<()> {
-        self.conn.get_or_try_init(|| async {
-            ProxyConnection::spawn(Arc::clone(&self.room), self.udp_client_addr).await
-        }).await?;
+        self.conn
+            .get_or_try_init(|| async {
+                ProxyConnection::spawn(Arc::clone(&self.room), self.udp_client_addr).await
+            })
+            .await?;
         Ok(())
     }
 
     pub async fn ws_send_text_buf(&self, buf: &[u8]) -> Result<()> {
-        let conn = self.conn.get()
-            .ok_or(Error::ProxyNotInitialized { room: self.room.as_ref().clone() })?;
+        let conn = self.conn.get().ok_or(Error::ProxyNotInitialized {
+            room: self.room.as_ref().clone(),
+        })?;
         conn.ws_send_text_buf(buf).await
     }
-    
+
     pub fn status(&self) -> Option<watch::Receiver<ProxyStatus>> {
         self.conn.get().map(|c| c.status())
     }
-    
+
     pub fn status_now(&self) -> Option<ProxyStatus> {
         self.conn.get().map(|c| c.status_now())
     }
-    
+
     pub fn info(&self) -> Option<ProxyConnectionInfo> {
         self.conn.get().map(|c| c.info())
     }

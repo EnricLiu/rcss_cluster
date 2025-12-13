@@ -2,11 +2,11 @@ mod create;
 mod room;
 
 use axum::extract::{Query, State};
-use axum::{routing, Json, Router};
+use axum::{Json, Router, routing};
 use serde::{Deserialize, Serialize};
 
+use super::{AppState, Error, Response};
 use crate::room::RoomInfo;
-use super::{AppState, Response, Error};
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RoomResponse {
@@ -37,7 +37,10 @@ pub struct GetRequest {
 }
 impl Default for GetRequest {
     fn default() -> Self {
-        Self { offset: 0, limit: 20, }
+        Self {
+            offset: 0,
+            limit: 20,
+        }
     }
 }
 
@@ -47,11 +50,9 @@ pub struct GetResponse {
     pub total: usize,
 }
 
-pub async fn get(
-    State(state): State<AppState>,
-    Query(req): Query<GetRequest>,
-) -> Response {
-    let rooms: Vec<RoomResponse> = state.server
+pub async fn get(State(state): State<AppState>, Query(req): Query<GetRequest>) -> Response {
+    let rooms: Vec<RoomResponse> = state
+        .server
         .all_room_infos()
         .into_iter()
         .skip(req.offset)
@@ -60,7 +61,7 @@ pub async fn get(
         .collect();
 
     let total = state.server.room_count();
-    
+
     Response::success(Some(GetResponse { rooms, total }))
 }
 

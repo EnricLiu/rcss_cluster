@@ -16,15 +16,11 @@ pub enum Error {
     },
 
     #[error("Failed to send")]
-    Send {
-        source: std::io::Error,
-    },
+    Send { source: std::io::Error },
 
     #[error("Failed to receive")]
-    Recv {
-        source: std::io::Error,
-    },
-    
+    Recv { source: std::io::Error },
+
     #[error("Timeout to receive")]
     TimeoutRecv,
 }

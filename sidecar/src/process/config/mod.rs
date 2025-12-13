@@ -1,11 +1,11 @@
-pub mod server;
-pub mod player;
-pub mod csv_saver;
 mod config;
+pub mod csv_saver;
+pub mod player;
+pub mod server;
 
-pub use server::ServerConfig;
-pub use player::PlayerConfig;
 pub use csv_saver::CsvSaverConfig;
+pub use player::PlayerConfig;
+pub use server::ServerConfig;
 
 pub use config::Config;
 
@@ -18,7 +18,7 @@ macro_rules! create_config {
                 pub $field: Option<$value>,
             )*
         }
-        
+
         impl $ident {
             $(
                 pub fn $field(&mut self, value: $value) -> &mut Self {

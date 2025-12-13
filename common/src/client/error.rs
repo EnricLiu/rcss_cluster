@@ -1,6 +1,6 @@
 use arcstr::ArcStr;
-use tokio::sync::mpsc;
 use strum_macros::IntoStaticStr;
+use tokio::sync::mpsc;
 
 use crate::client;
 use crate::udp::Error as UdpError;
@@ -13,7 +13,9 @@ pub enum Error {
         source: UdpError,
     },
 
-    #[error("Client[{client_name}]: Timeout({duration_s} s) waiting client to send an initial message.")]
+    #[error(
+        "Client[{client_name}]: Timeout({duration_s} s) waiting client to send an initial message."
+    )]
     TimeoutInitReq {
         client_name: String,
         duration_s: f32,
@@ -26,9 +28,7 @@ pub enum Error {
     },
 
     #[error("Client[{client_name}]: Channel closed unexpectedly.")]
-    ChannelClosed {
-        client_name: String,
-    },
+    ChannelClosed { client_name: String },
 
     #[error("Client[{client_name}]: Failed to send signal to channel, {source}")]
     ChannelSendSignal {
@@ -50,13 +50,11 @@ pub enum Error {
     },
 
     #[error("Client[{client_name}]: Already connected.")]
-    AlreadyConnected {
-        client_name: String,
-    },
-    
+    AlreadyConnected { client_name: String },
+
     #[error("Client Not connected, try to call Client::connect first.")]
     NotConnected,
-    
+
     #[error("Client[{client_name}]: Failed to close connection due to Timeout={duration:?}.")]
     CloseTimeout {
         client_name: String,
@@ -64,10 +62,7 @@ pub enum Error {
     },
 
     #[error("Client[{client_name}]: Failed to close connection due to Panic.")]
-    ClosePanic {
-        client_name: String,
-    }
-    
+    ClosePanic { client_name: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

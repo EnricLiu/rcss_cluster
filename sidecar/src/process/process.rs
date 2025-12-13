@@ -5,27 +5,27 @@ use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
 use log::{debug, error, info, trace, warn};
-use nix::sys::signal::{kill, Signal};
+use nix::sys::signal::{Signal, kill};
 use nix::unistd::Pid;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Child;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 
-use super::*;
 use super::builder::ServerProcessSpawner;
+use super::*;
 
 pub const READY_LINE: &str = "Hit CTRL-C to exit";
 
 #[derive(Debug)]
 pub struct ServerProcess {
-    pid:        Arc<AtomicU32>,
-    handle:     JoinHandle<(io::Result<ExitStatus>, Child)>,
-    sig_tx:     mpsc::Sender<Signal>,
-    stdout_rx:  mpsc::Receiver<String>,
-    stderr_rx:  mpsc::Receiver<String>,
+    pid: Arc<AtomicU32>,
+    handle: JoinHandle<(io::Result<ExitStatus>, Child)>,
+    sig_tx: mpsc::Sender<Signal>,
+    stdout_rx: mpsc::Receiver<String>,
+    stderr_rx: mpsc::Receiver<String>,
 
-    status_rx:  watch::Receiver<Status>,
+    status_rx: watch::Receiver<Status>,
 }
 
 impl ServerProcess {
@@ -42,7 +42,7 @@ impl ServerProcess {
                 Ok(Some(status)) => return Err(Error::ChildAlreadyCompleted(status)),
                 Ok(None) => return Err(Error::ChildRunningWithoutPid), // todo!("handle it with `child` internally")
                 Err(e) => return Err(Error::ChildUntrackableWithoutPid(e)), // todo!("handle it with `child` internally")
-            }
+            },
         };
 
         let arc_pid = Arc::new(AtomicU32::new(pid));
@@ -63,7 +63,9 @@ impl ServerProcess {
             let mut stdout_reader = BufReader::new(stdout).lines();
             let mut stderr_reader = BufReader::new(stderr).lines();
 
-            status_tx.send(Status::Booting).expect("Failed to send status");
+            status_tx
+                .send(Status::Booting)
+                .expect("Failed to send status");
 
             loop {
                 tokio::select! {
@@ -153,15 +155,16 @@ impl ServerProcess {
         }
 
         let join_result = match self.sig_tx.send(signal).await {
-            Ok(_) => tokio::time::timeout(Self::TERM_TIMEOUT_S, &mut self.handle).await
+            Ok(_) => tokio::time::timeout(Self::TERM_TIMEOUT_S, &mut self.handle)
+                .await
                 .map_err(Error::ProcessJoinTimeout)?,
             Err(e) => {
                 // should be due to channel close, check if the process is finished
                 if !self.handle.is_finished() {
-                    return Err(Error::SignalSend(e))
+                    return Err(Error::SignalSend(e));
                 }
                 (&mut self.handle).await
-            },
+            }
         };
 
         let (status, child) = join_result.map_err(Error::ProcessJoin)?;
@@ -174,25 +177,29 @@ impl ServerProcess {
                     warn!("RcssServer::shutdown: process exited with status: {status:?}");
                 }
                 status
-            },
+            }
             Err(e) => {
                 warn!("RcssServer::shutdown: wait on process exits with error, trying KILL...");
 
                 let mut child = child;
                 let pid = child.id();
 
-                if  let Some(pid) = pid &&
-                    let Ok(_) = kill(Pid::from_raw(pid as i32), Signal::SIGKILL) &&
-                    let Ok(status) = child.wait().await // todo!("timeout")
+                if let Some(pid) = pid
+                    && let Ok(_) = kill(Pid::from_raw(pid as i32), Signal::SIGKILL)
+                    && let Ok(status) = child.wait().await
+                // todo!("timeout")
                 {
-                    warn!("RcssServer::shutdown: process KILLed successfully with pid: {}", pid);
+                    warn!(
+                        "RcssServer::shutdown: process KILLed successfully with pid: {}",
+                        pid
+                    );
                     status
                 } else {
                     return Err(Error::FatalProcessWindingUp {
                         pid,
                         signal,
                         error: e,
-                    })
+                    });
                 }
             }
         };
@@ -208,12 +215,10 @@ impl ServerProcess {
     fn try_ready(&self) -> Result<bool> {
         let status = self.status_rx.borrow().clone();
         match status {
-            Status::Dead(e) => {
-                Err(Error::ChildDead {
-                    pid: self.pid(),
-                    error: e.clone(),
-                })
-            }
+            Status::Dead(e) => Err(Error::ChildDead {
+                pid: self.pid(),
+                error: e.clone(),
+            }),
             Status::Returned(status) => Err(Error::ChildReturned(status)),
             Status::Running => Ok(true),
             Status::Init | Status::Booting => Ok(false),
@@ -222,12 +227,15 @@ impl ServerProcess {
 
     /// Wait until the rcssserver is ready and able to accept Udp connections.
     pub async fn until_ready(&mut self, timeout: Option<Duration>) -> Result<()> {
-        if self.try_ready()? { return Ok(()) }
+        if self.try_ready()? {
+            return Ok(());
+        }
 
         let task = self.status_rx.wait_for(|s| s.is_ready());
         let ret = match timeout {
-            Some(timeout) =>
-                tokio::time::timeout(timeout, task).await.map_err(|_|Error::TimeoutWaitingReady)?,
+            Some(timeout) => tokio::time::timeout(timeout, task)
+                .await
+                .map_err(|_| Error::TimeoutWaitingReady)?,
             None => task.await,
         };
 
@@ -235,7 +243,7 @@ impl ServerProcess {
 
         if ret.is_ok() {
             debug!("RcssServer::until_ready: process ready to accept Udp conn.");
-            return Ok(())
+            return Ok(());
         }
 
         drop(ret);

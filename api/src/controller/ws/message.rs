@@ -1,5 +1,5 @@
-use axum::extract::ws::Message;
 use crate::model::signal::Signal;
+use axum::extract::ws::Message;
 
 impl<'a> Into<Message> for Signal<'a> {
     fn into(self) -> Message {
@@ -12,11 +12,11 @@ impl Into<Signal<'static>> for Message {
     fn into(self) -> Signal<'static> {
         match self {
             Message::Text(text) => {
-                let msg: Signal<'_> = serde_json::from_str(&text)
-                    .expect("Failed to deserialize Message");
+                let msg: Signal<'_> =
+                    serde_json::from_str(&text).expect("Failed to deserialize Message");
                 msg.into_owned()
-            },
-            _ => todo!("Handle other message types")
+            }
+            _ => todo!("Handle other message types"),
         }
     }
 }

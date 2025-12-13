@@ -6,7 +6,7 @@ pub enum Error {
     Channel {
         source: tokio::sync::mpsc::error::SendError<Message>,
     },
-    
+
     #[error("[WS] Failed to send to Client[{client_id}]: {source}")]
     WsSend {
         client_id: uuid::Uuid,

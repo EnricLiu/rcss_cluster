@@ -1,16 +1,16 @@
+use crate::process::{self, ServerProcess, ServerProcessSpawner};
+use crate::trainer::{self, OfflineCoach};
+use log::error;
 use std::net::SocketAddr;
 use std::time::Duration;
-use log::error;
-use crate::trainer::{self, OfflineCoach};
-use crate::process::{self, ServerProcess, ServerProcessSpawner};
 
-use crate::RCSS_PROCESS_NAME;
 use crate::PEER_IP;
+use crate::RCSS_PROCESS_NAME;
 
 #[derive(Clone, Debug)]
 pub struct CoachedProcessSpawner {
-    pub coach:      trainer::Builder,
-    pub process:    ServerProcessSpawner,
+    pub coach: trainer::Builder,
+    pub process: ServerProcessSpawner,
 }
 
 impl CoachedProcessSpawner {
@@ -21,12 +21,10 @@ impl CoachedProcessSpawner {
         }
     }
 
-    pub fn with_ports(
-        &mut self,
-        port: u16, coach_port: u16, olcoach_port: u16
-    ) -> &mut Self {
-
-        self.process.config_mut().with_ports(port, coach_port, olcoach_port);
+    pub fn with_ports(&mut self, port: u16, coach_port: u16, olcoach_port: u16) -> &mut Self {
+        self.process
+            .config_mut()
+            .with_ports(port, coach_port, olcoach_port);
         self.coach.with_peer(SocketAddr::new(PEER_IP, coach_port));
 
         self
@@ -45,25 +43,25 @@ impl CoachedProcessSpawner {
                 Err(e) => {
                     panic!("{}", e);
                     todo!("fatal")
-                },
+                }
             }
             process
         };
-        
+
         let coach = {
             let coach = self.coach.build();
             coach.connect().await?;
             coach
         };
-        
+
         Ok(CoachedProcess::from_started(coach, process))
     }
 }
 
 #[derive(Debug)]
 pub struct CoachedProcess {
-    coach:      OfflineCoach,
-    process:    ServerProcess,
+    coach: OfflineCoach,
+    process: ServerProcess,
 }
 
 impl CoachedProcess {
@@ -72,10 +70,7 @@ impl CoachedProcess {
     }
 
     fn from_started(coach: OfflineCoach, process: ServerProcess) -> Self {
-        CoachedProcess {
-            coach,
-            process,
-        }
+        CoachedProcess { coach, process }
     }
 
     pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {
@@ -83,7 +78,7 @@ impl CoachedProcess {
         self.process.shutdown().await?;
         Ok(())
     }
-    
+
     pub fn coach(&self) -> &OfflineCoach {
         &self.coach
     }

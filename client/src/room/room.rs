@@ -6,17 +6,12 @@ use dashmap::DashMap;
 use futures::future;
 use log::{debug, info, warn};
 use serde::Serialize;
-use tokio::sync::{mpsc, watch, OnceCell};
+use tokio::sync::{OnceCell, mpsc, watch};
 use tokio::task::JoinHandle;
 
-use common::udp::UdpConnection;
+use super::{Error, LazyProxyConnection, ProxyStatus, Result, RoomConfig};
 use crate::room::conn::ProxyConnectionInfo;
-use super::{
-    RoomConfig,
-    LazyProxyConnection,
-    ProxyStatus,
-    Error, Result,
-};
+use common::udp::UdpConnection;
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoomStatus {
@@ -31,7 +26,6 @@ pub struct RoomInfo {
     pub conn_count: usize,
     pub created_at: DateTime<Utc>,
 }
-
 
 #[derive(Debug)]
 pub struct LazyRoom {
@@ -48,8 +42,10 @@ impl LazyRoom {
     }
 
     pub async fn spawn(self: Arc<Self>) -> Result<JoinHandle<()>> {
-        let room = self.room.get_or_try_init(||
-            async { Room::listen(self.cfg.clone()).await }).await?;
+        let room = self
+            .room
+            .get_or_try_init(|| async { Room::listen(self.cfg.clone()).await })
+            .await?;
         let status_rx = room.status();
 
         let task = tokio::spawn(async move {
@@ -76,7 +72,7 @@ impl LazyRoom {
     pub fn uptime(&self) -> Option<Duration> {
         self.room.get().map(|room| room.uptime())
     }
-    
+
     pub fn config(&self) -> Option<RoomConfig> {
         self.room.get().map(|room| room.config().clone())
     }
@@ -107,7 +103,8 @@ impl Room {
         let created_at = Utc::now();
         let (status_tx, status_rx) = watch::channel(RoomStatus::Running);
 
-        let udp = UdpConnection::bind(cfg.player_udp).await
+        let udp = UdpConnection::bind(cfg.player_udp)
+            .await
             .map_err(|_| Error::OpenRoomUdp { room: cfg.clone() })?;
         let udp_addr = udp.local_addr().expect("Failed to get local udp address");
         cfg.player_udp = udp_addr;
@@ -120,9 +117,8 @@ impl Room {
 
         let room_cfg = Arc::clone(&cfg);
         let conn_map_ = Arc::clone(&connections);
-        let cleanup_task = tokio::spawn(async move {
-            Self::run_cleanup(&room_cfg, conn_map_, monitor_rx).await
-        });
+        let cleanup_task =
+            tokio::spawn(async move { Self::run_cleanup(&room_cfg, conn_map_, monitor_rx).await });
         debug!("Room[{}] Cleanup task started", cfg.name);
 
         let room_cfg = Arc::clone(&cfg);
@@ -164,25 +160,35 @@ impl Room {
             let conn = match connections.get(&ident) {
                 Some(conn) => conn,
                 None => {
-                    warn!("Room[{}] Failed to find proxy connection for udp client [{udp_client_addr}]", config.name);
-                    continue
+                    warn!(
+                        "Room[{}] Failed to find proxy connection for udp client [{udp_client_addr}]",
+                        config.name
+                    );
+                    continue;
                 }
             };
 
             if let Err(e) = conn.spawn().await {
-                warn!("Room[{}] Failed to spawn proxy connection: {e}, dropping", config.name);
+                warn!(
+                    "Room[{}] Failed to spawn proxy connection: {e}, dropping",
+                    config.name
+                );
                 connections.remove(&ident);
                 continue;
             }
 
             if is_new {
-                let status_rx = conn.status()
+                let status_rx = conn
+                    .status()
                     .expect("Connection not spawned to get status rx.");
                 let _ = monitor_tx.send((ident, status_rx)).await;
             }
 
             if let Err(e) = conn.ws_send_text_buf(&buf[..len]).await {
-                info!("Room[{}] Failed to send udp data to proxy connection: {e}, dropping", config.name);
+                info!(
+                    "Room[{}] Failed to send udp data to proxy connection: {e}, dropping",
+                    config.name
+                );
                 connections.remove(&ident);
             }
         }
@@ -234,15 +240,21 @@ impl Room {
             return;
         }
 
-        let futures: Vec<_> = watchers.iter_mut()
+        let futures: Vec<_> = watchers
+            .iter_mut()
             .map(|(_, rx)| {
                 Box::pin(async move {
                     loop {
-                        if rx.changed().await.is_err() { break }
-                        if *rx.borrow() == ProxyStatus::Terminated { break }
+                        if rx.changed().await.is_err() {
+                            break;
+                        }
+                        if *rx.borrow() == ProxyStatus::Terminated {
+                            break;
+                        }
                     }
                 })
-            }).collect();
+            })
+            .collect();
 
         let _ = future::select_all(futures).await;
     }
@@ -255,9 +267,12 @@ impl Room {
             created_at: self.created_at,
         }
     }
-    
+
     pub fn conn_infos(&self) -> Vec<ProxyConnectionInfo> {
-        self.connections.iter().filter_map(|entry| entry.info()).collect()
+        self.connections
+            .iter()
+            .filter_map(|entry| entry.info())
+            .collect()
     }
 
     pub fn config(&self) -> &RoomConfig {

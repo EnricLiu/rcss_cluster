@@ -1,16 +1,16 @@
 use std::net::SocketAddr;
 
-use tokio::sync::{mpsc, OnceCell};
 use dashmap::DashMap;
 use log::{debug, trace};
+use tokio::sync::{OnceCell, mpsc};
 use tokio::time::error::Elapsed;
 use uuid::Uuid;
 
+use super::addon::{Addon, CallerAddon, RawAddon};
+use super::{CallSender, Error, Result};
 use common::client;
 use common::client::{RxData, TxData};
-use super::addon::{Addon, CallerAddon, RawAddon};
 use common::command::{Command, CommandAny, CommandResult};
-use super::{CallSender, Error, Result};
 
 pub const DEFAULT_LOCAL_PLAYER_PORT: u16 = 6000;
 pub const DEFAULT_LOCAL_TRAINER_PORT: u16 = 6001;
@@ -34,9 +34,7 @@ impl RichClientBuilder {
             .with_name("Default Player".to_string())
             .with_local_peer(DEFAULT_LOCAL_PLAYER_PORT);
 
-        Self {
-            conn_builder
-        }
+        Self { conn_builder }
     }
 
     pub fn trainer() -> Self {
@@ -46,9 +44,7 @@ impl RichClientBuilder {
             .with_name("Default Trainer".to_string())
             .with_local_peer(DEFAULT_LOCAL_TRAINER_PORT);
 
-        Self {
-            conn_builder
-        }
+        Self { conn_builder }
     }
 
     pub fn with_kind(&mut self, kind: client::Kind) -> &mut Self {
@@ -88,7 +84,8 @@ impl RichClientBuilder {
 
 #[derive(Debug)]
 pub struct RichClient<CMD, const BUF_SIZE: usize = 32>
-where CMD: CommandAny,
+where
+    CMD: CommandAny,
 {
     pub(crate) conn: client::Client,
     pub(crate) resolver_tx: OnceCell<CallSender<CMD, TxData, RxData>>,
@@ -96,18 +93,14 @@ where CMD: CommandAny,
 }
 
 impl<CMD, const BUF_SIZE: usize> RichClient<CMD, BUF_SIZE>
-where CMD: CommandAny,
+where
+    CMD: CommandAny,
 {
     pub fn builder() -> RichClientBuilder {
         RichClientBuilder::default()
     }
 
-    pub fn new(
-        name: String,
-        host: Option<SocketAddr>,
-        peer: Option<SocketAddr>
-    ) -> Self {
-
+    pub fn new(name: String, host: Option<SocketAddr>, peer: Option<SocketAddr>) -> Self {
         let mut config = client::Config::builder();
         config.with_name(name).with_kind(client::Kind::Trainer);
         config.host = host;
@@ -118,16 +111,25 @@ where CMD: CommandAny,
 
     pub fn from_client_config(config: client::Config) -> Self {
         let conn = client::Client::new(config);
-        Self { conn, resolver_tx: OnceCell::new(), addons: DashMap::new() }
+        Self {
+            conn,
+            resolver_tx: OnceCell::new(),
+            addons: DashMap::new(),
+        }
     }
 
     fn add_raw_addon<A: RawAddon>(&self, name: &'static str) -> Uuid {
         trace!("[RichClient] Adding raw addon '{name}'");
         let (tx, rx) = mpsc::channel(BUF_SIZE);
         let id = self.conn.subscribe(tx);
-        self.addons.insert(name, Box::new(
-            A::from_raw(self.conn.signal_sender(), self.conn.data_sender(), rx)
-        ));
+        self.addons.insert(
+            name,
+            Box::new(A::from_raw(
+                self.conn.signal_sender(),
+                self.conn.data_sender(),
+                rx,
+            )),
+        );
 
         trace!("[RichClient] Addon '{name}' added, id = {id}");
         id
@@ -151,15 +153,21 @@ where CMD: CommandAny,
     }
 
     pub fn caller(&self) -> CallSender<CMD, TxData, RxData> {
-        self.resolver_tx.get().expect("CallResolver not initialized").clone()
+        self.resolver_tx
+            .get()
+            .expect("CallResolver not initialized")
+            .clone()
     }
 
-    pub async fn call<T: Command<Kind=CMD>>(
-        &self, cmd: T
+    pub async fn call<T: Command<Kind = CMD>>(
+        &self,
+        cmd: T,
     ) -> std::result::Result<CommandResult<T>, Elapsed> {
-        self.resolver_tx.get()
+        self.resolver_tx
+            .get()
             .expect("CallResolver not initialized")
-            .call(cmd).await
+            .call(cmd)
+            .await
     }
 
     pub fn subscribe(&self, ingest_tx: mpsc::Sender<RxData>) -> Uuid {
@@ -171,13 +179,17 @@ where CMD: CommandAny,
     }
 
     async fn send_cmd(&self, ctrl: impl Command) -> Result<()> {
-        self.conn.send_data(ctrl.encode()).await
+        self.conn
+            .send_data(ctrl.encode())
+            .await
             .map_err(|e| Error::ClientClosed { source: e })?;
         Ok(())
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
-        self.conn.close().await
+        self.conn
+            .close()
+            .await
             .map_err(|e| Error::ClientCloseFailed { source: e })?;
 
         for kv in self.addons.iter_mut() {

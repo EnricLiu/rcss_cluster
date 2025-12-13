@@ -3,7 +3,7 @@ mod trainer;
 use axum::Router;
 use serde::Serialize;
 
-use super::{AppState, Response, Error};
+use super::{AppState, Error, Response};
 
 use common::command::{Command, CommandResult};
 
@@ -21,7 +21,8 @@ struct SerializeCommandResponseHelper<'a, C: Command> {
 
 impl<C: Command> Serialize for CommandResponse<C> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: serde::Serializer
+    where
+        S: serde::Serializer,
     {
         let helper: SerializeCommandResponseHelper<'_, C> = match &self.0 {
             Ok(ok) => SerializeCommandResponseHelper {
@@ -47,8 +48,7 @@ impl<C: Command> From<CommandResult<C>> for CommandResponse<C> {
 }
 
 pub fn route(path: &str) -> Router<AppState> {
-    let inner = Router::new()
-        .merge(trainer::route("/trainer"));
+    let inner = Router::new().merge(trainer::route("/trainer"));
 
     if path == "/" {
         inner

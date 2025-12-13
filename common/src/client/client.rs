@@ -2,15 +2,15 @@ use std::net::SocketAddr;
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
-use uuid::Uuid;
+use super::error::*;
+use super::{AtomicStatus, Config, Signal, StatusKind};
+use super::{BUFFER_SIZE, CHANNEL_CAPACITY, INIT_MSG_TIMEOUT_MS};
 use arcstr::ArcStr;
 use dashmap::DashMap;
 use log::{debug, info, trace, warn};
-use super::error::*;
-use super::{AtomicStatus, StatusKind, Config, Signal};
-use super::{INIT_MSG_TIMEOUT_MS, BUFFER_SIZE, CHANNEL_CAPACITY};
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+use uuid::Uuid;
 
 use crate::udp::UdpConnection;
 
@@ -28,7 +28,7 @@ pub struct Client {
     data_tx: OnceLock<mpsc::Sender<ClientTxData>>,     // dedicated data path
     status: Arc<AtomicStatus>,
 
-    consumers:  Arc<ConsumersDashMap>,
+    consumers: Arc<ConsumersDashMap>,
 }
 
 impl Client {
@@ -39,22 +39,31 @@ impl Client {
     }
 
     pub fn new(config: Config) -> Self {
-        Self { config, ..Default::default() }
+        Self {
+            config,
+            ..Default::default()
+        }
     }
 
     pub async fn connect(&self) -> Result<()> {
         if self.signal_tx.get().is_some() || self.data_tx.get().is_some() {
-            return Err(Error::AlreadyConnected { client_name: self.config.name.clone() });
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
         }
 
         let (signal_tx, signal_rx) = mpsc::channel(CHANNEL_CAPACITY);
         if let Err(_) = self.signal_tx.set(signal_tx) {
-            return Err(Error::AlreadyConnected { client_name: self.config.name.clone() });
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
         }
 
         let (data_tx, data_rx) = mpsc::channel(CHANNEL_CAPACITY);
         if let Err(_) = self.data_tx.set(data_tx) {
-            return Err(Error::AlreadyConnected { client_name: self.config.name.clone() });
+            return Err(Error::AlreadyConnected {
+                client_name: self.config.name.clone(),
+            });
         }
 
         let consumers = self.consumers.clone();
@@ -84,13 +93,27 @@ impl Client {
     }
 
     pub async fn send_signal(&self, signal: ClientTxSignal) -> Result<()> {
-        self.signal_tx.get().unwrap().send(signal).await.map_err(|e|
-            Error::ChannelSendSignal { client_name: self.config.name.clone(), source: e })
+        self.signal_tx
+            .get()
+            .unwrap()
+            .send(signal)
+            .await
+            .map_err(|e| Error::ChannelSendSignal {
+                client_name: self.config.name.clone(),
+                source: e,
+            })
     }
 
     pub async fn send_data(&self, data: ClientTxData) -> Result<()> {
-        self.data_tx.get().unwrap().send(data).await.map_err(|e|
-            Error::ChannelSendData { client_name: self.config.name.clone(), source: e })
+        self.data_tx
+            .get()
+            .unwrap()
+            .send(data)
+            .await
+            .map_err(|e| Error::ChannelSendData {
+                client_name: self.config.name.clone(),
+                source: e,
+            })
     }
 
     pub fn signal_sender(&self) -> mpsc::Sender<ClientTxSignal> {
@@ -128,27 +151,39 @@ impl Client {
             return Err(Error::NotConnected);
         }
 
-        let mut handle = self.handle.take()
+        let mut handle = self
+            .handle
+            .take()
             .expect("WTF? Client handle OnceLock get failed");
 
         if let Err(_e) = self.send_signal(Signal::Shutdown).await {
             // channel closed here, maybe already closed
-            info!("Client[{}]: channel closed while trying to send ClientTxMessage::Shutdown", self.name());
+            info!(
+                "Client[{}]: channel closed while trying to send ClientTxMessage::Shutdown",
+                self.name()
+            );
         }
 
         match tokio::time::timeout(Self::SHUTDOWN_TIMEOUT, &mut handle).await {
-            Err(_) => { // Timeout Elapsed
-                warn!("Client[{}]: timeout while waiting for shutdown returns, aborting", self.name());
+            Err(_) => {
+                // Timeout Elapsed
+                warn!(
+                    "Client[{}]: timeout while waiting for shutdown returns, aborting",
+                    self.name()
+                );
                 handle.abort();
                 self.status.set(StatusKind::Died);
                 Err(Error::CloseTimeout {
                     duration: Self::SHUTDOWN_TIMEOUT,
                     client_name: self.name().to_string(),
                 })
-            },
+            }
             Ok(Err(join)) => {
                 if join.is_cancelled() {
-                    debug!("Client[{}]: Failed to join: Task already cancelled.", self.name());
+                    debug!(
+                        "Client[{}]: Failed to join: Task already cancelled.",
+                        self.name()
+                    );
                     self.status.set(StatusKind::Disconnected);
                     Ok(())
                 } else {
@@ -158,11 +193,11 @@ impl Client {
                         client_name: self.name().to_string(),
                     })
                 }
-            },
+            }
             Ok(Ok(res)) => {
                 self.status.set(StatusKind::Disconnected);
                 res
-            },
+            }
         }
     }
 
@@ -192,8 +227,8 @@ impl Client {
 
 #[derive(Clone)]
 struct Context {
-    cfg:    Config,
-    status:  Arc<AtomicStatus>,
+    cfg: Config,
+    status: Arc<AtomicStatus>,
 }
 
 async fn run_debug(
@@ -203,7 +238,10 @@ async fn run_debug(
     context: Context,
 ) -> Result<()> {
     let res = run(signal_rx, data_rx, consumers, context.clone()).await;
-    info!("Client[{}]: connection task ended with result: {:?}", context.cfg.name, res);
+    info!(
+        "Client[{}]: connection task ended with result: {:?}",
+        context.cfg.name, res
+    );
     res
 }
 
@@ -215,23 +253,43 @@ async fn run(
 ) -> Result<()> {
     assert_eq!(context.status.kind(), StatusKind::Disconnected); // todo!()
     debug!("Client[{}]: starting connection...", context.cfg.name);
-    trace!("Client[{}]: Waiting for init msg from tx.", context.cfg.name);
+    trace!(
+        "Client[{}]: Waiting for init msg from tx.",
+        context.cfg.name
+    );
 
     context.status.set(StatusKind::Idle);
     let init_msg = wait_init_msg_from_channels(&mut data_rx, &mut signal_rx, &context).await?;
-    trace!("Client[{}]: received init msg from tx: {}", context.cfg.name, init_msg);
+    trace!(
+        "Client[{}]: received init msg from tx: {}",
+        context.cfg.name, init_msg
+    );
 
     context.status.set(StatusKind::WaitingRedirection);
-    trace!("Client[{}]: opening UDP connection to {}...", context.cfg.name, context.cfg.peer);
-    let mut udp_conn = UdpConnection::bind(context.cfg.host).await
-        .map_err(|e| Error::Udp { client_name: context.cfg.name.clone(), source: e })?;
+    trace!(
+        "Client[{}]: opening UDP connection to {}...",
+        context.cfg.name, context.cfg.peer
+    );
+    let mut udp_conn = UdpConnection::bind(context.cfg.host)
+        .await
+        .map_err(|e| Error::Udp {
+            client_name: context.cfg.name.clone(),
+            source: e,
+        })?;
     trace!("Client[{}]: UDP connection opened.", context.cfg.name);
 
-    let init_resp = wait_init_resp_recv(&init_msg, &mut udp_conn, context.cfg.peer, &context).await?;
-    trace!("Client[{}]: received init resp from server: {}", context.cfg.name, init_resp);
+    let init_resp =
+        wait_init_resp_recv(&init_msg, &mut udp_conn, context.cfg.peer, &context).await?;
+    trace!(
+        "Client[{}]: received init resp from server: {}",
+        context.cfg.name, init_resp
+    );
     let success_cnt = sync_messages(&init_resp, &consumers, &context).await?;
     if success_cnt == 0 {
-        warn!("Client[{}]: No consumers to receive init response message.", context.cfg.name);
+        warn!(
+            "Client[{}]: No consumers to receive init response message.",
+            context.cfg.name
+        );
     }
 
     listen_and_transmit(signal_rx, data_rx, Arc::new(udp_conn), consumers, context).await
@@ -284,39 +342,55 @@ async fn wait_init_resp_recv(
 ) -> Result<ClientRxData> {
     let mut buf = [0u8; BUFFER_SIZE];
 
-    trace!("Client[{}]: sending init msg to server: {} and waiting for response.", context.cfg.name, init_msg);
+    trace!(
+        "Client[{}]: sending init msg to server: {} and waiting for response.",
+        context.cfg.name, init_msg
+    );
     let recv_result = tokio::time::timeout(
         Duration::from_millis(INIT_MSG_TIMEOUT_MS),
         udp_conn.send_and_conn_new_recv(init_msg.as_bytes(), &mut buf, peer_addr),
-    ).await;
+    )
+    .await;
 
     match recv_result {
         Ok(Ok(len)) => {
             let resp = String::from_utf8_lossy(&buf[..len]).to_string().into();
-            trace!("Client[{}]: received init response from server: {}", context.cfg.name, resp);
+            trace!(
+                "Client[{}]: received init response from server: {}",
+                context.cfg.name, resp
+            );
             Ok(resp)
-        },
+        }
         Ok(Err(e)) => {
             context.status.set(StatusKind::Disconnected);
-            info!("Client[{}]: Failed to receive init response from server: {}", context.cfg.name, e);
+            info!(
+                "Client[{}]: Failed to receive init response from server: {}",
+                context.cfg.name, e
+            );
             Err(Error::Udp {
                 client_name: context.cfg.name.clone(),
                 source: e,
             })
-        },
-        Err(_elapsed) => { // Timeout
+        }
+        Err(_elapsed) => {
+            // Timeout
             context.status.set(StatusKind::Disconnected);
-            info!("Client[{}]: Failed to receive init response from server: Timeout", context.cfg.name);
+            info!(
+                "Client[{}]: Failed to receive init response from server: Timeout",
+                context.cfg.name
+            );
             Err(Error::TimeoutInitResp {
                 client_name: context.cfg.name.clone(),
                 duration_s: INIT_MSG_TIMEOUT_MS as f32 / 1000.0,
             })
-        },
+        }
     }
 }
 
 async fn sync_messages(
-    msg: &ClientRxData, consumers: &ConsumersDashMap, context: &Context,
+    msg: &ClientRxData,
+    consumers: &ConsumersDashMap,
+    context: &Context,
 ) -> Result<usize> {
     let mut tasks = Vec::with_capacity(consumers.len());
 
@@ -327,7 +401,7 @@ async fn sync_messages(
                 Err(_e) => {
                     trace!("Channel[{id}] Closed, winding up..");
                     Some(*id)
-                },
+                }
                 Ok(_) => None,
             }
         });
@@ -340,8 +414,10 @@ async fn sync_messages(
     for id in deleted {
         success_cnt -= 1;
         if let None = consumers.remove(&id) {
-            warn!("Client[{}]: Consumer[{}] was removed from the list, but it was not found in the list.",
-                context.cfg.name, id);
+            warn!(
+                "Client[{}]: Consumer[{}] was removed from the list, but it was not found in the list.",
+                context.cfg.name, id
+            );
         }
     }
 
@@ -383,15 +459,22 @@ async fn listen_and_transmit(
     let mut udp_recv_task = tokio::spawn(async move {
         let mut buf = [0u8; BUFFER_SIZE];
         loop {
-            let len = udp.recv(&mut buf).await
-                .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
+            let len = udp.recv(&mut buf).await.map_err(|e| Error::Udp {
+                client_name: context_.cfg.name.clone(),
+                source: e,
+            })?;
 
             let msg = String::from_utf8_lossy(&buf[..len])
-                .to_string().into_boxed_str().into();
+                .to_string()
+                .into_boxed_str()
+                .into();
 
             let cnt = sync_messages(&msg, &consumers, &context_).await?;
             if cnt == 0 {
-                warn!("Client[{}]: No consumers to receive UDP message.", context_.cfg.name);
+                warn!(
+                    "Client[{}]: No consumers to receive UDP message.",
+                    context_.cfg.name
+                );
             }
         }
 
@@ -406,8 +489,10 @@ async fn listen_and_transmit(
     udp_send_task.abort();
     udp_recv_task.abort();
     context.status.set(StatusKind::Disconnected);
-    debug!("Client[{}]: {} ended, shutting down connection.", context.cfg.name, task_name);
-
+    debug!(
+        "Client[{}]: {} ended, shutting down connection.",
+        context.cfg.name, task_name
+    );
 
     task_res.map_err(|e| Error::TaskJoin {
         client_name: context.cfg.name.clone(),

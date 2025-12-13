@@ -8,7 +8,7 @@ pub enum ClientKind {
     Trainer = 2,
 }
 
-impl Default for ClientKind { 
+impl Default for ClientKind {
     fn default() -> Self {
         ClientKind::Player
     }
@@ -28,9 +28,7 @@ impl TryFrom<u8> for ClientKind {
 }
 
 impl Serialize for ClientKind {
-    fn serialize<S: Serializer>(
-        &self, serializer: S
-    ) -> Result<S::Ok, S::Error> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         serializer.serialize_u8(*self as u8)
     }
 }

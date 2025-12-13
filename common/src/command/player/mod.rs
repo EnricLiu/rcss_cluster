@@ -2,8 +2,8 @@ pub mod init;
 
 pub use init::CommandInit;
 
-use std::any::Any;
 use arcstr::{ArcStr, format, literal};
+use std::any::Any;
 
 use super::{Command, CommandAny};
 
@@ -30,7 +30,7 @@ impl CommandAny for PlayerCommand {
         match self {
             PlayerCommand::Init => {
                 CommandInit::parse_ret_ok(tokens).map(|r| Box::new(r) as Box<dyn Any + Send>)
-            },
+            }
         }
     }
 
@@ -38,7 +38,7 @@ impl CommandAny for PlayerCommand {
         match self {
             PlayerCommand::Init => {
                 CommandInit::parse_ret_err(tokens).map(|e| Box::new(e) as Box<dyn Any + Send>)
-            },
+            }
         }
     }
 }

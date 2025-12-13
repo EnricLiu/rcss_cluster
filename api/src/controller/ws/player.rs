@@ -1,15 +1,15 @@
+use arcstr::ArcStr;
+use axum::extract::ws::Message;
+use axum::extract::{Path, Query, State, WebSocketUpgrade, ws::WebSocket};
+use axum::{Router, response::Response as AxumResponse, routing};
+use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use arcstr::ArcStr;
 use tokio::sync::mpsc;
-use axum::extract::{Path, State, ws::WebSocket, WebSocketUpgrade, Query};
-use axum::{routing, Router, response::Response as AxumResponse};
-use axum::extract::ws::Message;
 use uuid::Uuid;
-use serde::Deserialize;
 
-use sidecar::{PEER_IP};
 use common::client::{Client, Config as ClientConfig, Error as ClientError};
+use sidecar::PEER_IP;
 
 use super::AppState;
 
@@ -21,25 +21,38 @@ struct UpdateRequest {
 }
 async fn upgrade(
     State(s): State<AppState>,
-    ws: WebSocketUpgrade, Path(client_id): Path<Uuid>,
-    Query(req): Query<UpdateRequest>
+    ws: WebSocketUpgrade,
+    Path(client_id): Path<Uuid>,
+    Query(req): Query<UpdateRequest>,
 ) -> AxumResponse {
-    ws.on_upgrade(move |socket| async move {
-        handle_upgrade(socket, &s.clone(), client_id, req).await
-    })
+    ws.on_upgrade(
+        move |socket| async move { handle_upgrade(socket, &s.clone(), client_id, req).await },
+    )
 }
 
-use futures::{SinkExt, StreamExt};
 use futures::stream::SplitStream;
+use futures::{SinkExt, StreamExt};
 use log::{debug, error, info, trace, warn};
 use tokio::task::JoinHandle;
 
-async fn handle_upgrade(mut socket: WebSocket, state: &AppState, client_id: Uuid, req: UpdateRequest) {
+async fn handle_upgrade(
+    mut socket: WebSocket,
+    state: &AppState,
+    client_id: Uuid,
+    req: UpdateRequest,
+) {
     let client_config = {
         let mut builder = ClientConfig::builder();
         builder.name = req.name;
         let server_addr = SocketAddr::new(
-            PEER_IP, state.sidecar.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT));
+            PEER_IP,
+            state
+                .sidecar
+                .config()
+                .server
+                .port
+                .unwrap_or(DEFAULT_SERVER_UDP_PORT),
+        );
         builder.with_peer(server_addr);
 
         builder.build_into()
@@ -48,20 +61,24 @@ async fn handle_upgrade(mut socket: WebSocket, state: &AppState, client_id: Uuid
     let player_client = {
         let mut client = None;
 
-        state.players.entry(client_id)
-            .and_modify(|c| { // existing weak
+        state
+            .players
+            .entry(client_id)
+            .and_modify(|c| {
+                // existing weak
                 client = c.upgrade();
                 if client.is_none() {
                     client = Some(Arc::new(Client::new(client_config.clone())));
                     *c = Arc::downgrade(client.as_ref().unwrap());
                 }
             })
-            .or_insert_with(|| { // create
+            .or_insert_with(|| {
+                // create
                 client = Some(Arc::new(Client::new(client_config.clone())));
                 Arc::downgrade(client.as_ref().unwrap())
             });
 
-       client.unwrap()
+        client.unwrap()
     };
 
     let (client_tx, mut client_rx) = mpsc::channel(32);
@@ -70,22 +87,23 @@ async fn handle_upgrade(mut socket: WebSocket, state: &AppState, client_id: Uuid
     match player_client.connect().await {
         Ok(_) => {
             trace!("[Player WS] Client[{client_id}] Connected to server.");
-        },
+        }
         Err(ClientError::AlreadyConnected { .. }) => {
-            info!("[Player WS] Client[{client_id}] Already connected, may because of reconnection or broadcasting.");
-        },
+            info!(
+                "[Player WS] Client[{client_id}] Already connected, may because of reconnection or broadcasting."
+            );
+        }
         Err(e) => {
-            warn!("[Player WS] Client[{client_id}] Failed to connect to server: {}", e);
+            warn!(
+                "[Player WS] Client[{client_id}] Failed to connect to server: {}",
+                e
+            );
             let _ = socket.send("Failed to connect to server".into()).await;
             return;
         }
     }
 
-    let (
-        socket_tx,
-        mut socket_rx,
-        mut socket_task
-    ) = ws_into_mpsc_tx::<32>(socket);
+    let (socket_tx, mut socket_rx, mut socket_task) = ws_into_mpsc_tx::<32>(socket);
 
     loop {
         tokio::select! {
@@ -164,8 +182,12 @@ async fn handle_upgrade(mut socket: WebSocket, state: &AppState, client_id: Uuid
 }
 
 fn ws_into_mpsc_tx<const BUF_SIZE: usize>(
-    ws: WebSocket
-) -> (mpsc::Sender<Message>, SplitStream<WebSocket>, JoinHandle<Result<(), axum::Error>>) {
+    ws: WebSocket,
+) -> (
+    mpsc::Sender<Message>,
+    SplitStream<WebSocket>,
+    JoinHandle<Result<(), axum::Error>>,
+) {
     let (tx, rx) = mpsc::channel(BUF_SIZE);
     let (socket_tx, socket_rx) = ws.split();
 
@@ -175,7 +197,7 @@ fn ws_into_mpsc_tx<const BUF_SIZE: usize>(
 
         while let Some(msg) = rx.recv().await {
             if let Err(e) = socket_tx.send(msg).await {
-                return Err(e)
+                return Err(e);
             }
         }
 
@@ -186,8 +208,7 @@ fn ws_into_mpsc_tx<const BUF_SIZE: usize>(
 }
 
 pub fn route(path: &str) -> Router<AppState> {
-    let inner = Router::new()
-        .route("/{client_id}", routing::get(upgrade));
+    let inner = Router::new().route("/{client_id}", routing::get(upgrade));
 
     if path == "/" {
         inner

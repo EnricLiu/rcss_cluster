@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Deserialize, Serialize};
 
 #[repr(u8)]
 #[derive(Copy, PartialEq, Serialize, Deserialize, Clone, Debug)]

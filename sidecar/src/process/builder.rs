@@ -1,6 +1,6 @@
+use log::{error, trace};
 use std::io;
 use std::process::Stdio;
-use log::{error, trace};
 use tokio::process::Command;
 
 use super::*;
@@ -35,7 +35,9 @@ impl ServerProcessSpawner {
         let is_exist = {
             let mut validate_cmd = Command::new("which");
             validate_cmd.arg(pgm_name);
-            let out = validate_cmd.output().await
+            let out = validate_cmd
+                .output()
+                .await
                 .expect("error calling `which` when creating RcssServer Process");
 
             let out = String::from_utf8_lossy(&out.stdout);
@@ -62,16 +64,14 @@ impl ServerProcessSpawner {
         cmd.stdout(Stdio::piped());
         cmd.stderr(Stdio::piped());
 
-        let child = cmd.spawn().map_err(|e| {
-            match e.kind() {
-                io::ErrorKind::WouldBlock => Error::MaxProcessReached(e),
-                _ => Error::Io(e),
-            }
+        let child = cmd.spawn().map_err(|e| match e.kind() {
+            io::ErrorKind::WouldBlock => Error::MaxProcessReached(e),
+            _ => Error::Io(e),
         })?;
 
         ServerProcess::try_from(child).await
     }
-    
+
     pub fn config_mut(&mut self) -> &mut Config {
         &mut self.config
     }
