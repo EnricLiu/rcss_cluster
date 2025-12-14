@@ -6,20 +6,25 @@ A Rust-based cluster management system for RoboCup Soccer Simulator (rcssserver)
 
 ## Overview
 
-`rcss_cluster` provides infrastructure for running and managing multiple RoboCup Soccer Simulator instances in a distributed environment. It consists of three main components:
+`rcss_cluster` provides infrastructure for running and managing multiple RoboCup Soccer Simulator instances in a distributed environment. It consists of five main components:
 
-- **api**: REST/WebSocket API server built with Axum for external communication
+- **client**: API gateway / proxy server for managing rooms and routing client connections to backend servers
+- **server**: Backend server providing HTTP/WebSocket API for controlling rcssserver instances
+- **service**: Service layer with standalone and Agones deployment modes
+- **process**: Process management for spawning and controlling rcssserver with trainer/coach support
 - **common**: Shared library containing client utilities, command structures, UDP communication, and common types
-- **sidecar**: A sidecar service that manages rcssserver processes and integrates with Agones for Kubernetes-native game server management
 
 ## Project Structure
 
 ```
 rcss_cluster/
-├── api/           # API server (Axum-based REST/WebSocket)
-├── common/        # Shared library (clients, commands, types)
-├── sidecar/       # Sidecar service for rcssserver management
+├── client/        # API gateway/proxy server (Axum-based, listens on 0.0.0.0:6000)
+├── server/        # Backend server (HTTP/WebSocket API, listens on 0.0.0.0:55555)
+├── service/       # Service layer (standalone/agones modes)
+├── process/       # rcssserver process management with trainer/coach
+├── common/        # Shared library (clients, commands, types, UDP)
 ├── Cargo.toml     # Workspace configuration
+├── Dockerfile     # Docker build configuration
 └── LICENSE        # MIT License
 ```
 
@@ -28,7 +33,7 @@ rcss_cluster/
 - Rust (Edition 2024)
 - Linux (Windows is not currently supported)
 - [rcssserver](https://github.com/rcsoccersim/rcssserver) installed
-- [Agones](https://agones.dev/) (planned for Kubernetes deployment, not yet integrated)
+- [Agones](https://agones.dev/) (optional, for Kubernetes deployment)
 
 ## Building
 
@@ -42,30 +47,88 @@ To build in release mode:
 cargo build --release
 ```
 
+### Feature Flags
+
+The `server` crate supports different deployment modes via feature flags:
+
+```bash
+# Build standalone server (default single-instance mode)
+cargo build -p server --features standalone
+
+# Build with Agones integration for Kubernetes
+cargo build -p server --features agones
+```
+
+> **Note**: `standalone` and `agones` features are mutually exclusive.
+
 ## Components
 
-### API Server
+### Client (API Gateway)
 
-The API server provides HTTP and WebSocket endpoints for interacting with the cluster. By default, it listens on `0.0.0.0:55555`.
+The client acts as an API gateway/proxy server for managing rooms and routing connections. By default, it listens on `0.0.0.0:6000`.
 
-### Sidecar
+Features:
+- Room management (`/rooms` endpoints)
+- Health check endpoints (`/health`)
+- WebSocket proxy connections to backend servers
+- Agones allocator integration for room allocation
 
-The sidecar manages rcssserver processes. It handles:
+### Server (Backend)
 
-- Process spawning and management
-- Trainer/coach command execution
-- Status tracking (Uninitialized, Idle, Simulating, Finished)
+The backend server provides HTTP and WebSocket endpoints for controlling rcssserver instances. By default, it listens on `0.0.0.0:55555`.
 
-> **Note**: Agones SDK integration for game server lifecycle management is planned but not yet implemented.
+Features:
+- HTTP API for trainer commands (`/command`, `/control`, `/gateway`)
+- WebSocket API for player connections (`/player`)
+- Service status tracking (Uninitialized, Idle, Simulating, Finished)
+
+### Service Layer
+
+The service layer provides abstractions for different deployment modes:
+
+- **StandaloneService**: Single-instance mode for local development and testing
+- **AgonesService**: Kubernetes-native game server management (planned)
+
+### Process Management
+
+The `process` crate handles rcssserver lifecycle:
+
+- Process spawning with configurable ports
+- Trainer/coach client management (`OfflineCoach`)
+- Command execution (trainer commands)
+- Status monitoring via watch channels
 
 ### Common Library
 
 Shared functionality including:
 
-- Client communication utilities
-- Command encoding/decoding (trainer and player commands)
-- UDP communication
-- Common types and structures
+- Client communication utilities (`client` module)
+- Command encoding/decoding (`command` module - trainer and player commands)
+- UDP communication (`udp` module)
+- Common types (`types` module - play modes, ball position, etc.)
+
+## Architecture
+
+```
+┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
+│   Client    │────▶│   Server    │────▶│   rcssserver    │
+│ (Gateway)   │     │  (Backend)  │     │   (Process)     │
+│  :6000      │     │   :55555    │     │                 │
+└─────────────┘     └─────────────┘     └─────────────────┘
+       │                   │
+       │                   ▼
+       │            ┌─────────────┐
+       │            │   Service   │
+       │            │ (standalone │
+       │            │  /agones)   │
+       │            └─────────────┘
+       │
+       ▼
+┌─────────────┐
+│   Agones    │
+│ Allocator   │
+└─────────────┘
+```
 
 ## License
 
