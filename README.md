@@ -132,7 +132,11 @@ Shared functionality including:
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is primarily licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+**Note**: The `gameserver.yaml` file is derived from [googleforgames/agones](https://github.com/googleforgames/agones/blob/main/examples/simple-game-server/gameserver.yaml)
+and is licensed under Apache License 2.0. The original copyright notice
+and license header have been preserved in that file.
 
 ## Author
 
