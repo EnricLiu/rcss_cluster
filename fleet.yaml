@@ -1,0 +1,101 @@
+---
+# Copyright 2018 Google LLC All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ------------------------------------------------------------------
+# MODIFICATION NOTICE:
+# This file has been modified by EnricLiu(https://github.com/EnricLiu)
+# The modifications are licensed under Apache 2.0.
+# ------------------------------------------------------------------
+
+apiVersion: agones.dev/v1
+kind: Fleet
+metadata:
+  name: agones-rcss-server
+spec:
+  replicas: 5
+  scheduling: Packed
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+
+  allocationOverflow:
+    labels:
+      version: ""
+    annotations:
+      overflow: "true"
+
+  priorities:
+    - type: Counter
+      key: rooms
+      order: Descending
+    - type: List
+      key: players
+      order: Ascending
+
+  template:
+    spec:
+      ports:
+        - name: default
+          portPolicy: Dynamic
+          containerPort: 55555
+          protocol: TCP
+
+        - name: player
+          portPolicy: Dynamic
+          containerPort: 6000
+          protocol: TCP
+        - name: trainer
+          portPolicy: Dynamic
+          containerPort: 6001
+          protocol: TCP
+        - name: coach
+          portPolicy: Dynamic
+          containerPort: 6002
+          protocol: TCP
+
+      health:
+        disabled: false
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        failureThreshold: 3
+
+      sdkServer:
+        logLevel: Info
+        grpcPort: 9357
+        httpPort: 9358
+
+      counters:
+        rooms:
+          count: 0
+          capacity: 100
+
+      lists:
+        players:
+          values: []
+
+      template:
+        spec:
+          containers:
+            - name: agones-rcss-server
+              image: registry.cn-beijing.aliyuncs.com/nn4h0u/agones-rcss-server:latest
+              resources:
+                requests:
+                  memory: 128Mi
+                  cpu: 100m
+                limits:
+                  memory: 128Mi
+                  cpu: 100m
