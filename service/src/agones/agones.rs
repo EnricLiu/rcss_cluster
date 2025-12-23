@@ -189,7 +189,7 @@ impl AgonesService {
     pub async fn shutdown(&mut self) -> Result<()> {
         self.cancel_token.cancel();
         self.service.shutdown().await?;
-        self.sdk.write().await.shutdown().await.expect("TODO: panic message");
+        self.sdk.write().await.shutdown().await.expect("Failed to shutdown Agones SDK");
         Ok(())
     }
 
