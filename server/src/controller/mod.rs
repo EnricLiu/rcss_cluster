@@ -47,7 +47,7 @@ impl AppState {
     }
     
     async fn run_wait_for_shutdown_cleaner(
-        service: Arc<Service>,
+        mut service: Arc<Service>,
         shutdown_notifier: oneshot::Receiver<()>,
     ) {
         shutdown_notifier.await.ok();
@@ -59,7 +59,7 @@ impl AppState {
         loop {
             interval.tick().await;
             
-            if let Some(service) = Arc::get_mut(&mut service.clone()) {
+            if let Some(service) = Arc::get_mut(&mut service) {
                 match service.shutdown().await {
                     Ok(_) => {
                         info!("[AppState] Service shutdown completed in {}ms.", 
