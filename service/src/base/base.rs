@@ -1,12 +1,12 @@
 use tokio::sync::{watch, RwLock};
 use log::{debug, info, warn};
 
-use common::command::{Command, CommandResult};
+use common::command::{trainer, Command, CommandResult};
 use common::command::trainer::TrainerCommand;
-use process::{CoachedProcessSpawner, ProcessConfig};
+use process::{CoachedProcessSpawner, CommandCaller, ProcessConfig};
 
 use crate::{Error, Result};
-use super::{AddonProcess, ServerStatus};
+use super::{AddonProcess, BaseArgs, BaseConfig, ServerStatus};
 
 #[derive(Debug)]
 pub enum OptionedProcess {
@@ -46,6 +46,7 @@ impl OptionedProcess {
 
 #[derive(Debug)]
 pub struct BaseService {
+    config: BaseConfig,
     spawner: CoachedProcessSpawner,
     process: RwLock<OptionedProcess>,
     status_tx: watch::Sender<ServerStatus>,
@@ -62,10 +63,22 @@ pub(crate) fn get_status(watch: &watch::Receiver<ServerStatus>) -> ServerStatus 
 }
 
 impl BaseService {
-    pub(crate) async fn new(spawner: CoachedProcessSpawner) -> Self {
+    pub async fn from_args(args: BaseArgs) -> Self {
+        let config = (&args).into();
+        let mut spawner = CoachedProcessSpawner::new().await;
+        let rcss_log_dir = args.rcss_log_dir.leak(); // STRING LEAK
+        spawner
+            .with_ports(args.player_port, args.trainer_port, args.coach_port)
+            .with_sync_mode(args.rcss_sync)
+            .with_log_dir(rcss_log_dir);
+
+        BaseService::new(config, spawner).await
+    }
+
+    pub(super) async fn new(config: BaseConfig, spawner: CoachedProcessSpawner) -> Self {
         let process = RwLock::new(OptionedProcess::Uninitialized);
         let (status_tx, status_rx) = watch::channel(ServerStatus::Uninitialized);
-        Self { spawner, process, status_tx, status_rx }
+        Self { config, spawner, process, status_tx, status_rx }
     }
 
     pub(crate) async fn spawn(&self, force: bool) -> Result<()> {
@@ -94,6 +107,16 @@ impl BaseService {
         tokio::spawn(Self::status_tracing_task(self.status_tx.clone(), time_rx));
         info!("[BaseService] Status tracing task spawned");
 
+        if let Some(half_time) = self.config.half_time_auto_start {
+            let caller = process.trainer_command_sender();
+            tokio::spawn(Self::kick_off_half_time_task(
+                process.time_watch(),
+                caller,
+                half_time,
+            ));
+            info!("[BaseService] KickOff Half-Time task spawned (half_time = {}ts)", half_time);
+        }
+
         *process_guard = OptionedProcess::Running(process);
         self.set_status(ServerStatus::Idle).expect("[BaseService] Status channel closed unexpectedly");
 
@@ -107,6 +130,13 @@ impl BaseService {
             .ok_or(Error::ServerNotRunning { status: ServerStatus::Uninitialized })?
             .send_trainer_command(command).await
             .map_err(|_| Error::Timeout { op: "send_trainer_command" })
+    }
+
+    pub async fn trainer_command_sender(&self) -> Result<CommandCaller<TrainerCommand>> {
+        let ret = self.process.read().await.process()
+            .ok_or(Error::ServerNotRunning { status: ServerStatus::Uninitialized })?
+            .trainer_command_sender();
+        Ok(ret)
     }
 
     pub async fn shutdown(&self) -> Result<()> {
@@ -167,6 +197,34 @@ impl BaseService {
                 info!("[BaseService] Status Tracking ended: status_tx channel closed.");
                 break;
             }
+        }
+    }
+
+    /// trying to send start when half-time reached
+    async fn kick_off_half_time_task(
+        mut time_rx: watch::Receiver<Option<u16>>,
+        caller: CommandCaller<TrainerCommand>,
+        half_time: u16,
+    ) {
+        assert!(half_time > 0 && half_time < 6000,
+            "[BaseService] kick_off_half_time_task: half_time must be between 1 and 5999");
+
+        while let Ok(_) = time_rx.changed().await {
+            let time = match *time_rx.borrow() {
+                Some(t) => t,
+                None => continue,
+            };
+
+            // rcss server always stop at the half-time point
+            // thus the equality check would be safe
+            if time != half_time { continue };
+            match caller.call(trainer::Start).await {
+                Ok(_) =>
+                    debug!("[BaseService] KickOff Halftime: Sent Start command at half-time {}", half_time),
+                Err(e) =>
+                    warn!("[BaseService] KickOff Halftime: Failed to send Start command at {}ts: {:?}", half_time, e),
+            }
+            break;
         }
     }
 

@@ -1,7 +1,8 @@
+use crate::client::CommandCaller;
 use crate::process::{self, ServerProcess, ServerProcessSpawner};
 use crate::trainer::{self, OfflineCoach};
 use std::time::Duration;
-
+use common::command::trainer::TrainerCommand;
 use crate::RCSS_PROCESS_NAME;
 
 #[derive(Clone, Debug)]
@@ -85,6 +86,10 @@ impl CoachedProcess {
         self.coach.shutdown().await?;
         self.process.shutdown().await?;
         Ok(())
+    }
+
+    pub fn command_sender(&self) -> CommandCaller<TrainerCommand> {
+        self.coach().command_sender()
     }
 
     pub fn coach(&self) -> &OfflineCoach {

@@ -1,6 +1,6 @@
 use super::Builder;
-use crate::client::{CallResolver, Result, RichClient};
-use common::client::RxData;
+use crate::client::{CallResolver, CallSender, Result, RichClient};
+use common::client::{RxData, TxData};
 use common::command::trainer::TrainerCommand;
 use common::{client, command};
 use log::{debug, trace};
@@ -60,6 +60,10 @@ impl OfflineCoach {
             .expect("Failed to send init signal")
             .unwrap();
         Ok(())
+    }
+    
+    pub fn command_sender(&self) -> CallSender<TrainerCommand, TxData, RxData> {
+        self.caller()
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {

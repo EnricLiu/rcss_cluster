@@ -1,4 +1,6 @@
-use process::CoachedProcessSpawner;
+use tokio::sync::watch;
+use common::command::trainer::{self, TrainerCommand};
+use process::{CoachedProcessSpawner, CommandCaller};
 use super::{BaseService, StandaloneArgs};
 
 #[derive(Debug)]
@@ -8,19 +10,7 @@ pub struct StandaloneService {
 
 impl StandaloneService {
     pub async fn from_args(args: StandaloneArgs) -> crate::Result<Self> {
-        let base = {
-            let mut spawner = CoachedProcessSpawner::new().await;
-            let rcss_log_dir = args.base_args.rcss_log_dir.leak(); // STRING LEAK
-            spawner
-                .with_ports(args.base_args.player_port,
-                            args.base_args.trainer_port,
-                            args.base_args.coach_port)
-                .with_sync_mode(args.base_args.rcss_sync)
-                .with_log_dir(rcss_log_dir);
-
-            BaseService::new(spawner).await
-        };
-
+        let base = BaseService::from_args(args.base_args).await;
         Ok(Self::new(base))
     }
 
