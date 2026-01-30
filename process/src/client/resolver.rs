@@ -56,31 +56,9 @@ impl Receiver<PlayerCommand, RxData> {
                     continue;
                 }
 
-                let msg = if msg == "(init ok)" { "(ok init)" } else { msg };
 
                 let mut msg = msg[1..msg.len() - 1].split(' ');
                 let (kind, ret) = match msg.next() {
-                    Some("ok") => {
-                        if let Some(kind_str) = msg.next()
-                            && let Some(sig_kind) = PlayerCommand::decode(kind_str)
-                        {
-                            let rest: Vec<_> = msg.collect();
-                            let ret = sig_kind.parse_ret_ok(&rest);
-                            match ret {
-                                Some(ok) => (sig_kind, Ok(ok)),
-                                None => {
-                                    debug!(
-                                        "[CallResolver] Ignore \"ok\" for [{}]: {raw_msg:?}",
-                                        sig_kind.encode()
-                                    );
-                                    continue;
-                                }
-                            }
-                        } else {
-                            debug!("[CallResolver] Ignore \"ok\" for unknown Sig: {raw_msg:?}");
-                            continue;
-                        }
-                    }
                     Some("error") => {
                         let mut ret = None;
 
@@ -103,6 +81,33 @@ impl Receiver<PlayerCommand, RxData> {
                                 );
                                 continue;
                             }
+                        }
+                    },
+                    Some(maybe_ok) => {
+                        let kind_str = if maybe_ok != "ok" {
+                            Some(maybe_ok)
+                        } else {
+                            msg.next()
+                        };
+
+                        if let Some(kind_str) = kind_str
+                            && let Some(sig_kind) = PlayerCommand::decode(kind_str)
+                        {
+                            let rest: Vec<_> = msg.collect();
+                            let ret = sig_kind.parse_ret_ok(&rest);
+                            match ret {
+                                Some(ok) => (sig_kind, Ok(ok)),
+                                None => {
+                                    debug!(
+                                        "[CallResolver] Ignore \"ok\" for [{}]: {raw_msg:?}",
+                                        sig_kind.encode()
+                                    );
+                                    continue;
+                                }
+                            }
+                        } else {
+                            debug!("[CallResolver] Ignore \"ok\" for unknown Sig: {raw_msg:?}");
+                            continue;
                         }
                     }
                     _ => {
@@ -381,22 +386,25 @@ where
     fn new(tx: mpsc::Sender<TX>, resolver: Arc<Receiver<CMD, RX>>) -> Self {
         Self { tx, resolver }
     }
-
-    async fn send<T: Command<Kind = CMD>>(&self, sig: T) -> Result<T::Ok, T::Error> {
+    
+    async fn send<T: Command<Kind = CMD>>(&self, sig: T) -> super::Result<Result<T::Ok, T::Error>> {
         let sig_kind = sig.kind();
         let sender = &self.tx;
-        sender.send(sig.encode().into()).await.expect("todo!");
+        sender.send(sig.encode().into()).await
+            .map_err(|_| super::Error::CommandSendFailed)?;
 
         let (tx, rx) = oneshot::channel();
         self.resolver.add_queue(sig_kind, tx);
-        match rx.await.expect("todo!") {
+        match rx.await.map_err(|_| super::Error::CommandReceiveFailed)? {
             Ok(ok) => {
-                let ok = *ok.downcast::<T::Ok>().expect("todo!");
-                Ok(ok)
+                let ok = *ok.downcast::<T::Ok>()
+                    .map_err(|_| super::Error::CommandResponseTypeMismatch)?;
+                Ok(Ok(ok))
             }
             Err(err) => {
-                let err = *err.downcast::<T::Error>().expect("todo!");
-                Err(err)
+                let err = *err.downcast::<T::Error>()
+                    .map_err(|_| super::Error::CommandResponseTypeMismatch)?;
+                Ok(Err(err))
             }
         }
     }
@@ -404,8 +412,12 @@ where
     pub async fn call<T: Command<Kind = CMD>>(
         &self,
         sig: T,
-    ) -> Result<Result<T::Ok, T::Error>, Elapsed> {
-        tokio::time::timeout(TIMEOUT, self.send(sig)).await
+    ) -> super::Result<Result<T::Ok, T::Error>> {
+        sig.kind().encode();
+        let res = tokio::time::timeout(TIMEOUT, self.send(sig))
+            .await.map_err(|_| super::Error::CallElapsed).flatten()?;
+        
+        Ok(res)
     }
 
     pub fn downgrade(&self) -> WeakSender<CMD, TX, RX> {
@@ -435,21 +447,24 @@ where
         Self { tx, resolver }
     }
 
-    pub async fn send<T: Command<Kind = CMD>>(&self, sig: T) -> Result<T::Ok, T::Error> {
+    pub async fn send<T: Command<Kind = CMD>>(&self, sig: T) -> Result<Result<T::Ok, T::Error>, super::Error> {
         let sig_kind = sig.kind();
-        let sender = self.tx.upgrade().expect("todo!");
-        sender.send(sig.encode().into()).await.expect("todo!");
+        let sender = self.tx.upgrade().ok_or(super::Error::SenderClosed)?;
+        sender.send(sig.encode().into()).await
+            .map_err(|_| super::Error::CommandSendFailed)?;
 
         let (tx, rx) = oneshot::channel();
         self.resolver.add_queue(sig_kind, tx);
-        match rx.await.expect("todo!") {
+        match rx.await.map_err(|_| super::Error::CommandReceiveFailed)? {
             Ok(ok) => {
-                let ok = *ok.downcast::<T::Ok>().expect("todo!");
-                Ok(ok)
+                let ok = *ok.downcast::<T::Ok>()
+                    .map_err(|_| super::Error::CommandResponseTypeMismatch)?;
+                Ok(Ok(ok))
             }
             Err(err) => {
-                let err = *err.downcast::<T::Error>().expect("todo!");
-                Err(err)
+                let err = *err.downcast::<T::Error>()
+                    .map_err(|_| super::Error::CommandResponseTypeMismatch)?;
+                Ok(Err(err))
             }
         }
     }

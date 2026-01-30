@@ -45,6 +45,12 @@ pub enum Error {
 
     #[error("The child process is not ready anyway :(")]
     ChildNotReady,
+
+    #[error("Failed to capture stdout from child process")]
+    StdoutCaptureFailed,
+
+    #[error("Failed to capture stderr from child process")]
+    StderrCaptureFailed,
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

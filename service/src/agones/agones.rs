@@ -107,7 +107,8 @@ impl AgonesService {
             )
         );
 
-        sdk_guard.ready().await.expect("TODO: panic message");
+        sdk_guard.ready().await
+            .map_err(Error::AgonesSdkReadyFailed)?;
 
         Ok(())
         // >- sdk WRITE free -<
@@ -189,7 +190,8 @@ impl AgonesService {
     pub async fn shutdown(&mut self) -> Result<()> {
         self.cancel_token.cancel();
         self.service.shutdown().await?;
-        self.sdk.write().await.shutdown().await.expect("Failed to shutdown Agones SDK");
+        self.sdk.write().await.shutdown().await
+            .map_err(Error::AgonesSdkShutdownFailed)?;
         Ok(())
     }
 

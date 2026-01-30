@@ -2,6 +2,8 @@ use crate::process::{self, ServerProcess, ServerProcessSpawner};
 use crate::trainer::{self, OfflineCoach};
 use std::time::Duration;
 
+use crate::{Error, Result};
+
 use crate::RCSS_PROCESS_NAME;
 
 #[derive(Clone, Debug)]
@@ -42,23 +44,28 @@ impl CoachedProcessSpawner {
         self.process.config_mut()
     }
 
-    pub async fn spawn(&self) -> Result<CoachedProcess, Box<dyn std::error::Error>> {
+    pub async fn spawn(&self) -> Result<CoachedProcess> {
         let process = {
-            let mut process = self.process.spawn().await?;
-            match process.until_ready(Some(Duration::from_secs(2))).await {
-                Ok(()) => {}
-                Err(process::Error::TimeoutWaitingReady) => todo!("into"),
-                Err(e) => {
-                    panic!("{}", e);
-                    todo!("fatal")
+            let mut process = self.process.spawn().await
+                .map_err(|e| Error::SpawnProcess(e))?;
+            let res = process.until_ready(Some(Duration::from_secs(2))).await;
+            if res.is_err() {
+                match res {
+                    Err(process::Error::TimeoutWaitingReady) => todo!("into"),
+                    Err(e) => {
+                        panic!("{}", e);
+                        todo!("fatal")
+                    }
+                    Ok(()) => unreachable!("unreachable"),
                 }
+                
             }
             process
         };
 
         let coach = {
             let coach = self.coach.build();
-            coach.connect().await?;
+            coach.connect().await.map_err(|e| Error::ConnectCoach(e))?;
             coach
         };
 
@@ -81,9 +88,9 @@ impl CoachedProcess {
         CoachedProcess { coach, process }
     }
 
-    pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.coach.shutdown().await?;
-        self.process.shutdown().await?;
+    pub async fn shutdown(&mut self) -> Result<()> {
+        self.coach.shutdown().await.map_err(|e| Error::ShutdownCoach(e))?;
+        self.process.shutdown().await.map_err(|e| Error::ShutdownProcess(e))?;
         Ok(())
     }
 

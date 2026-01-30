@@ -36,8 +36,11 @@ impl OfflineCoach {
         let resolver = CallResolver::<TrainerCommand, RxData>::new(32);
         self.resolver_tx
             .set(resolver.sender(self.conn.data_sender()))
-            .unwrap();
-        let id = self.subscribe(resolver.ingest_tx().expect("CallResolver is not singleton"));
+            .map_err(|_| crate::client::Error::ResolverNotSingleton)?;
+        let id = self.subscribe(
+            resolver.ingest_tx()
+                .ok_or(crate::client::Error::ResolverNotSingleton)?
+        );
         trace!("[OfflineCoach] CallResolver addon initialized, id = {id}");
         self.addons.insert("call_resolver", Box::new(resolver));
 
@@ -45,20 +48,21 @@ impl OfflineCoach {
     }
 
     pub async fn connect(&self) -> Result<()> {
-        // todo!("handle error")
         trace!(
             "[OfflineCoach] Connecting to host {:?} via peer {:?}",
             self.config().host,
             self.config().peer
         );
-        self.conn_connect().await.expect("Failed to connect");
+        self.conn_connect().await?;
         debug!("[OfflineCoach] Connected.");
         self.init_resolver()?;
         debug!("[OfflineCoach] CallResolver initialized.");
-        self.call(command::trainer::Init { version: Some(5) })
+
+        let init_result = self.call(command::trainer::Init { version: Some(5) })
             .await
-            .expect("Failed to send init signal")
-            .unwrap();
+            .map_err(|_| crate::client::Error::CommandSendFailed)?;
+
+        init_result.map_err(|_| crate::client::Error::CommandReceiveFailed)?;
         Ok(())
     }
 

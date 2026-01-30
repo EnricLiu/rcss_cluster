@@ -1,6 +1,7 @@
+use std::collections::VecDeque;
 use std::io;
 use std::process::ExitStatus;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 
@@ -57,15 +58,21 @@ impl ServerProcess {
         let handle = tokio::spawn(async move {
             let mut child = child;
             let arc_pid = arc_pid_;
-            let stdout = child.stdout.take().expect("Failed to open stdout");
-            let stderr = child.stderr.take().expect("Failed to open stderr");
+            let stdout = child.stdout.take().ok_or_else(|| {
+                error!("Failed to capture stdout from child process");
+                io::Error::new(io::ErrorKind::Other, "stdout not available")
+            }).expect("stdout should be available with Stdio::piped()");
+            let stderr = child.stderr.take().ok_or_else(|| {
+                error!("Failed to capture stderr from child process");
+                io::Error::new(io::ErrorKind::Other, "stderr not available")
+            }).expect("stderr should be available with Stdio::piped()");
 
             let mut stdout_reader = BufReader::new(stdout).lines();
             let mut stderr_reader = BufReader::new(stderr).lines();
 
-            status_tx
-                .send(Status::Booting)
-                .expect("Failed to send status");
+            if status_tx.send(Status::Booting).is_err() {
+                warn!("Failed to send Booting status: receiver dropped");
+            }
 
             loop {
                 tokio::select! {
@@ -76,7 +83,9 @@ impl ServerProcess {
                             Ok(status) => Status::Returned(*status),
                             Err(e) => Status::Dead(e.to_string()),
                         };
-                        status_tx.send(status_send).expect("Failed to send status");
+                        if status_tx.send(status_send).is_err() {
+                            warn!("Failed to send exit status: receiver dropped");
+                        }
                         return (status, child);
                     }
 
@@ -94,7 +103,9 @@ impl ServerProcess {
                             Ok(Some(line)) => {
                                 trace!("stdout: {}", line);
                                 if line == READY_LINE {
-                                    status_tx.send(Status::Running).expect("Failed to send status");
+                                    if status_tx.send(Status::Running).is_err() {
+                                        warn!("Failed to send Running status: receiver dropped");
+                                    }
                                 }
                                 // if stdout_tx.send(line).await.is_err() {
                                 //     // Channel closed, probably the receiver was dropped.
@@ -133,7 +144,9 @@ impl ServerProcess {
                 Ok(status) => Status::Returned(*status),
                 Err(e) => Status::Dead(e.to_string()),
             };
-            status_tx.send(status_send).expect("Failed to send status");
+            if status_tx.send(status_send).is_err() {
+                warn!("Failed to send final status: receiver dropped");
+            }
             (status, child)
         });
 

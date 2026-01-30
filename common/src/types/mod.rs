@@ -2,11 +2,13 @@ mod ball_position;
 mod ear_mode;
 mod eye_mode;
 mod play_mode;
+mod side;
 
 pub use ball_position::BallPosition;
 pub use ear_mode::EarMode;
 pub use eye_mode::EyeMode;
 pub use play_mode::PlayMode;
+pub use side::Side;
 
 pub static STR_HAY: [&str; 100] = [
     "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16",

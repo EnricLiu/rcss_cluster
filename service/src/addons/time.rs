@@ -22,7 +22,10 @@ impl<const POLL_INT_MS: u64> TimeStatusAddon<POLL_INT_MS> {
         let task = tokio::spawn(async move {
             loop {
                 if let Ok(Ok(res)) = caller.call(command::trainer::CheckBall).await {
-                    time_tx.send(Some(res.time)).expect("Channel Closed"); // TODO: Handle error
+                    if time_tx.send(Some(res.time)).is_err() {
+                        debug!("[TimeStatusAddon] Time channel closed, stopping polling.");
+                        break;
+                    }
                 } else {
                     debug!("[TimeStatusAddon] Failed to get time: Caller closed.");
                     break;
