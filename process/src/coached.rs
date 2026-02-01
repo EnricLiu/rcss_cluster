@@ -1,7 +1,7 @@
 use crate::process::{self, ServerProcess, ServerProcessSpawner};
 use crate::trainer::{self, OfflineCoach};
 use std::time::Duration;
-
+use log::error;
 use crate::{Error, Result};
 
 use crate::RCSS_PROCESS_NAME;
@@ -51,14 +51,28 @@ impl CoachedProcessSpawner {
             let res = process.until_ready(Some(Duration::from_secs(2))).await;
             if res.is_err() {
                 match res {
-                    Err(process::Error::TimeoutWaitingReady) => todo!("into"),
+                    Err(process::Error::TimeoutWaitingReady) => {
+                        error!("CoachedProcessSpawner: process failed to become ready in time, killing process");
+                        match process.shutdown().await {
+                            Ok(exit_status) => {
+                                error!("CoachedProcessSpawner: process killed, exit status: {}", exit_status);
+                            },
+                            Err(e) => {
+                                error!("CoachedProcessSpawner: failed to kill process: {}", e);
+                            },
+                        }
+                    },
                     Err(e) => {
-                        panic!("{}", e);
-                        todo!("fatal")
+                        error!("CoachedProcessSpawner: fatal error while waiting for process to become ready: {}", e);
                     }
                     Ok(()) => unreachable!("unreachable"),
                 }
-                
+
+                let stdout_trace = process.stdout_logs().await;
+                let stderr_trace = process.stderr_logs().await;
+
+                error!("CoachedProcessSpawner: process stdout:\n{:?}", stdout_trace);
+                error!("CoachedProcessSpawner: process stderr:\n{:?}", stderr_trace);
             }
             process
         };

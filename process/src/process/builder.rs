@@ -38,7 +38,7 @@ impl ServerProcessSpawner {
             match validate_cmd.output().await {
                 Ok(out) => {
                     let out = String::from_utf8_lossy(&out.stdout);
-                    trace!("RcssServer::validate: `which` returned: {out}");
+                    trace!("RcssServer::validate: `which` returned: '{out}'.");
                     !out.trim().is_empty()
                 }
                 Err(e) => {
