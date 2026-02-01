@@ -28,7 +28,7 @@ impl Args {
 
 #[tokio::main]
 async fn main() {
-    unsafe { env::set_var("RUST_LOG", "trace") }
+    unsafe { env::set_var("RUST_LOG", "debug") }
     env_logger::init();
 
     let args = Args::parse();

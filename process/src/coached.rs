@@ -50,7 +50,7 @@ impl CoachedProcessSpawner {
                 .map_err(|e| Error::SpawnProcess(e))?;
             let res = process.until_ready(Some(Duration::from_secs(2))).await;
             if res.is_err() {
-                match res {
+                match &res {
                     Err(process::Error::TimeoutWaitingReady) => {
                         error!("CoachedProcessSpawner: process failed to become ready in time, killing process");
                         match process.shutdown().await {
@@ -73,6 +73,8 @@ impl CoachedProcessSpawner {
 
                 error!("CoachedProcessSpawner: process stdout:\n{:?}", stdout_trace);
                 error!("CoachedProcessSpawner: process stderr:\n{:?}", stderr_trace);
+
+                return Err(Error::SpawnProcess(res.unwrap_err()))
             }
             process
         };

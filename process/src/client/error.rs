@@ -28,15 +28,8 @@ pub enum Error {
     ResolverNotSingleton,
 
     #[error("CallResolver timeout")]
-    CallElapsed,
-}
-
-#[derive(Debug, Clone)]
-pub struct Elapsed(());
-
-impl From<tokio::time::error::Elapsed> for Elapsed {
-    fn from(_: tokio::time::error::Elapsed) -> Self {
-        Elapsed(())
+    CallElapsed {
+        kind: ArcStr,
     }
 }
 

@@ -413,9 +413,9 @@ where
         &self,
         sig: T,
     ) -> super::Result<Result<T::Ok, T::Error>> {
-        sig.kind().encode();
+        let sig_kind = sig.kind();
         let res = tokio::time::timeout(TIMEOUT, self.send(sig))
-            .await.map_err(|_| super::Error::CallElapsed).flatten()?;
+            .await.map_err(|_| super::Error::CallElapsed {kind: sig_kind.encode()}).flatten()?;
         
         Ok(res)
     }

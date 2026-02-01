@@ -1,7 +1,6 @@
-use std::collections::VecDeque;
 use std::io;
 use std::process::ExitStatus;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::sync::atomic::AtomicU32;
 use std::time::Duration;
 use log::{debug, error, info, trace, warn};
@@ -12,7 +11,7 @@ use tokio::process::Child;
 use tokio::sync::{mpsc, watch, RwLock};
 use tokio::task::JoinHandle;
 
-use common::ringbuf::OverwriteRB;
+use common::utils::ringbuf::OverwriteRB;
 
 use super::builder::ServerProcessSpawner;
 use super::*;
