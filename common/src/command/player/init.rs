@@ -32,6 +32,7 @@ impl Command for CommandInit {
             ret += " (goalie)"
         }
 
+        ret.push(')');
         ret.into()
     }
 
