@@ -23,7 +23,6 @@ dashmap.workspace = true
 
 log.workspace = true
 env_logger.workspace = true
-ringbuf = "0.4.8"
 
 [dev-dependencies]
 rand = "0.10.0-rc.5"
