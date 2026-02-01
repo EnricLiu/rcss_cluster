@@ -84,9 +84,10 @@ impl BaseService {
             }
         }
         self.set_status(ServerStatus::Uninitialized)
-            .expect("[BaseService] Status channel closed unexpectedly");
+            .ok_or(Error::StatusChannelClosed)?;
 
-        let process = self.spawner.spawn().await.expect("JB 没开起来");
+        let process = self.spawner.spawn().await
+            .map_err(|e| Error::ProcessSpawnFailed(e))?;
         let process = AddonProcess::from_coached_process(process);
         info!("[BaseService] AddonProcess spawned");
 
@@ -95,7 +96,8 @@ impl BaseService {
         info!("[BaseService] Status tracing task spawned");
 
         *process_guard = OptionedProcess::Running(process);
-        self.set_status(ServerStatus::Idle).expect("[BaseService] Status channel closed unexpectedly");
+        self.set_status(ServerStatus::Idle)
+            .ok_or(Error::StatusChannelClosed)?;
 
         Ok(())
         // >- process WRITE free -<
@@ -122,8 +124,9 @@ impl BaseService {
                 return Err(Error::ProcessFailedToShutdown);
             }
 
-            self.set_status(ServerStatus::Shutdown)
-                .expect("[BaseService] Status channel closed unexpectedly");
+            if self.set_status(ServerStatus::Shutdown).is_none() {
+                warn!("[BaseService] Status channel closed during shutdown");
+            }
         } else {
             debug!("[BaseService] Shutdown called but no process to shutdown.");
         }

@@ -7,7 +7,7 @@ use tokio::time::error::Elapsed;
 use uuid::Uuid;
 
 use super::addon::{Addon, CallerAddon, RawAddon};
-use super::{CallSender, Error, Result};
+use super::{CallResolver, CallSender, Error, Result};
 use common::client;
 use common::client::{RxData, TxData};
 use common::command::{Command, CommandAny, CommandResult};
@@ -148,24 +148,25 @@ where
     }
 
     pub(crate) async fn conn_connect(&self) -> Result<()> {
-        self.conn.connect().await.expect("Failed to connect"); // todo!()
+        self.conn.connect().await
+            .map_err(|e| Error::ClientClosed { source: e })?;
         Ok(())
     }
 
     pub fn caller(&self) -> CallSender<CMD, TxData, RxData> {
         self.resolver_tx
             .get()
-            .expect("CallResolver not initialized")
+            .expect("CallResolver not initialized - call init_resolver() first")
             .clone()
     }
 
     pub async fn call<T: Command<Kind = CMD>>(
         &self,
         cmd: T,
-    ) -> std::result::Result<CommandResult<T>, Elapsed> {
+    ) -> Result<CommandResult<T>> {
         self.resolver_tx
             .get()
-            .expect("CallResolver not initialized")
+            .expect("CallResolver not initialized - call init_resolver() first")
             .call(cmd)
             .await
     }
@@ -199,6 +200,19 @@ where
         }
 
         Ok(())
+    }
+
+    pub(super) fn init_resolver(&self, resolver: CallResolver<CMD, RxData>) -> Result<Uuid> {
+        self.resolver_tx
+            .set(resolver.sender(self.conn.data_sender()))
+            .map_err(|_| Error::ResolverNotSingleton)?;
+        let id = self.subscribe(
+            resolver.ingest_tx()
+                .ok_or(Error::ResolverNotSingleton)?
+        );
+        self.addons.insert("call_resolver", Box::new(resolver));
+
+        Ok(id)
     }
 
     pub fn config(&self) -> &client::Config {
