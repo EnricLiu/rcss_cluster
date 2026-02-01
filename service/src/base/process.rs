@@ -55,7 +55,7 @@ impl AddonProcess {
 
     pub async fn shutdown(&mut self) -> Result<()> {
         self.process.shutdown().await
-            .map_err(|e| Error::TrainerCommandFailed(format!("Shutdown failed: {}", e)))?;
+            .map_err(|e| Error::ProcessShutdownFailed(e))?;
         Ok(())
     }
 }
