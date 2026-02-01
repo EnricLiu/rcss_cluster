@@ -30,6 +30,12 @@ pub enum Error {
     #[error("CallResolver timeout")]
     CallElapsed {
         kind: ArcStr,
+    },
+    
+    #[error("Rcssserver response error toward '({kind})': {msg}")]
+    RcssErrorCall {
+        kind: ArcStr,
+        msg: ArcStr,
     }
 }
 

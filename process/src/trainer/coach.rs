@@ -3,8 +3,10 @@ use crate::client::{CallResolver, Result, RichClient};
 use common::client::RxData;
 use common::command::trainer::TrainerCommand;
 use common::{client, command};
-use log::{debug, trace};
+use log::{debug, error, trace};
+use arcstr::ArcStr;
 use std::ops::{Deref, DerefMut};
+use common::command::{CommandAny};
 
 #[derive(Debug)]
 pub struct OfflineCoach {
@@ -58,12 +60,19 @@ impl OfflineCoach {
         self.init_resolver()?;
         debug!("[OfflineCoach] CallResolver initialized.");
 
-        let init_result = self.call(command::trainer::Init { version: Some(5) })
-            .await
-            .map_err(|_| crate::client::Error::CommandSendFailed)?;
-
-        init_result.map_err(|_| crate::client::Error::CommandReceiveFailed)?;
-        Ok(())
+        match self.call(command::trainer::Init { version: Some(5) }).await? {
+            Ok(ok) => {
+                trace!("[OfflineCoach] Init command succeeded returned with {ok:?}.");
+                Ok(())
+            },
+            Err(e) => {
+                error!("[OfflineCoach] Init command returned with error: {}", e);
+                Err(crate::client::Error::RcssErrorCall {
+                    kind: TrainerCommand::Init.encode(),
+                    msg: ArcStr::from(e.to_string())
+                })
+            },
+        }
     }
 
     pub async fn shutdown(&mut self) -> Result<()> {
