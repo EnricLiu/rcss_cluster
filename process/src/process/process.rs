@@ -291,3 +291,281 @@ impl ServerProcess {
         Err(Error::ChildNotReady)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::process::Stdio;
+    use tokio::process::Command;
+    use std::time::Duration;
+
+    // Helper function to create a test child process that echoes and exits
+    async fn create_test_child(script: &str) -> Child {
+        Command::new("sh")
+            .arg("-c")
+            .arg(script)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .expect("Failed to spawn test child process")
+    }
+
+    #[tokio::test]
+    async fn test_server_process_creation_with_valid_child() {
+        // Create a simple child process that prints and exits
+        let child = create_test_child("echo 'test'; sleep 0.1").await;
+
+        let result = ServerProcess::try_from(child).await;
+
+        assert!(result.is_ok(), "Should successfully create ServerProcess from valid child");
+        let mut process = result.unwrap();
+
+        // Verify PID is set
+        assert!(process.pid().is_some(), "PID should be set");
+
+        // Clean up
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_server_process_pid_tracking() {
+        let child = create_test_child("sleep 0.5").await;
+        let pid_before = child.id().expect("Child should have PID");
+
+        let process = ServerProcess::try_from(child).await.unwrap();
+
+        // PID should match
+        assert_eq!(process.pid(), Some(pid_before));
+
+        // After shutdown, PID should be cleared
+        let mut process = process;
+        let _ = process.shutdown().await;
+
+        // Give it a moment to update
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert_eq!(process.pid(), None, "PID should be cleared after process exits");
+    }
+
+    #[tokio::test]
+    async fn test_stdout_capture() {
+        let script = r#"
+            echo "line1"
+            echo "line2"
+            echo "line3"
+            sleep 1
+        "#;
+        let child = create_test_child(script).await;
+
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for logs to be captured (STDIO_REPORT_DURATION is 500ms)
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        let logs = process.stdout_logs().await;
+
+        assert!(!logs.is_empty(), "Should capture stdout logs");
+        assert!(logs.contains(&"line1".to_string()), "Should contain line1");
+        assert!(logs.contains(&"line2".to_string()), "Should contain line2");
+        assert!(logs.contains(&"line3".to_string()), "Should contain line3");
+
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_stderr_capture() {
+        let script = r#"
+            echo "error1" >&2
+            echo "error2" >&2
+            sleep 1
+        "#;
+        let child = create_test_child(script).await;
+
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for logs to be captured
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        let logs = process.stderr_logs().await;
+
+        assert!(!logs.is_empty(), "Should capture stderr logs");
+        assert!(logs.contains(&"error1".to_string()), "Should contain error1");
+        assert!(logs.contains(&"error2".to_string()), "Should contain error2");
+
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_ready_line_detection() {
+        let script = format!(r#"
+            echo "Starting..."
+            sleep 0.2
+            echo "{}"
+            sleep 2
+        "#, READY_LINE);
+
+        let child = create_test_child(&script).await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for ready with timeout
+        let result = process.until_ready(Some(Duration::from_secs(2))).await;
+
+        assert!(result.is_ok(), "Process should become ready when READY_LINE is printed");
+
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_until_ready_timeout() {
+        // Process that never prints the ready line
+        let child = create_test_child("sleep 5").await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Should timeout
+        let result = process.until_ready(Some(Duration::from_millis(100))).await;
+
+        assert!(result.is_err(), "Should timeout when ready line is not printed");
+        assert!(matches!(result.unwrap_err(), Error::TimeoutWaitingReady));
+
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_graceful_shutdown() {
+        let child = create_test_child("exec sleep 10").await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Give process time to start
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let result = process.shutdown().await;
+        println!("{result:?}");
+
+        assert!(result.is_ok(), "Graceful shutdown should succeed");
+
+        // PID should be cleared
+        assert_eq!(process.pid(), None, "PID should be cleared after shutdown");
+    }
+
+    #[tokio::test]
+    async fn test_shutdown_already_exited_process() {
+        // Process that exits immediately
+        let child = create_test_child("exit 0").await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for process to exit
+        tokio::time::sleep(Duration::from_millis(200)).await;
+
+        let result = process.shutdown().await;
+
+        // Should handle already-exited process gracefully
+        assert!(result.is_ok(), "Should handle already-exited process");
+    }
+
+    #[tokio::test]
+    async fn test_ringbuf_overflow_stdout() {
+        // Generate more than 32 lines (the ring buffer capacity)
+        let mut script = String::from("#!/bin/sh\n");
+        for i in 0..50 {
+            script.push_str(&format!("echo 'line{}'\n", i));
+        }
+        script.push_str("sleep 1\n");
+
+        let child = create_test_child(&script).await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for all logs to be captured
+        tokio::time::sleep(Duration::from_millis(800)).await;
+
+        let logs = process.stdout_logs().await;
+
+        // Ring buffer should contain at most 32 entries
+        assert!(logs.len() <= 32, "Ring buffer should not exceed capacity of 32");
+
+        // Should contain the most recent lines
+        assert!(logs.contains(&"line49".to_string()), "Should contain the last line");
+
+        // Should NOT contain the earliest lines (they were overwritten)
+        assert!(!logs.contains(&"line0".to_string()), "Earliest lines should be overwritten");
+
+        let _ = process.shutdown().await;
+    }
+
+    #[tokio::test]
+    async fn test_try_from_already_completed_child() {
+        // Create a child that exits immediately
+        let child = create_test_child("exit 1").await;
+
+        // Wait for it to complete
+        tokio::time::sleep(Duration::from_millis(1000)).await;
+
+        // Try to create ServerProcess from completed child
+        let result = ServerProcess::try_from(child).await;
+        println!("{result:?}");
+
+        assert!(result.is_err(), "Should fail when child is already completed");
+        assert!(matches!(result.unwrap_err(), Error::ChildAlreadyCompleted(_)));
+    }
+
+    #[tokio::test]
+    async fn test_status_transitions() {
+        let script = format!(r#"
+            echo "booting"
+            sleep 0.2
+            echo "{}"
+            sleep 2
+        "#, READY_LINE);
+
+        let child = create_test_child(&script).await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Initial status should be Init or Booting
+        let initial_status = process.status_rx.borrow().clone();
+        assert!(matches!(initial_status, Status::Init | Status::Booting));
+
+        // Wait for ready
+        let _ = process.until_ready(Some(Duration::from_secs(2))).await;
+
+        // Status should now be Running
+        let running_status = process.status_rx.borrow().clone();
+        assert!(matches!(running_status, Status::Running));
+
+        // Shutdown
+        let exit_status = process.shutdown().await.unwrap();
+
+        // Status should be Returned
+        let final_status = process.status_rx.borrow().clone();
+        assert!(matches!(final_status, Status::Returned(_)));
+    }
+
+    #[tokio::test]
+    async fn test_concurrent_stdout_stderr() {
+        let script = r#"
+            echo "stdout1"
+            echo "stderr1" >&2
+            echo "stdout2"
+            echo "stderr2" >&2
+            sleep 1
+        "#;
+
+        let child = create_test_child(script).await;
+        let mut process = ServerProcess::try_from(child).await.unwrap();
+
+        // Wait for logs
+        tokio::time::sleep(Duration::from_millis(600)).await;
+
+        let stdout_logs = process.stdout_logs().await;
+        let stderr_logs = process.stderr_logs().await;
+
+        // Both should have captured their respective streams
+        assert!(stdout_logs.contains(&"stdout1".to_string()));
+        assert!(stdout_logs.contains(&"stdout2".to_string()));
+        assert!(stderr_logs.contains(&"stderr1".to_string()));
+        assert!(stderr_logs.contains(&"stderr2".to_string()));
+
+        // Stdout should not contain stderr and vice versa
+        assert!(!stdout_logs.contains(&"stderr1".to_string()));
+        assert!(!stderr_logs.contains(&"stdout1".to_string()));
+
+        let _ = process.shutdown().await;
+    }
+}
