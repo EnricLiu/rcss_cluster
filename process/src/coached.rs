@@ -81,7 +81,7 @@ impl CoachedProcessSpawner {
 
         let coach = {
             let coach = self.coach.build();
-            coach.connect().await.map_err(|e| Error::ConnectCoach(e))?;
+            coach.connect_and_init().await.map_err(|e| Error::ConnectCoach(e))?;
             coach
         };
 

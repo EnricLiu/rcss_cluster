@@ -18,4 +18,6 @@ pub use coached::{CoachedProcess, CoachedProcessSpawner};
 pub use process::Config as ProcessConfig;
 pub use error::{Result, Error};
 
+pub use player::{Player};
+
 pub const RCSS_PROCESS_NAME: &str = "rcssserver";
