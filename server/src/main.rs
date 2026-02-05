@@ -1,21 +1,23 @@
 mod error;
 mod http;
 mod response;
-mod ws;
-mod udp;
+mod proxy;
 mod state;
 
 use std::env;
+use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
 use axum::Router;
 use clap::Parser;
-use log::{debug, info};
+use log::{debug, error, info};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
 use tower_http::trace::TraceLayer;
 use service::Service;
+
+use crate::proxy::udp::UdpProxy;
 use crate::state::AppState;
 
 pub const PEER_IP: IpAddr = IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
@@ -41,7 +43,7 @@ impl Args {
 fn route(state: AppState) -> Router {
     Router::new()
         .merge(http::route("/", state.clone()))
-        .merge(ws::route("/player", state))
+        .merge(proxy::ws::route("/player", state))
         .route_layer(TraceLayer::new_for_http())
 }
 
@@ -55,12 +57,29 @@ pub async fn listen(
 
     state.service.spawn().await.expect("FATAL: Service failed to start");
 
-    let app = route(state);
     let listener = TcpListener::bind(addr).await.unwrap();
     let addr = listener.local_addr().unwrap();
+
+    let _state = state.clone();
+    let udp_port = addr.port();
+
+    tokio::spawn(async move {
+        match UdpProxy::new(_state, udp_port).await {
+            Ok(proxy) => {
+                 info!("[UDP Proxy] Started on port {}", udp_port);
+                 proxy.run().await;
+            },
+            Err(e) => {
+                error!("[UDP Proxy] Failed to start on port {}: {}", udp_port, e);
+            }
+        }
+    });
+
+    let app = route(state);
+
     tokio::spawn(async move {
         let serve = axum::serve(listener, app);
-        info!("Listening on http://{addr}");
+        info!("Listening on http://{addr:?}");
 
         let shutdown: Pin<Box<dyn Future<Output=()> + Send>> = match shutdown {
             Some(signal) => Box::pin(signal),
@@ -87,7 +106,7 @@ pub async fn listen(
 
 #[tokio::main]
 async fn main() {
-    unsafe { env::set_var("RUST_LOG", "debug") }
+    unsafe { env::set_var("RUST_LOG", "trace") }
     env_logger::init();
 
     let args = Args::parse();

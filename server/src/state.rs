@@ -1,22 +1,16 @@
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use tokio::sync::oneshot;
-use dashmap::DashMap;
 use chrono::{Utc, Duration};
 use log::{debug, error, info};
 
-use uuid::Uuid;
 use service::Service;
-
-
-pub struct ProxyPlayer {
-    client: common::client::Client,
-}
+use crate::proxy::manager::SessionManager;
 
 #[derive(Clone)]
 pub struct AppState {
     pub(crate) service: Arc<Service>,
-    pub(crate) players: Arc<DashMap<Uuid, Weak<common::client::Client>>>,
+    pub(crate) session: Arc<SessionManager>,
 }
 
 impl AppState {
@@ -33,7 +27,7 @@ impl AppState {
         
         Self {
             service,
-            players: Arc::new(DashMap::new()),
+            session: Arc::new(SessionManager::new()),
         }
     }
     

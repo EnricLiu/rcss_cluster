@@ -1,5 +1,5 @@
 use super::Response;
-use crate::controller::error::service::ServiceError;
+use crate::error::service::ServiceError;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response as AxumResponse};
 use serde_json::Value;
