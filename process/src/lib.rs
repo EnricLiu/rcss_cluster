@@ -14,6 +14,7 @@ pub mod resolver {
     pub use crate::client::{CallResolver, CallSender, WeakCallSender};
 }
 
+pub use client::CommandCaller;
 pub use coached::{CoachedProcess, CoachedProcessSpawner};
 pub use process::Config as ProcessConfig;
 pub use error::{Result, Error};

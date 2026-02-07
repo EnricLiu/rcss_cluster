@@ -6,7 +6,7 @@ use crate::{Error, Result};
 
 use common::command::trainer::TrainerCommand;
 use common::command::{Command, CommandResult};
-use process::{CoachedProcess, CoachedProcessSpawner};
+use process::{CoachedProcess, CoachedProcessSpawner, CommandCaller};
 
 #[derive(Debug)]
 pub struct AddonProcess {
@@ -43,6 +43,10 @@ impl AddonProcess {
     ) -> Result<CommandResult<C>> {
         self.process.coach().call(command).await
             .map_err(|_| Error::Timeout { op: "send_trainer_command" })
+    }
+    
+    pub fn trainer_command_sender(&self) -> CommandCaller<TrainerCommand> {
+        self.process.coach().caller()
     }
 
     pub fn time_watch(&self) -> watch::Receiver<Option<u16>> {
