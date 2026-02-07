@@ -6,6 +6,7 @@ use log::{debug, info};
 use uuid::Uuid;
 
 use common::client::{Client, Config as ClientConfig};
+use crate::metrics::collector::METRICS_COLLECTOR;
 
 #[derive(Clone, Default)]
 pub struct SessionManager {
@@ -35,7 +36,7 @@ impl SessionManager {
 
         // Create new
         let client = Client::builder();
-        
+
         let client_config = {
             let mut builder = ClientConfig::builder();
             builder.name = name;
@@ -45,15 +46,19 @@ impl SessionManager {
 
         let client = Arc::new(Client::new(client_config));
         self.sessions.insert(id, Arc::downgrade(&client));
-        
+
         info!("[SessionManager] Created new client session for {}", id);
-        
+
+        // Update session count metric
+        METRICS_COLLECTOR.active_sessions.with_label_values(&["all"]).set(self.sessions.len() as f64);
+
         client
     }
 
     pub fn remove(&self, id: &Uuid) {
         if self.sessions.remove(id).is_some() {
             debug!("[SessionManager] Removed session reference for {}", id);
+            METRICS_COLLECTOR.active_sessions.with_label_values(&["all"]).set(self.sessions.len() as f64);
         }
     }
 }

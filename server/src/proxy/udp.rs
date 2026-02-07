@@ -12,6 +12,7 @@ use uuid::Uuid;
 use common::client::{Client, Error as ClientError};
 use crate::state::AppState;
 use crate::PEER_IP;
+use crate::metrics::collector::METRICS_COLLECTOR;
 
 // Timeout for inactive UDP sessions
 const SESSION_TIMEOUT: Duration = Duration::from_secs(60);
@@ -24,12 +25,17 @@ struct SessionInfo {
     uuid: Uuid,
     client: Arc<Client>,
     last_active: Instant,
+    connection_start: Instant,
     forward_task: JoinHandle<()>,
 }
 
 impl Drop for SessionInfo {
     fn drop(&mut self) {
         self.forward_task.abort();
+        // Record connection duration
+        let duration = self.connection_start.elapsed().as_secs_f64();
+        METRICS_COLLECTOR.player_connection_duration.with_label_values(&["udp"]).observe(duration);
+        METRICS_COLLECTOR.active_player_sessions.with_label_values(&["udp"]).dec();
     }
 }
 
@@ -67,9 +73,14 @@ impl UdpProxy {
                 for key in keys_to_remove {
                     if let Some((_, session)) = sessions_clone.remove(&key) {
                          info!("[UDP Proxy] Session timeout for {}, UUID: {}", key, session.uuid);
+                         METRICS_COLLECTOR.session_timeout_total.with_label_values(&["udp"]).inc();
+                         METRICS_COLLECTOR.player_disconnections_total.with_label_values(&["udp", "timeout"]).inc();
                          state_clone.session.remove(&session.uuid);
                     }
                 }
+
+                // Update active sessions gauge
+                METRICS_COLLECTOR.active_sessions.with_label_values(&["udp"]).set(sessions_clone.len() as f64);
             }
         });
 
@@ -87,14 +98,19 @@ impl UdpProxy {
                 Ok(v) => v,
                 Err(e) => {
                     error!("[UDP Proxy] Recv error: {}", e);
+                    METRICS_COLLECTOR.proxy_errors_total.with_label_values(&["udp", "recv_error"]).inc();
                     continue;
                 }
             };
+
+            METRICS_COLLECTOR.proxy_messages_received.with_label_values(&["udp", "client_to_server"]).inc();
+            METRICS_COLLECTOR.proxy_message_size_bytes.with_label_values(&["udp", "client_to_server"]).observe(len as f64);
 
             let data_str = match std::str::from_utf8(&buf[..len]) {
                 Ok(v) => v,
                 Err(_) => {
                      warn!("[UDP Proxy] Received non-UTF8 data from {}, ignoring.", addr);
+                     METRICS_COLLECTOR.proxy_errors_total.with_label_values(&["udp", "invalid_utf8"]).inc();
                      continue;
                 }
             };
@@ -104,15 +120,23 @@ impl UdpProxy {
                 let server_port = self.state.service.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT);
                 let server_addr = SocketAddr::new(PEER_IP, server_port);
 
+                METRICS_COLLECTOR.player_connections_total.with_label_values(&["udp"]).inc();
+                METRICS_COLLECTOR.session_created_total.with_label_values(&["udp"]).inc();
+                METRICS_COLLECTOR.active_player_sessions.with_label_values(&["udp"]).inc();
+
                 let name = Some(format!("udp-{}", addr));
                 let client = self.state.session.get_or_create(uuid, name, server_addr);
 
                 let connect_result = client.connect().await;
                 match connect_result {
                     Ok(_) => {},
-                    Err(ClientError::AlreadyConnected { .. }) => {},
+                    Err(ClientError::AlreadyConnected { .. }) => {
+                        METRICS_COLLECTOR.session_reused_total.with_label_values(&["udp"]).inc();
+                    },
                     Err(e) => {
                          error!("[UDP Proxy] Failed to connect upstream for {}: {}", addr, e);
+                         METRICS_COLLECTOR.proxy_errors_total.with_label_values(&["udp", "connection_failed"]).inc();
+                         METRICS_COLLECTOR.active_player_sessions.with_label_values(&["udp"]).dec();
                          continue;
                     }
                 }
@@ -124,16 +148,23 @@ impl UdpProxy {
                 let forward_task = tokio::spawn(async move {
                     while let Some(msg) = rx.recv().await {
                         let bytes = msg.as_bytes();
+                        METRICS_COLLECTOR.proxy_messages_received.with_label_values(&["udp", "server_to_client"]).inc();
+                        METRICS_COLLECTOR.proxy_message_size_bytes.with_label_values(&["udp", "server_to_client"]).observe(bytes.len() as f64);
+
                         if let Err(_e) = socket_clone.send_to(bytes, addr).await {
-                             // quiet error
+                             METRICS_COLLECTOR.proxy_errors_total.with_label_values(&["udp", "send_error"]).inc();
+                        } else {
+                             METRICS_COLLECTOR.proxy_messages_sent.with_label_values(&["udp", "server_to_client"]).inc();
                         }
                     }
                 });
 
+                let now = Instant::now();
                 self.sessions.insert(addr, SessionInfo {
                     uuid,
                     client: client.clone(),
-                    last_active: Instant::now(),
+                    last_active: now,
+                    connection_start: now,
                     forward_task,
                 });
                 info!("[UDP Proxy] New session established for {}", addr);
@@ -141,8 +172,14 @@ impl UdpProxy {
 
             if let Some(mut session) = self.sessions.get_mut(&addr) {
                 session.last_active = Instant::now();
+                let send_start = Instant::now();
                 if let Err(e) = session.client.send_data(data_str.into()).await {
                     error!("[UDP Proxy] Failed to send data upstream for {}: {}", addr, e);
+                    METRICS_COLLECTOR.proxy_errors_total.with_label_values(&["udp", "send_error"]).inc();
+                } else {
+                    let latency = send_start.elapsed().as_secs_f64();
+                    METRICS_COLLECTOR.proxy_message_latency.with_label_values(&["udp"]).observe(latency);
+                    METRICS_COLLECTOR.proxy_messages_sent.with_label_values(&["udp", "client_to_server"]).inc();
                 }
             }
         }

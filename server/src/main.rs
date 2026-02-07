@@ -3,11 +3,13 @@ mod http;
 mod response;
 mod proxy;
 mod state;
+mod metrics;
 
 use std::env;
 use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
+use axum::http::StatusCode;
 use axum::Router;
 use clap::Parser;
 use log::{debug, error, info};
@@ -43,8 +45,14 @@ impl Args {
 fn route(state: AppState) -> Router {
     Router::new()
         .merge(http::route("/", state.clone()))
-        .merge(proxy::ws::route("/player", state))
+        .merge(proxy::ws::route("/player", state.clone()))
+        .route("/metrics", axum::routing::get(metrics_handler))
         .route_layer(TraceLayer::new_for_http())
+}
+
+async fn metrics_handler() -> Result<String, (StatusCode, String)> {
+    metrics::get_metrics_text()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
 }
 
 pub async fn listen(
@@ -108,6 +116,9 @@ pub async fn listen(
 async fn main() {
     unsafe { env::set_var("RUST_LOG", "trace") }
     env_logger::init();
+
+    // Initialize metrics
+    metrics::register_metrics();
 
     let args = Args::parse();
     let listen_addr = args.listen_addr();

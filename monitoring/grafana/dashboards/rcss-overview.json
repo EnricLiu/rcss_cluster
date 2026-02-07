@@ -1,0 +1,403 @@
+{
+  "dashboard": {
+    "title": "RoboCup Soccer Server - Overview",
+    "uid": "rcss-overview",
+    "tags": ["rcss", "robocup", "server"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Player Sessions",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rcss_active_player_sessions",
+            "legendFormat": "{{protocol}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Sessions",
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "showPoints": "never"
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Player Connection Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_player_connections_total[5m])",
+            "legendFormat": "{{protocol}} - connections",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(rcss_player_disconnections_total[5m])",
+            "legendFormat": "{{protocol}} - disconnections ({{reason}})",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Connections/sec",
+              "drawStyle": "line",
+              "fillOpacity": 0
+            },
+            "unit": "cps"
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Proxy Message Throughput",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_proxy_messages_sent_total[5m])",
+            "legendFormat": "{{protocol}} - {{direction}} (sent)",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(rcss_proxy_messages_received_total[5m])",
+            "legendFormat": "{{protocol}} - {{direction}} (received)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Messages/sec",
+              "drawStyle": "line",
+              "fillOpacity": 10
+            },
+            "unit": "mps"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Proxy Message Latency (p95, p99)",
+        "type": "timeseries",
+        "gridPos": { "x": 12, "y": 8, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(rcss_proxy_message_latency_seconds_bucket[5m])) by (le, protocol))",
+            "legendFormat": "{{protocol}} - p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(rcss_proxy_message_latency_seconds_bucket[5m])) by (le, protocol))",
+            "legendFormat": "{{protocol}} - p99",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Latency",
+              "drawStyle": "line",
+              "fillOpacity": 0
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Proxy Error Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_proxy_errors_total[5m])",
+            "legendFormat": "{{protocol}} - {{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Errors/sec",
+              "drawStyle": "line",
+              "fillOpacity": 10
+            },
+            "unit": "eps"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Session Timeouts",
+        "type": "timeseries",
+        "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_session_timeout_total[5m])",
+            "legendFormat": "{{protocol}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Timeouts/sec",
+              "drawStyle": "line",
+              "fillOpacity": 10
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "rcssserver Status",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 24, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rcss_server_status{status=\"running\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "thresholds"
+            },
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "0": { "text": "DOWN", "color": "red" },
+                  "1": { "text": "RUNNING", "color": "green" }
+                }
+              }
+            ],
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 1, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "rcssserver Uptime",
+        "type": "stat",
+        "gridPos": { "x": 6, "y": 24, "w": 6, "h": 4 },
+        "targets": [
+          {
+            "expr": "rcss_server_uptime_seconds",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "unit": "s",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 60, "color": "yellow" },
+                { "value": 300, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Game Timestep",
+        "type": "timeseries",
+        "gridPos": { "x": 12, "y": 24, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rcss_game_timestep",
+            "legendFormat": "Timestep",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Timestep",
+              "drawStyle": "line",
+              "fillOpacity": 0
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Game Status",
+        "type": "stat",
+        "gridPos": { "x": 0, "y": 28, "w": 12, "h": 4 },
+        "targets": [
+          {
+            "expr": "rcss_game_status",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "mappings": [
+              {
+                "type": "value",
+                "options": {
+                  "0": { "text": "Uninitialized", "color": "gray" },
+                  "1": { "text": "Idle", "color": "blue" },
+                  "2": { "text": "Simulating", "color": "green" },
+                  "3": { "text": "Finished", "color": "yellow" },
+                  "4": { "text": "Shutdown", "color": "red" }
+                }
+              }
+            ]
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Average Connection Duration",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_player_connection_duration_seconds_sum[5m]) / rate(rcss_player_connection_duration_seconds_count[5m])",
+            "legendFormat": "{{protocol}}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Duration",
+              "drawStyle": "line",
+              "fillOpacity": 10
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Message Size Distribution",
+        "type": "timeseries",
+        "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(rcss_proxy_message_size_bytes_bucket[5m])) by (le, protocol, direction))",
+            "legendFormat": "{{protocol}} - {{direction}} (p50)",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(rcss_proxy_message_size_bytes_bucket[5m])) by (le, protocol, direction))",
+            "legendFormat": "{{protocol}} - {{direction}} (p95)",
+            "refId": "B"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "palette-classic" },
+            "custom": {
+              "axisLabel": "Size",
+              "drawStyle": "line",
+              "fillOpacity": 0
+            },
+            "unit": "bytes"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "WebSocket Upgrade Success Rate",
+        "type": "timeseries",
+        "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rate(rcss_websocket_upgrades_total[5m]) / (rate(rcss_websocket_upgrades_total[5m]) + rate(rcss_websocket_upgrade_failures_total[5m]))",
+            "legendFormat": "Success Rate",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "custom": {
+              "axisLabel": "Success Rate",
+              "drawStyle": "line",
+              "fillOpacity": 10
+            },
+            "unit": "percentunit",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "red" },
+                { "value": 0.9, "color": "yellow" },
+                { "value": 0.95, "color": "green" }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 14,
+        "title": "Total Active Sessions (All Protocols)",
+        "type": "stat",
+        "gridPos": { "x": 12, "y": 40, "w": 12, "h": 8 },
+        "targets": [
+          {
+            "expr": "rcss_active_sessions{protocol=\"all\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "color": { "mode": "thresholds" },
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                { "value": 0, "color": "gray" },
+                { "value": 1, "color": "green" },
+                { "value": 10, "color": "yellow" },
+                { "value": 50, "color": "red" }
+              ]
+            }
+          }
+        }
+      }
+    ]
+  }
+}

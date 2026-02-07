@@ -1,0 +1,136 @@
+groups:
+  - name: rcss_server_alerts
+    interval: 30s
+    rules:
+      # Player Connection Alerts
+      - alert: HighPlayerDisconnectionRate
+        expr: |
+          rate(rcss_player_disconnections_total{reason!="normal"}[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High player disconnection rate"
+          description: "Player disconnection rate is {{ $value | humanize }} per second for protocol {{ $labels.protocol }}"
+
+      - alert: NoActivePlayerSessions
+        expr: |
+          sum(rcss_active_player_sessions) == 0
+        for: 10m
+        labels:
+          severity: info
+        annotations:
+          summary: "No active player sessions"
+          description: "No players have been connected for 10 minutes"
+
+      # Proxy Health Alerts
+      - alert: HighProxyErrorRate
+        expr: |
+          rate(rcss_proxy_errors_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High proxy error rate on {{ $labels.protocol }}"
+          description: "Proxy error rate is {{ $value | humanize }} per second for {{ $labels.error_type }}"
+
+      - alert: HighProxyLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(rcss_proxy_message_latency_seconds_bucket[5m])) by (le, protocol)
+          ) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High proxy message latency"
+          description: "95th percentile latency is {{ $value | humanize }}s for {{ $labels.protocol }}"
+
+      - alert: SessionTimeoutSpike
+        expr: |
+          rate(rcss_session_timeout_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High session timeout rate"
+          description: "Session timeout rate is {{ $value | humanize }} per second for {{ $labels.protocol }}"
+
+      # rcssserver Process Alerts
+      - alert: RCSSServerDown
+        expr: |
+          rcss_server_status{status="running"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "rcssserver process is not running"
+          description: "The rcssserver process has been down for 1 minute"
+
+      - alert: RCSSServerFrequentRestarts
+        expr: |
+          rate(rcss_server_restarts_total[15m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "rcssserver restarting frequently"
+          description: "rcssserver has restarted {{ $value | humanize }} times per second over the last 15 minutes"
+
+      - alert: GameStuck
+        expr: |
+          rate(rcss_game_timestep[5m]) == 0 and rcss_game_status{status="simulating"} == 1
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Game simulation appears stuck"
+          description: "Game timestep has not advanced for 2 minutes while in simulating state"
+
+      # WebSocket Alerts
+      - alert: HighWebSocketUpgradeFailureRate
+        expr: |
+          rate(rcss_websocket_upgrade_failures_total[5m]) /
+          (rate(rcss_websocket_upgrades_total[5m]) + rate(rcss_websocket_upgrade_failures_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebSocket upgrade failure rate"
+          description: "WebSocket upgrade failure rate is {{ $value | humanizePercentage }}"
+
+  - name: rcss_server_recording_rules
+    interval: 30s
+    rules:
+      # Player Connection Metrics
+      - record: rcss:player_connections:rate5m
+        expr: rate(rcss_player_connections_total[5m])
+
+      - record: rcss:player_disconnections:rate5m
+        expr: rate(rcss_player_disconnections_total[5m])
+
+      # Proxy Performance Metrics
+      - record: rcss:proxy_messages:rate5m
+        expr: rate(rcss_proxy_messages_sent_total[5m]) + rate(rcss_proxy_messages_received_total[5m])
+
+      - record: rcss:proxy_latency:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(rcss_proxy_message_latency_seconds_bucket[5m])) by (le, protocol)
+          )
+
+      - record: rcss:proxy_latency:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(rcss_proxy_message_latency_seconds_bucket[5m])) by (le, protocol)
+          )
+
+      # Error Rates
+      - record: rcss:proxy_errors:rate5m
+        expr: rate(rcss_proxy_errors_total[5m])
+
+      # Session Metrics
+      - record: rcss:session_duration:avg
+        expr: |
+          rate(rcss_player_connection_duration_seconds_sum[5m]) /
+          rate(rcss_player_connection_duration_seconds_count[5m])
