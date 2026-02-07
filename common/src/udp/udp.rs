@@ -37,16 +37,21 @@ impl UdpConnection {
         buf: &mut [u8],
         peer: SocketAddr,
     ) -> Result<usize> {
-        self.socket()
-            .send_to(data, peer)
-            .await
-            .map_err(|e| Error::Send { source: e })?;
+        self.send_to(data, peer).await?;
         self.recv_set_peer(buf).await
     }
 
     pub async fn send(&self, data: &[u8]) -> Result<()> {
         self.socket()
             .send(data)
+            .await
+            .map_err(|e| Error::Send { source: e })?;
+        Ok(())
+    }
+    
+    pub async fn send_to(&self, data: &[u8], peer: SocketAddr) -> Result<()> {
+        self.socket()
+            .send_to(data, peer)
             .await
             .map_err(|e| Error::Send { source: e })?;
         Ok(())
