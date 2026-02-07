@@ -3,6 +3,9 @@ use crate::process::{self, ServerProcess, ServerProcessSpawner};
 use crate::trainer::{self, OfflineCoach};
 use std::time::Duration;
 use common::command::trainer::TrainerCommand;
+use log::error;
+use crate::{Error, Result};
+
 use crate::RCSS_PROCESS_NAME;
 
 #[derive(Clone, Debug)]
@@ -43,23 +46,44 @@ impl CoachedProcessSpawner {
         self.process.config_mut()
     }
 
-    pub async fn spawn(&self) -> Result<CoachedProcess, Box<dyn std::error::Error>> {
+    pub async fn spawn(&self) -> Result<CoachedProcess> {
         let process = {
-            let mut process = self.process.spawn().await?;
-            match process.until_ready(Some(Duration::from_secs(2))).await {
-                Ok(()) => {}
-                Err(process::Error::TimeoutWaitingReady) => todo!("into"),
-                Err(e) => {
-                    panic!("{}", e);
-                    todo!("fatal")
+            let mut process = self.process.spawn().await
+                .map_err(|e| Error::SpawnProcess(e))?;
+            let res = process.until_ready(Some(Duration::from_secs(2))).await;
+            if res.is_err() {
+                match &res {
+                    Err(process::Error::TimeoutWaitingReady) => {
+                        error!("CoachedProcessSpawner: process failed to become ready in time, killing process");
+                        match process.shutdown().await {
+                            Ok(exit_status) => {
+                                error!("CoachedProcessSpawner: process killed, exit status: {}", exit_status);
+                            },
+                            Err(e) => {
+                                error!("CoachedProcessSpawner: failed to kill process: {}", e);
+                            },
+                        }
+                    },
+                    Err(e) => {
+                        error!("CoachedProcessSpawner: fatal error while waiting for process to become ready: {}", e);
+                    }
+                    Ok(()) => unreachable!("unreachable"),
                 }
+
+                let stdout_trace = process.stdout_logs().await;
+                let stderr_trace = process.stderr_logs().await;
+
+                error!("CoachedProcessSpawner: process stdout:\n{:?}", stdout_trace);
+                error!("CoachedProcessSpawner: process stderr:\n{:?}", stderr_trace);
+
+                return Err(Error::SpawnProcess(res.unwrap_err()))
             }
             process
         };
 
         let coach = {
             let coach = self.coach.build();
-            coach.connect().await?;
+            coach.connect().await.map_err(|e| Error::ConnectCoach(e))?;
             coach
         };
 
@@ -82,9 +106,9 @@ impl CoachedProcess {
         CoachedProcess { coach, process }
     }
 
-    pub async fn shutdown(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        self.coach.shutdown().await?;
-        self.process.shutdown().await?;
+    pub async fn shutdown(&mut self) -> Result<()> {
+        self.coach.shutdown().await.map_err(|e| Error::ShutdownCoach(e))?;
+        self.process.shutdown().await.map_err(|e| Error::ShutdownProcess(e))?;
         Ok(())
     }
 

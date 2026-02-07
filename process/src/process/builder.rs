@@ -35,14 +35,17 @@ impl ServerProcessSpawner {
         let is_exist = {
             let mut validate_cmd = Command::new("which");
             validate_cmd.arg(pgm_name);
-            let out = validate_cmd
-                .output()
-                .await
-                .expect("error calling `which` when creating RcssServer Process");
-
-            let out = String::from_utf8_lossy(&out.stdout);
-            trace!("RcssServer::validate: `which` returned: {out}");
-            !out.trim().is_empty()
+            match validate_cmd.output().await {
+                Ok(out) => {
+                    let out = String::from_utf8_lossy(&out.stdout);
+                    trace!("RcssServer::validate: `which` returned: '{out}'.");
+                    !out.trim().is_empty()
+                }
+                Err(e) => {
+                    error!("RcssServer::validate: failed to execute `which` command: {}", e);
+                    false
+                }
+            }
         };
 
         if !is_exist {
