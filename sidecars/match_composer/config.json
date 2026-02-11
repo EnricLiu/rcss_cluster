@@ -1,0 +1,105 @@
+{
+  "api_version": 1,
+  "referee": {
+    "enable": false
+  },
+  "stopping": {
+    "time_up": 6000,
+    "goal_l": 0
+  },
+  "init_state": {
+    "ball": {
+      "x": 0.5,
+      "y": 0.5
+    }
+  },
+  "teams": {
+    "opponents": {
+      "name": "Helios-base",
+      "players": [
+        {
+          "unum": 1,
+          "goalie": true,
+          "policy": {
+            "kind": "bot",
+            "image": "helios-base/Helios-Base"
+          },
+          "init_state": {
+            "pos": {
+              "x": 0.9,
+              "y": 0.5
+            },
+            "stamina": 6000
+          },
+          "blocklist": {
+            "dash": true,
+            "catch": false
+          }
+        },
+        {
+          "unum": 2,
+          "goalie": false,
+          "policy": {
+            "kind": "bot",
+            "image": "*"
+          },
+          "init_state": {
+            "pos": {
+              "x": 0.7,
+              "y": 0.5
+            }
+          }
+        }
+      ]
+    },
+    "allies": {
+      "name": "SSP",
+      "players": [
+        {
+          "unum": 1,
+          "goalie": true,
+          "policy": {
+            "kind": "agent"
+          },
+          "init_state": {
+            "pos": {
+              "x": 0.9,
+              "y": 0.5
+            },
+            "stamina": 6000
+          },
+          "blocklist": {
+            "dash": true,
+            "catch": false
+          }
+        },
+        {
+          "unum": 2,
+          "policy": {
+            "kind": "agent"
+          },
+          "goalie": false,
+          "init_state": {
+            "pos": {
+              "x": 0.7,
+              "y": 0.5
+            }
+          }
+        },
+        {
+          "unum": 3,
+          "policy": {
+            "kind": "agent"
+          },
+          "goalie": false,
+          "init_state": {
+            "pos": {
+              "x": 0.5,
+              "y": 0.5
+            }
+          }
+        }
+      ]
+    }
+  }
+}

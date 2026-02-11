@@ -1,17 +1,19 @@
+use serde::{Deserialize, Serialize};
 use crate::schema::Schema;
 
-#[derive(Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
+#[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Policy {
     Bot {
-        provider: String
+        image: String
     },
     Agent,
 }
 
 impl Policy {
-    pub fn bot(policy: String) -> Policy {
-        Policy::Bot { 
-            provider: policy,
+    pub fn bot(image: String) -> Policy {
+        Policy::Bot {
+            image,
         }
     }
 
@@ -23,7 +25,7 @@ impl Policy {
 impl Schema for Policy {
     fn verify(&self) -> Result<(), &'static str> {
         let policy = match self {
-            Policy::Bot { provider } => provider,
+            Policy::Bot { image } => image,
             Policy::Agent => return Ok(()),
         };
         

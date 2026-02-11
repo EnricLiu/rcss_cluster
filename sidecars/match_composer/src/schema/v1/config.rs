@@ -1,14 +1,21 @@
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
+
 use crate::schema::v1::utils::pos_in_court;
+
 use super::{Schema, Teams, Position};
 
-#[derive(Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Config {
-    referee:    RefereeConfig,
-    stopping:   StoppingEvent,
-    init_state: GlobalInitState,
     teams:  Teams,
-    env:    HashMap<String, String>
+    #[serde(default)]
+    referee:    Referee,
+    #[serde(default)]
+    stopping:   StoppingEvent,
+    #[serde(default)]
+    init_state: GlobalInitState,
+    #[serde(default)]
+    env:    Option<HashMap<String, String>>
 }
 
 impl Schema for Config {
@@ -20,12 +27,12 @@ impl Schema for Config {
     }
 }
 
-#[derive(Clone, Debug)]
-pub struct RefereeConfig {
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct Referee {
     enable: bool
 }
 
-impl Default for RefereeConfig {
+impl Default for Referee {
     fn default() -> Self {
         Self {
             enable: true
@@ -33,15 +40,15 @@ impl Default for RefereeConfig {
     }
 }
 
-impl Schema for RefereeConfig {
+impl Schema for Referee {
     fn verify(&self) -> Result<(), &'static str> {
         Ok(())
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
 pub struct StoppingEvent {
-    timeup: Option<u16>,
+    time_up: Option<u16>,
     goal_l: Option<u8>,
     goal_r: Option<u8>,
 }
@@ -52,7 +59,7 @@ impl Schema for StoppingEvent {
     }
 }
 
-#[derive(Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
 pub struct GlobalInitState {
     ball: Option<Position>
 }
@@ -66,4 +73,3 @@ impl Schema for GlobalInitState {
         Ok(())
     }
 }
-

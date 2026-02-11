@@ -1,16 +1,22 @@
+use serde::{Deserialize, Serialize};
 use crate::schema::Schema;
 use crate::schema::v1::utils::pos_in_court;
 use super::{Policy, Position};
 
 
-#[derive(Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct Player {
-    unum: u8,
-    goalie: bool,
-    policy: Policy,
+    pub unum: u8,
+    #[serde(default)] // false
+    pub goalie: bool,
+    #[serde(default="Policy::agent")]
+    pub policy: Policy,
 
-    init_state: PlayerInitState,
-    blocklist: PlayerActionList,
+    #[serde(default)]
+    pub init_state: PlayerInitState,
+
+    #[serde(default)]
+    pub blocklist: PlayerActionList,
 }
 
 impl Schema for Player {
@@ -32,7 +38,7 @@ impl Schema for Player {
 
 
 /// Default all unset
-#[derive(Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
 pub struct PlayerInitState {
     pos: Option<Position>,
     stamina: Option<u16>,
@@ -49,7 +55,7 @@ impl Schema for PlayerInitState {
 }
 
 /// Default for all false
-#[derive(Default, Clone, Debug)]
+#[derive(Deserialize, Serialize, Default, Clone, Debug)]
 pub struct PlayerActionList {
     dash: bool,
     r#catch: bool,
