@@ -32,23 +32,29 @@ impl AppState {
     pub const CLEANER_POLL_INTERVAL: Duration = Duration::seconds(1);
     pub const CLEANER_TIMEOUT: Duration = Duration::seconds(30);
     
-    pub fn new(service: Service, shutdown_notifier: Option<oneshot::Receiver<()>>) -> Self {
+    pub fn new(service: Service, shutdown_notifier: Option<oneshot::Receiver<()>>) -> (Self, oneshot::Receiver<()>) {
         let service = Arc::new(service);
-        
+
+        let (finish_cleaning_tx, finish_cleaning_rx) = oneshot::channel();
+
         if let Some(shutdown_notifier) = shutdown_notifier {
             tokio::spawn(Self::run_wait_for_shutdown_cleaner(
-                service.clone(), shutdown_notifier));
+                service.clone(), shutdown_notifier, finish_cleaning_tx));
         }
         
-        Self {
-            service,
-            players: Arc::new(DashMap::new()),
-        }
+        (
+            Self {
+                service,
+                players: Arc::new(DashMap::new()),
+            },
+            finish_cleaning_rx
+        )
     }
     
     async fn run_wait_for_shutdown_cleaner(
         mut service: Arc<Service>,
         shutdown_notifier: oneshot::Receiver<()>,
+        finish_cleaning_tx: oneshot::Sender<()>,
     ) {
         shutdown_notifier.await.ok();
         debug!("[AppState] Shutdown notifier received, starting polling service shutdown...");
@@ -78,6 +84,8 @@ impl AppState {
                 break;
             }
         }
+
+        finish_cleaning_tx.send(()).ok();
     }
 }
 
@@ -94,7 +102,7 @@ pub async fn listen(
     shutdown: Option<impl Future<Output=()> + Send + 'static>
 ) -> JoinHandle<Result<(), String>> {
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
-    let state = AppState::new(service, Some(shutdown_rx));
+    let (state, graceful_finish_rx) = AppState::new(service, Some(shutdown_rx));
 
     state.service.spawn().await.expect("FATAL: Service failed to start");
 
@@ -124,6 +132,13 @@ pub async fn listen(
             debug!("[Server] Shutdown signal sent to AppState cleaner");
         };
 
-        serve.with_graceful_shutdown(signal).await.map_err(|e| e.to_string())
+        tokio::select! {
+            res = serve.with_graceful_shutdown(signal) => {
+                res.map_err(|e| e.to_string())
+            },
+            _ = graceful_finish_rx => {
+                Ok(())
+            }
+        }
     })
 }

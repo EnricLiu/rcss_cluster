@@ -1,7 +1,5 @@
-use tokio::sync::watch;
-use common::command::trainer::{self, TrainerCommand};
-use process::{CoachedProcessSpawner, CommandCaller};
 use super::{BaseService, StandaloneArgs};
+use tokio::task::JoinHandle;
 
 #[derive(Debug)]
 pub struct StandaloneService {
@@ -25,11 +23,11 @@ impl StandaloneService {
         }
     }
 
-    pub async fn spawn(&self) -> crate::Result<()> {
+    pub async fn spawn(&self) -> crate::Result<JoinHandle<()>> {
         self.service.spawn(true).await
     }
 
-    pub async fn restart(&self, force: bool) -> crate::Result<()> {
+    pub async fn restart(&self, force: bool) -> crate::Result<JoinHandle<()>> {
         self.service.spawn(force).await
     }
 }

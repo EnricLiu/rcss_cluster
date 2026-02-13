@@ -1,12 +1,11 @@
 use log::info;
-use tokio::sync::{watch, mpsc};
-use tokio::time::error::Elapsed;
+use tokio::sync::{watch};
 use crate::addons;
 use crate::{Error, Result};
 
 use common::command::trainer::TrainerCommand;
 use common::command::{Command, CommandResult};
-use process::{CoachedProcess, CoachedProcessSpawner, CommandCaller};
+use process::{CoachedProcess, CoachedProcessSpawner, CommandCaller, ProcessStatus};
 
 #[derive(Debug)]
 pub struct AddonProcess {
@@ -61,5 +60,9 @@ impl AddonProcess {
         self.process.shutdown().await
             .map_err(|e| Error::ProcessFailedToShutdown)?;
         Ok(())
+    }
+    
+    pub fn process_status_watch(&self) -> watch::Receiver<ProcessStatus> {
+        self.process.process().status_watch()
     }
 }
