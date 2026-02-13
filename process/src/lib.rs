@@ -17,6 +17,7 @@ pub mod resolver {
 pub use client::CommandCaller;
 pub use coached::{CoachedProcess, CoachedProcessSpawner};
 pub use process::Config as ProcessConfig;
+pub use process::Status as ProcessStatus;
 pub use error::{Result, Error};
 
 pub const RCSS_PROCESS_NAME: &str = "rcssserver";

@@ -12,7 +12,6 @@ use tokio::sync::{mpsc, watch, RwLock};
 use tokio::task::JoinHandle;
 
 use common::utils::ringbuf::OverwriteRB;
-
 use super::builder::ServerProcessSpawner;
 use super::*;
 
@@ -26,8 +25,6 @@ pub struct ServerProcess {
     sig_tx: mpsc::Sender<Signal>,
 
     // stdio_report_duration: Duration,
-    stdout: Arc<RwLock<OverwriteRB<String, 32>>>,
-    stderr: Arc<RwLock<OverwriteRB<String, 32>>>,
 
     status_rx: watch::Receiver<Status>,
 }
@@ -39,7 +36,7 @@ impl ServerProcess {
         ServerProcessSpawner::new(pgm_name).await
     }
 
-    pub(crate) async fn try_from(mut child: Child) -> Result<Self> {
+    pub(crate) async fn try_from(mut child: Child) -> Result<ServerProcess> {
         match child.try_wait() {
             Ok(None) => {},
             Ok(Some(status)) => return Err(Error::ChildAlreadyCompleted(status)),
@@ -51,14 +48,12 @@ impl ServerProcess {
         let arc_pid = Arc::new(AtomicU32::new(pid));
         let pid = Pid::from_raw(pid as i32);
 
-        let (status_tx, status_rx) = watch::channel(Status::Init);
+        let (status_tx, status_rx) = watch::channel(Status::init());
         let (sig_tx, mut sig_rx) = mpsc::channel(4);
-        let stdout_rb = Arc::new(RwLock::new(OverwriteRB::new()));
-        let stderr_rb = Arc::new(RwLock::new(OverwriteRB::new()));
+        let stdout_rb = status_rx.borrow().stdout.clone();
+        let stderr_rb = status_rx.borrow().stderr.clone();
 
         let arc_pid_ = Arc::clone(&arc_pid);
-        let stdout_rb_ = Arc::clone(&stdout_rb);
-        let stderr_rb_ = Arc::clone(&stderr_rb);
         let handle = tokio::spawn(async move {
             let mut child = child;
             let arc_pid = arc_pid_;
@@ -81,9 +76,7 @@ impl ServerProcess {
                 BufReader::new(stderr).lines()
             };
 
-            if status_tx.send(Status::Booting).is_err() {
-                warn!("Failed to send Booting status: receiver dropped");
-            }
+            status_tx.send_modify(|s| s.as_booting());
 
             let mut stdout_buf = Vec::with_capacity(32);
             let mut stderr_buf = Vec::with_capacity(8);
@@ -93,13 +86,11 @@ impl ServerProcess {
                     status = child.wait() => {
                         info!("RcssServer child process exited with status: {:?}", status);
                         arc_pid.store(0, std::sync::atomic::Ordering::SeqCst);
-                        let status_send = match &status {
-                            Ok(status) => Status::Returned(*status),
-                            Err(e) => Status::Dead(e.to_string()),
-                        };
-                        if status_tx.send(status_send).is_err() {
-                            warn!("Failed to send exit status: receiver dropped");
-                        }
+                        status_tx.send_modify(|s| match &status {
+                            Ok(status) => s.as_returned(*status),
+                            Err(e) => s.as_dead(e.to_string()),
+                        });
+
                         return (status, child);
                     },
 
@@ -117,9 +108,7 @@ impl ServerProcess {
                             Ok(Some(line)) => {
                                 trace!("stdout: {}", line);
                                 if line == READY_LINE {
-                                    if status_tx.send(Status::Running).is_err() {
-                                        warn!("Failed to send Running status: receiver dropped");
-                                    }
+                                    status_tx.send_modify(|s| s.as_running())
                                 }
                                 stdout_buf.push(line);
                             }
@@ -147,25 +136,31 @@ impl ServerProcess {
 
                     _ = tokio::time::sleep(STDIO_REPORT_DURATION) => {
                         if !stdout_buf.is_empty() {
-                            stdout_rb_.write().await.push_many(stdout_buf.drain(..));
+                            stdout_rb.write().await.push_many(stdout_buf.drain(..));
                         }
 
                         if !stderr_buf.is_empty() {
-                            stderr_rb_.write().await.push_many(stderr_buf.drain(..));
+                            stderr_rb.write().await.push_many(stderr_buf.drain(..));
                         }
                     }
                 }
             }
 
             let status = child.wait().await;
-            arc_pid.store(0, std::sync::atomic::Ordering::SeqCst);
-            let status_send = match &status {
-                Ok(status) => Status::Returned(*status),
-                Err(e) => Status::Dead(e.to_string()),
-            };
-            if status_tx.send(status_send).is_err() {
-                warn!("Failed to send final status: receiver dropped");
+
+            if !stdout_buf.is_empty() {
+                stdout_rb.write().await.push_many(stdout_buf.drain(..));
             }
+            if !stderr_buf.is_empty() {
+                stderr_rb.write().await.push_many(stderr_buf.drain(..));
+            }
+
+            arc_pid.store(0, std::sync::atomic::Ordering::SeqCst);
+            status_tx.send_modify(|s| match &status {
+                Ok(status) => s.as_returned(*status),
+                Err(e) => s.as_dead(e.to_string()),
+            });
+
             (status, child)
         });
 
@@ -174,17 +169,11 @@ impl ServerProcess {
             pid: arc_pid,
             sig_tx,
             status_rx,
-            stdout: stdout_rb,
-            stderr: stderr_rb,
         })
     }
 
-    pub async fn stdout_logs(&self) -> Vec<String> {
-        self.stdout.read().await.to_vec()
-    }
-
-    pub async fn stderr_logs(&self) -> Vec<String> {
-        self.stderr.read().await.to_vec()
+    pub fn status_now(&self) -> Status {
+        self.status_rx.borrow().clone()
     }
 
     pub async fn shutdown(&mut self) -> Result<ExitStatus> {
@@ -254,14 +243,14 @@ impl ServerProcess {
 
     fn try_ready(&self) -> Result<bool> {
         let status = self.status_rx.borrow().clone();
-        match status {
-            Status::Dead(e) => Err(Error::ChildDead {
+        match status.status() {
+            StatusKind::Dead(e) => Err(Error::ChildDead {
                 pid: self.pid(),
                 error: e.clone(),
             }),
-            Status::Returned(status) => Err(Error::ChildReturned(status)),
-            Status::Running => Ok(true),
-            Status::Init | Status::Booting => Ok(false),
+            StatusKind::Returned(status) => Err(Error::ChildReturned(status)),
+            StatusKind::Running => Ok(true),
+            StatusKind::Init | StatusKind::Booting => Ok(false),
         }
     }
 
@@ -288,6 +277,10 @@ impl ServerProcess {
 
         error!("RcssServer::until_ready: UNEXPECTED watch channel released!!!!!");
         Err(Error::ChildNotReady)
+    }
+
+    pub fn status_watch(&self) -> watch::Receiver<Status> {
+        self.status_rx.clone()
     }
 }
 
@@ -360,7 +353,7 @@ mod tests {
         // Wait for logs to be captured (STDIO_REPORT_DURATION is 500ms)
         tokio::time::sleep(Duration::from_millis(600)).await;
 
-        let logs = process.stdout_logs().await;
+        let logs = process.status_now().stdout_logs().await;
 
         assert!(!logs.is_empty(), "Should capture stdout logs");
         assert!(logs.contains(&"line1".to_string()), "Should contain line1");
@@ -384,7 +377,7 @@ mod tests {
         // Wait for logs to be captured
         tokio::time::sleep(Duration::from_millis(600)).await;
 
-        let logs = process.stderr_logs().await;
+        let logs = process.status_now().stderr_logs().await;
 
         assert!(!logs.is_empty(), "Should capture stderr logs");
         assert!(logs.contains(&"error1".to_string()), "Should contain error1");
@@ -475,7 +468,7 @@ mod tests {
         // Wait for all logs to be captured
         tokio::time::sleep(Duration::from_millis(800)).await;
 
-        let logs = process.stdout_logs().await;
+        let logs = process.status_now().stdout_logs().await;
 
         // Ring buffer should contain at most 32 entries
         assert!(logs.len() <= 32, "Ring buffer should not exceed capacity of 32");
@@ -519,21 +512,21 @@ mod tests {
 
         // Initial status should be Init or Booting
         let initial_status = process.status_rx.borrow().clone();
-        assert!(matches!(initial_status, Status::Init | Status::Booting));
+        assert!(matches!(initial_status.status(), StatusKind::Init | StatusKind::Booting));
 
         // Wait for ready
         let _ = process.until_ready(Some(Duration::from_secs(2))).await;
 
         // Status should now be Running
         let running_status = process.status_rx.borrow().clone();
-        assert!(matches!(running_status, Status::Running));
+        assert!(matches!(running_status.status(), StatusKind::Running));
 
         // Shutdown
         let exit_status = process.shutdown().await.unwrap();
 
         // Status should be Returned
         let final_status = process.status_rx.borrow().clone();
-        assert!(matches!(final_status, Status::Returned(_)));
+        assert!(matches!(final_status.status(), StatusKind::Returned(_)));
     }
 
     #[tokio::test]
@@ -552,8 +545,9 @@ mod tests {
         // Wait for logs
         tokio::time::sleep(Duration::from_millis(600)).await;
 
-        let stdout_logs = process.stdout_logs().await;
-        let stderr_logs = process.stderr_logs().await;
+        let status = process.status_now();
+        let stdout_logs = status.stdout_logs().await;
+        let stderr_logs = status.stderr_logs().await;
 
         // Both should have captured their respective streams
         assert!(stdout_logs.contains(&"stdout1".to_string()));

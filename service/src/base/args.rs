@@ -17,4 +17,7 @@ pub struct BaseArgs {
     
     #[clap(long, default_value_t = false, help = "Auto start when half-time(3000) is reached")]
     pub half_time_auto_start: bool,
+    
+    #[clap(long, default_value_t = true, help = "Always log stdout and stderr")]
+    pub always_log_stdout: bool,
 }
