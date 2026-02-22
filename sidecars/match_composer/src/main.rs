@@ -3,13 +3,13 @@ use common::types::Side;
 use crate::config::{BotConfig, ImageQuery, ServerConfig};
 
 mod schema;
-mod bot;
+mod policy;
 mod config;
 mod image;
 
 #[tokio::main]
 async fn main() {
-    let registry = bot::BotRegistry::new("sidecars/match_composer/hub");
+    let registry = policy::BotRegistry::new("sidecars/match_composer/hub");
 
     let image = ImageQuery {
         provider: "HELIOS".to_string(),

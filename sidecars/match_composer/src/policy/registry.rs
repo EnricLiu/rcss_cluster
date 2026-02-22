@@ -1,4 +1,4 @@
-use crate::bot::bot::Bot;
+use crate::policy::bot::Bot;
 use crate::config::{BotConfig};
 use crate::image::{ImageRegistry};
 

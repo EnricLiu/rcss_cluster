@@ -1,7 +1,7 @@
 use std::fmt::Debug;
+use std::path::PathBuf;
 use crate::config::BotConfig;
-use crate::image::Image;
-use super::BotProcess;
+use crate::image::{Image, ImageProcess};
 
 pub struct Bot<'a> {
     pub cfg: BotConfig<'a>,
@@ -26,9 +26,10 @@ impl<'a> Bot<'a> {
     }
 
 
-    pub async fn spawn(&self) -> BotProcess {
+    pub async fn spawn(&self) -> ImageProcess {
         let cmd = self.image.player_cmd(&self.cfg.player());
-        BotProcess::spawn(cmd).expect("Failed to spawn bot process")
+        ImageProcess::spawn(cmd, Some(PathBuf::from("./logs/test.log").into_boxed_path()))
+            .expect("Failed to spawn bot process")
     }
     
     pub fn unum(&self) -> u8 {

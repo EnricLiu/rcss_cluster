@@ -8,6 +8,7 @@ clap = "4.5"
 
 tokio.workspace = true
 
+log.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true

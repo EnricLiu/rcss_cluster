@@ -20,7 +20,7 @@ impl Image for HeliosBaseImage {
     }
 
     fn player_cmd(&self, config: &PlayerProcessConfig) -> Command {
-        let mut cmd = Command::new(self.path().join("start.sh"));
+        let mut cmd = Command::new(self.path().join("start_player.sh"));
         cmd.arg("-h")
             .arg(config.host.to_string())
             .arg("-p")
