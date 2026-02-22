@@ -1,25 +1,28 @@
-use crate::config::ImageConfig;
-use crate::schema::v1::{Player, Policy};
+use std::path::Path;
+use common::types::Side;
+use crate::config::{ImageQuery, PlayerProcessConfig};
+use crate::config::server::ServerConfig;
 
-pub struct BotConfig {
+#[derive(Debug, Clone)]
+pub struct BotConfig<'a> {
     pub unum: u8,
-    pub goalie: bool,
-    pub image: ImageConfig,
+    pub side: Side,
+    pub team: &'a str,
+    pub image: &'a ImageQuery,
+    pub server: &'a ServerConfig,
     
+    pub log_path: &'a Path,
 }
 
-impl TryFrom<Player> for BotConfig {
-    type Error = ();
-
-    fn try_from(player: Player) -> Result<Self, Self::Error> {
-        let unum = player.unum;
-        let goalie = player.goalie;
-        let image = ImageConfig::try_from(player.policy)?;
-        
-        Ok(BotConfig {
-            unum,
-            goalie,
-            image,
-        })
+impl<'a> BotConfig<'a> {
+    pub fn player(&self) -> PlayerProcessConfig<'a> {
+        PlayerProcessConfig {
+            host: self.server.host,
+            port: self.server.port,
+            unum: self.unum,
+            goalie: false,
+            team_name: self.team,
+            log_path: self.log_path,
+        }
     }
 }

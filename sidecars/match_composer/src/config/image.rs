@@ -1,17 +1,26 @@
-use crate::schema::v1::Policy;
+use std::path::Path;
+use crate::schema::v1::PolicyV1;
 
 #[derive(Clone, Debug)]
 pub struct ImageConfig {
     pub provider: String,
     pub model: String,
+    pub path: Box<Path>,
 }
 
-impl TryFrom<Policy> for ImageConfig {
+
+#[derive(Clone, Debug)]
+pub struct ImageQuery {
+    pub provider: String,
+    pub model: String,
+}
+
+impl TryFrom<PolicyV1> for ImageQuery {
     type Error = ();
 
-    fn try_from(value: Policy) -> Result<Self, Self::Error> {
+    fn try_from(value: PolicyV1) -> Result<Self, Self::Error> {
         let policy = match value {
-            Policy::Bot { image } => image,
+            PolicyV1::Bot { image } => image,
             _ => return Err(()),
         };
 
@@ -23,7 +32,7 @@ impl TryFrom<Policy> for ImageConfig {
                 return Err(())
             }
 
-            return Ok(ImageConfig {
+            return Ok(ImageQuery {
                 provider: provider.to_string(),
                 model: model.to_string(),
             })
