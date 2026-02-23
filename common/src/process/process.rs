@@ -60,7 +60,7 @@ impl Process {
                 let stdout = child.stdout.take().ok_or_else(|| {
                     error!("Failed to capture stdout from child process");
                     io::Error::new(io::ErrorKind::Other, "stdout not available")
-                }).expect("stdout should be available with Stdio::piped()");
+                }).expect("stdout should be available with command.stdout(Stdio::piped())");
 
                 BufReader::new(stdout).lines()
             };
@@ -69,7 +69,7 @@ impl Process {
                 let stderr = child.stderr.take().ok_or_else(|| {
                     error!("Failed to capture stderr from child process");
                     io::Error::new(io::ErrorKind::Other, "stderr not available")
-                }).expect("stderr should be available with Stdio::piped()");
+                }).expect("stderr should be available with command.stdout(Stdio::piped())");
 
                 BufReader::new(stderr).lines()
             };

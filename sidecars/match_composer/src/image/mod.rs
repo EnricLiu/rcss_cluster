@@ -1,3 +1,4 @@
+mod ssp;
 mod image;
 mod process;
 mod registry;
@@ -7,3 +8,4 @@ pub use image::Image;
 pub use registry::ImageRegistry;
 pub use helios_base::HeliosBaseImage;
 pub use process::ImageProcess;
+pub use ssp::SSPImage;

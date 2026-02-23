@@ -9,7 +9,7 @@ mod image;
 
 #[tokio::main]
 async fn main() {
-    let registry = policy::BotRegistry::new("sidecars/match_composer/hub");
+    let registry = policy::PolicyRegistry::new("sidecars/match_composer/hub");
 
     let image = ImageQuery {
         provider: "HELIOS".to_string(),

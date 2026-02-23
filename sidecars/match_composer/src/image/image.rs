@@ -15,5 +15,6 @@ pub trait Image {
         &self.cfg().path
     }
     
+    fn cmd(&self) -> Command;
     fn player_cmd(&self, config: &PlayerProcessConfig) -> Command;
 }

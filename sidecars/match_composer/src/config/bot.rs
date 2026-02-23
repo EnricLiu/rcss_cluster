@@ -1,7 +1,6 @@
 use std::path::Path;
 use common::types::Side;
-use crate::config::{ImageQuery, PlayerProcessConfig};
-use crate::config::server::ServerConfig;
+use super::{ImageQuery, ServerConfig, PlayerProcessConfig};
 
 #[derive(Debug, Clone)]
 pub struct BotConfig<'a> {
