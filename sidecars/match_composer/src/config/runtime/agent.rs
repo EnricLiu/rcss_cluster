@@ -13,5 +13,5 @@ pub struct AgentConfig {
     pub server: ServerConfig,
     pub grpc: ServerConfig,
     pub image: ImageConfig,
-    pub log_path: Option<PathBuf>,
+    pub log_root: Option<PathBuf>,
 }

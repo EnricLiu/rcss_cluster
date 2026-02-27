@@ -2,7 +2,7 @@ use crate::config::{ImageMeta, PlayerProcessConfig};
 use std::path::Path;
 use tokio::process::Command;
 
-pub trait Image {
+pub trait Image: Send + Sync {
     fn meta(&self) -> &ImageMeta;
     fn provider(&self) -> &str {
         &self.meta().provider

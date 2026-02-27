@@ -14,7 +14,14 @@ impl BotPolicy {
 
     pub async fn spawn(&self) -> ImageProcess {
         let cmd = self.image.player_cmd(&self.cfg.player());
-        ImageProcess::spawn(cmd, Some(self.cfg.log_path.clone().into_boxed_path()))
+
+        let stdout_log_path = self.cfg.log_root.as_ref().map(|p| {
+            p.join(format!("{}_{:02}_stdout.log", &self.cfg.team, self.cfg.unum))
+        });
+
+        println!("Spawning agent with command: {:?}", cmd);
+
+        ImageProcess::spawn(cmd, stdout_log_path.map(|p| p.into_boxed_path()))
             .expect("Failed to spawn bot process")
     }
 

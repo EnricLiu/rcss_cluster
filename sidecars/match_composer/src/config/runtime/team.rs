@@ -17,14 +17,14 @@ impl TeamConfig {
         team: TeamSchema,
         side: Side,
         server: &ServerConfig,
-        log_root: &PathBuf,
+        log_root: &Option<PathBuf>,
     ) -> Result<Self, String> {
         let players = team
             .players
             .iter()
             .map(|p| {
-                let log_path = log_root.join(format!("player_{:02}.log", p.unum));
-                PlayerConfig::from_schema(p, &team.name, side, server, &log_path)
+                let unum = p.unum;
+                PlayerConfig::from_schema(p, &team.name, side, server, log_root)
             })
             .collect::<Result<Vec<_>, _>>()?;
 

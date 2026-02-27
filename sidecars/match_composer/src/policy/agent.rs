@@ -22,15 +22,19 @@ impl AgentPolicy {
             .arg("--g-ip").arg(self.cfg.grpc.host.to_string())
             .arg("--g-port").arg(self.cfg.grpc.port.to_string());
 
-        if let Some(log_dir) = &self.cfg.log_path {
+        if let Some(image_log_root) = &self.cfg.log_root {
             cmd.arg("--debug")
                 .arg("--log-dir")
-                .arg(log_dir);
+                .arg(image_log_root);
         }
-        
+
         println!("Spawning agent with command: {:?}", cmd);
 
-        ImageProcess::spawn(cmd, self.cfg.log_path.clone().map(|p| p.into_boxed_path()))
+        let stdout_log_path = self.cfg.log_root.as_ref().map(|p| {
+            p.join(format!("{}_{:02}_stdout.log", &self.cfg.team, self.cfg.unum))
+        });
+
+        ImageProcess::spawn(cmd, stdout_log_path.map(|p| p.into_boxed_path()))
             .expect("Failed to spawn bot process")
     }
 

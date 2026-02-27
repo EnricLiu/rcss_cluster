@@ -4,11 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-clap = "4.5"
+clap = { version = "4.5", features = ["derive", "env"] }
 
 tokio.workspace = true
+axum.workspace = true
+tower-http.workspace = true
 
 log.workspace = true
+env_logger.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 chrono.workspace = true

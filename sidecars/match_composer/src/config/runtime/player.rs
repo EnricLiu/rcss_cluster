@@ -13,7 +13,7 @@ pub struct PlayerProcessConfig {
     pub unum: u8,
     pub goalie: bool,
     pub team_name: String,
-    pub log_path: PathBuf,
+    pub log_root: Option<PathBuf>,
 }
 
 #[derive(Clone, Debug)]
@@ -35,7 +35,8 @@ impl PlayerConfig {
         team: &str,
         side: Side,
         server: &ServerConfig,
-        log_path: &PathBuf,
+        log_root: &Option<PathBuf>
+        ,
     ) -> Result<Self, String> {
         let image_value = match &player.policy {
             PlayerPolicySchema::Bot { image } => image.as_str(),
@@ -52,7 +53,7 @@ impl PlayerConfig {
                 image,
                 unum: player.unum,
                 goalie: player.goalie,
-                log_path: log_path.clone(),
+                log_root: log_root.clone(),
             })),
             PlayerPolicySchema::Agent {
                 grpc_host,
@@ -69,7 +70,7 @@ impl PlayerConfig {
                 image,
                 unum: player.unum,
                 goalie: player.goalie,
-                log_path: Some(log_path.clone()),
+                log_root: log_root.clone(),
             })),
         }
     }

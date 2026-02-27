@@ -30,9 +30,13 @@ impl Image for HeliosBaseImage {
             .arg("-t")
             .arg(&config.team_name)
             .arg("-u")
-            .arg(config.unum.to_string())
-            .arg("--log-dir")
-            .arg(&config.log_path);
+            .arg(config.unum.to_string());
+
+        if let Some(log_root) = &config.log_root {
+            cmd.arg("--debug")
+                .arg("--log-dir")
+                .arg(log_root);
+        }
 
         if config.goalie {
             cmd.arg("-g");

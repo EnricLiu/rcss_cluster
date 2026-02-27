@@ -81,9 +81,7 @@ impl Team {
 
     pub async fn spawn(
         &mut self,
-        server_cfg: &ServerConfig,
         registry: &PolicyRegistry,
-        next_grpc_port: &mut u16,
     ) -> Result<(), String> {
         self.set_phase(TeamPhase::Starting);
         self.clear_players();
@@ -132,6 +130,18 @@ impl Team {
         self.set_phase(TeamPhase::Ready);
 
         Ok(())
+    }
+
+    pub async fn shutdown(&mut self) {
+        for process in &mut self.player_processes {
+            let _ = process.shutdown().await;
+        }
+        for task in self.monitor_tasks.drain(..) {
+            task.abort();
+        }
+        self.player_processes.clear();
+        self.agent_conns.clear();
+        self.set_phase(TeamPhase::Init);
     }
 
     pub async fn wait(&self) -> Result<(), String> {

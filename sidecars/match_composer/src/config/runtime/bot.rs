@@ -12,7 +12,7 @@ pub struct BotConfig {
     pub goalie: bool,
     pub image: ImageConfig,
     pub server: ServerConfig,
-    pub log_path: PathBuf,
+    pub log_root: Option<PathBuf>,
 }
 
 impl BotConfig {
@@ -23,7 +23,7 @@ impl BotConfig {
             unum: self.unum,
             goalie: self.goalie,
             team_name: self.team.clone(),
-            log_path: self.log_path.clone(),
+            log_root: self.log_root.clone(),
         }
     }
 }

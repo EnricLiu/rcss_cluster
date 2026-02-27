@@ -19,15 +19,13 @@ pub struct AgentConnectionInfo {
 
 pub struct MatchComposer {
     pub config: MatchComposerConfig,
-    pub log_root: PathBuf,
+    pub log_root: Option<PathBuf>,
 
     registry: PolicyRegistry,
     server_process: Option<Child>,
 
     pub allies: Team,
     pub opponents: Team,
-    
-    next_grpc_port: u16,
 }
 
 impl MatchComposer {
@@ -44,7 +42,6 @@ impl MatchComposer {
             server_process: None,
             allies,
             opponents,
-            next_grpc_port: 50000,
             log_root,
         })
     }
@@ -60,11 +57,17 @@ impl MatchComposer {
         Ok(())
     }
     
-    pub async fn spawn_players(&mut self) -> Result<(), String> {
-        let server_cfg = &self.config.server;
+    pub async fn shutdown(&mut self) {
+        self.allies.shutdown().await;
+        self.opponents.shutdown().await;
+        if let Some(mut proc) = self.server_process.take() {
+            let _ = proc.kill().await;
+        }
+    }
 
-        self.allies.spawn(server_cfg, &self.registry, &mut self.next_grpc_port).await?;
-        self.opponents.spawn(server_cfg, &self.registry, &mut self.next_grpc_port).await?;
+    pub async fn spawn_players(&mut self) -> Result<(), String> {
+        self.allies.spawn(&self.registry).await?;
+        self.opponents.spawn(&self.registry).await?;
 
         Ok(())
     }
