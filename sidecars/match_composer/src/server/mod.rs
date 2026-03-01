@@ -67,7 +67,7 @@ impl AppState {
         debug!("[AppState] Shutdown notifier received, cleaning up composer...");
 
         let mut interval =
-            tokio::time::interval(Self::CLEANER_POLL_INTERVAL.to_std().unwrap());
+            tokio::time::interval(Self::CLEANER_POLL_INTERVAL.to_std().expect("CLEANER_POLL_INTERVAL must be a positive duration"));
         let start_at = Utc::now();
 
         loop {
@@ -172,7 +172,7 @@ impl AppState {
         let log_root = self.log_root.clone().join(started_at.format("%Y%m%d_%H%M%S").to_string());
 
         let composer_config =
-            MatchComposerConfig::from_schema(config, Some(log_root))
+            MatchComposerConfig::from_schema(config.clone(), Some(log_root))
                 .map_err(|e| Error::bad_request(format!("Invalid config: {e}")))?;
 
         let mut composer = MatchComposer::new(composer_config, self.hub_path.as_ref())
@@ -185,6 +185,7 @@ impl AppState {
 
         let agents = composer.agent_conns();
         *state = ComposerState::Running { composer, started_at };
+        *self.cfg.write().await = Some(config);
         Ok(agents)
     }
 }

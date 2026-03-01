@@ -1,7 +1,6 @@
 use std::net::Ipv4Addr;
 use std::path::{Path, PathBuf};
-use std::time::Duration;
-use tokio::process::{Child, Command};
+use tokio::process::Child;
 use common::types::Side;
 
 use crate::config::{MatchComposerConfig, ServerConfig};
@@ -31,7 +30,7 @@ pub struct MatchComposer {
 impl MatchComposer {
     pub fn new(config: MatchComposerConfig, registry_path: impl AsRef<Path>) -> Result<Self, String> {
         let registry = PolicyRegistry::new(registry_path);
-        println!("{:?}", registry.images.providers().and_then(|i| Some(i.collect::<Vec<_>>())));
+        log::debug!("{:?}", registry.images.providers().and_then(|i| Some(i.collect::<Vec<_>>())));
 
         let allies = Team::new(config.allies.clone(), Side::LEFT);
         let opponents = Team::new(config.opponents.clone(), Side::RIGHT);
@@ -46,16 +45,6 @@ impl MatchComposer {
         })
     }
     
-    pub async fn start_server(&mut self) -> Result<(), std::io::Error> {
-        let mut cmd = Command::new("cargo");
-        cmd.args(["run", "-p", "server", "--features", "standalone", "--"])
-           .arg("--port").arg(self.config.server.port.to_string())
-           .arg("--ip").arg(self.config.server.host.to_string());
-        
-        self.server_process = Some(cmd.spawn()?);
-        tokio::time::sleep(Duration::from_secs(2)).await;
-        Ok(())
-    }
     
     pub async fn shutdown(&mut self) {
         self.allies.shutdown().await;

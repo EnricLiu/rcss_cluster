@@ -21,7 +21,7 @@ impl Image for SSPImage {
         Command::new(self.path().join("start_player.sh"))
     }
 
-    fn player_cmd(&self, config: &PlayerProcessConfig) -> Command {
-        todo!("Not implemented for SSPImage")
+    fn player_cmd(&self, _config: &PlayerProcessConfig) -> Command {
+        unimplemented!("SSPImage uses cmd() with manual args, player_cmd() is not supported")
     }
 }

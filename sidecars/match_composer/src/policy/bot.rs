@@ -19,7 +19,7 @@ impl BotPolicy {
             p.join(format!("{}_{:02}_stdout.log", &self.cfg.team, self.cfg.unum))
         });
 
-        println!("Spawning agent with command: {:?}", cmd);
+        log::debug!("Spawning bot with command: {:?}", cmd);
 
         ImageProcess::spawn(cmd, stdout_log_path.map(|p| p.into_boxed_path()))
             .expect("Failed to spawn bot process")

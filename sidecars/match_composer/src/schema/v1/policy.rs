@@ -57,7 +57,7 @@ impl Schema for PolicyV1 {
                 return Ok(())
             }
 
-            return Err(r"Invalid policy name, should be in pattern /^\w+/(\w+|\*):?w*?$/")
+            return Err(r"Invalid policy name, should be in pattern /^\w+/(\w+|\*):?\w*?$/")
         }
         
         Ok(())

@@ -28,7 +28,7 @@ impl AgentPolicy {
                 .arg(image_log_root);
         }
 
-        println!("Spawning agent with command: {:?}", cmd);
+        log::debug!("Spawning agent with command: {:?}", cmd);
 
         let stdout_log_path = self.cfg.log_root.as_ref().map(|p| {
             p.join(format!("{}_{:02}_stdout.log", &self.cfg.team, self.cfg.unum))

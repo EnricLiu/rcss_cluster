@@ -2,7 +2,7 @@ use axum::extract::State;
 use axum::{Json, Router, routing};
 
 use super::super::AppState;
-use super::super::response::{AgentConnInfo, StatusResponse};
+use super::super::response::StatusResponse;
 
 async fn get(State(state): State<AppState>) -> Json<StatusResponse> {
     state.status().await

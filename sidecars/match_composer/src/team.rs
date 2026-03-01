@@ -1,4 +1,3 @@
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -8,7 +7,7 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 
 use crate::composer::AgentConnectionInfo;
-use crate::config::{PlayerConfig, ServerConfig, TeamConfig};
+use crate::config::{PlayerConfig, TeamConfig};
 use crate::image::ImageProcess;
 use crate::policy::PolicyRegistry;
 

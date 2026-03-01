@@ -65,7 +65,11 @@ impl ServerProcess {
                     }
 
                     _ = inner_status_rx.changed() => {
-                        if inner_status_rx.borrow().is_finished() {
+                        let inner = inner_status_rx.borrow().clone();
+                        if inner.is_finished() {
+                            status_tx.send_modify(|s| {
+                                s.kind = inner.kind.clone();
+                            });
                             break
                         }
                     },
@@ -264,6 +268,33 @@ mod tests {
 
         // Should handle already-exited process gracefully
         assert!(result.is_ok(), "Should handle already-exited process");
+    }
+
+    #[tokio::test]
+    async fn test_terminal_status_propagation() {
+        // Process that exits with code 0
+        let child = create_test_child("exit 0").await;
+        let process = ServerProcess::try_from(child).await.unwrap();
+
+        let mut watch = process.status_watch();
+
+        // Wait for the status to reach a finished state
+        let result = tokio::time::timeout(
+            Duration::from_secs(2),
+            watch.wait_for(|s| s.is_finished()),
+        ).await;
+
+        assert!(result.is_ok(), "Should not time out waiting for terminal status");
+        let status_ref = result.unwrap();
+        assert!(status_ref.is_ok(), "Watch channel should deliver terminal status, not close");
+        let status = status_ref.unwrap().clone();
+        assert!(status.is_finished(), "Status should be finished");
+        match status.kind {
+            ProcessStatusKind::Returned(exit_status) => {
+                assert!(exit_status.success(), "Process should have exited successfully");
+            }
+            other => panic!("Expected Returned status, got {:?}", other),
+        }
     }
 
     #[tokio::test]

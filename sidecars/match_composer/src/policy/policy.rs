@@ -8,7 +8,7 @@ pub struct Policy<Cfg: Debug> {
 
 impl<Cfg: Debug> Debug for Policy<Cfg> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Bot")
+        f.debug_struct("Policy")
             .field("meta", &self.cfg)
             .field("image", &format!("{}:{}", self.image.provider(), self.image.model()))
             .finish()
