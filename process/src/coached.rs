@@ -1,13 +1,19 @@
-use crate::process::{self, ServerProcess, ServerProcessSpawner};
-use crate::trainer::{self, OfflineCoach};
 use std::time::Duration;
 use log::error;
+
+use tokio::sync::watch;
+
+use common::command::trainer::TrainerCommand;
+
 use crate::{Error, Result};
+use crate::client::CommandCaller;
+use crate::process::{self, ServerProcess, ServerProcessSpawner};
+use crate::trainer::{self, OfflineCoach};
 
 use crate::RCSS_PROCESS_NAME;
 
 #[derive(Clone, Debug)]
-pub struct CoachedProcessSpawner {
+pub struct CoachedProcessSpawner<const OUT: usize = 32, const ERR: usize = 32> {
     pub coach: trainer::Builder,
     pub process: ServerProcessSpawner,
 }
@@ -50,8 +56,9 @@ impl CoachedProcessSpawner {
                 .map_err(|e| Error::SpawnProcess(e))?;
             let res = process.until_ready(Some(Duration::from_secs(2))).await;
             if res.is_err() {
-                match &res {
-                    Err(process::Error::TimeoutWaitingReady) => {
+                let err = res.unwrap_err();
+                match &err {
+                    process::Error::Process(process::ProcessError::TimeoutWaitingReady) => {
                         error!("CoachedProcessSpawner: process failed to become ready in time, killing process");
                         match process.shutdown().await {
                             Ok(exit_status) => {
@@ -62,19 +69,19 @@ impl CoachedProcessSpawner {
                             },
                         }
                     },
-                    Err(e) => {
+                    e => {
                         error!("CoachedProcessSpawner: fatal error while waiting for process to become ready: {}", e);
                     }
-                    Ok(()) => unreachable!("unreachable"),
                 }
 
-                let stdout_trace = process.stdout_logs().await;
-                let stderr_trace = process.stderr_logs().await;
+                let status = process.status_watch().borrow().clone();
+                let stdout_trace = status.stdout_logs().await;
+                let stderr_trace = status.stderr_logs().await;
 
                 error!("CoachedProcessSpawner: process stdout:\n{:?}", stdout_trace);
                 error!("CoachedProcessSpawner: process stderr:\n{:?}", stderr_trace);
 
-                return Err(Error::SpawnProcess(res.unwrap_err()))
+                return Err(crate::Error::SpawnProcess(err))
             }
             process
         };
@@ -110,7 +117,15 @@ impl CoachedProcess {
         Ok(())
     }
 
+    pub fn command_sender(&self) -> CommandCaller<TrainerCommand> {
+        self.coach().command_sender()
+    }
+
     pub fn coach(&self) -> &OfflineCoach {
         &self.coach
+    }
+
+    pub fn process(&self) -> &ServerProcess {
+        &self.process
     }
 }

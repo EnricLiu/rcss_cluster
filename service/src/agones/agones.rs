@@ -49,18 +49,7 @@ impl AgonesService {
             args.agones_keep_alive.map(|s| Duration::from_secs(s)),
         ).await.map_err(|e| Error::AgonesSdkFailToConnect(e))?;
 
-        let base = {
-            let args = args.base_args;
-
-            let mut spawner = CoachedProcessSpawner::new().await;
-            let rcss_log_dir = args.rcss_log_dir.leak(); // STRING LEAK
-            spawner
-                .with_ports(args.player_port, args.trainer_port, args.coach_port)
-                .with_sync_mode(args.rcss_sync)
-                .with_log_dir(rcss_log_dir);
-
-            BaseService::new(spawner).await
-        };
+        let base = BaseService::from_args(args.base_args).await;
 
         let config = {
             let mut cfg = AgonesConfig::default();

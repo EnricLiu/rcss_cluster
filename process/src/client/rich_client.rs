@@ -12,6 +12,8 @@ use common::client;
 use common::client::{RxData, TxData};
 use common::command::{Command, CommandAny, CommandResult};
 
+pub type RichClientCaller<CMD> = CallSender<CMD, TxData, RxData>;
+
 pub const DEFAULT_LOCAL_PLAYER_PORT: u16 = 6000;
 pub const DEFAULT_LOCAL_TRAINER_PORT: u16 = 6001;
 
@@ -153,7 +155,7 @@ where
         Ok(())
     }
 
-    pub fn caller(&self) -> CallSender<CMD, TxData, RxData> {
+    pub fn caller(&self) -> RichClientCaller<CMD> {
         self.resolver_tx
             .get()
             .expect("CallResolver not initialized - call init_resolver() first")
