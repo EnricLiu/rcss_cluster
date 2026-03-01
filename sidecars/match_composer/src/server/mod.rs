@@ -193,9 +193,15 @@ fn router(state: AppState) -> Router {
     routes::route().with_state(state)
 }
 
-pub async fn listen(addr: SocketAddr, hub_path: PathBuf, log_root: PathBuf) {
+pub async fn listen(addr: SocketAddr, config: ConfigV1, hub_path: PathBuf, log_root: PathBuf) {
     let (shutdown_tx, shutdown_rx) = oneshot::channel::<()>();
     let state = AppState::new(hub_path, log_root, Some(shutdown_rx));
+    
+    let _state = state.clone();
+    tokio::spawn(async move {
+        _state.start(Some(config)).await
+    });
+    
     let app = router(state);
 
     let listener = TcpListener::bind(addr)
