@@ -8,6 +8,7 @@ use std::env;
 use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
 use std::pin::Pin;
+use std::sync::Arc;
 use axum::Router;
 use clap::Parser;
 use log::{debug, error, info};

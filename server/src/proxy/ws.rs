@@ -12,7 +12,7 @@ use log::{error, info, trace, warn};
 use tokio::task::JoinHandle;
 
 use common::client::{Error as ClientError};
-use crate::state::AppState;
+use crate::state::{AppState, AppStateStatus};
 use crate::PEER_IP;
 
 pub const DEFAULT_SERVER_UDP_PORT: u16 = 6000;
@@ -87,8 +87,20 @@ async fn handle_upgrade(
 
     let (socket_tx, mut socket_rx, mut socket_task) = ws_into_mpsc_tx::<32>(socket);
 
+    let mut state_status = state.status_rx.clone();
     loop {
         tokio::select! {
+            _ = state_status.changed() => {
+                let status = *state_status.borrow();
+                match status {
+                    AppStateStatus::ShuttingDown|AppStateStatus::Stopped => {
+                        info!("[WS Proxy] Client[{client_id}] Server is shutting down, closing WebSocket...");
+                        socket_tx.send(Message::Close(None)).await.ok();
+                    }
+                    _ => continue
+                }
+            },
+
             socket_close = &mut socket_task => {
                 match socket_close {
                     Ok(Ok(())) => trace!("[WS Proxy] Client[{client_id}] WebSocket closed normally."),
