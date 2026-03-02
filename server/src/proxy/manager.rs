@@ -34,8 +34,6 @@ impl SessionManager {
         }
 
         // Create new
-        let client = Client::builder();
-        
         let client_config = {
             let mut builder = ClientConfig::builder();
             builder.name = name;

@@ -52,7 +52,7 @@ impl UdpProxy {
         // Start cleanup task
         let sessions_clone = sessions.clone();
         let state_clone = state.clone();
-        
+
         let cleanup_task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(CLEANUP_INTERVAL);
             loop {
@@ -118,7 +118,7 @@ impl UdpProxy {
 
                     if !self.sessions.contains_key(&addr) {
                         let uuid = Uuid::now_v7();
-                        let server_port = self.state.service.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT);
+                let server_port = self.state.service.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT);
                         let server_addr = SocketAddr::new(PEER_IP, server_port);
 
                         let name = Some(format!("udp-{}", addr));

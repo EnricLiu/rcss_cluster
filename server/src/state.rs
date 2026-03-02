@@ -77,7 +77,7 @@ impl AppState {
             if let Some(service) = Arc::get_mut(&mut service) {
                 match service.shutdown().await {
                     Ok(_) => {
-                        info!("[AppState] Service shutdown completed in {}ms.",
+                        info!("[AppState] Service shutdown completed in {}ms.", 
                             (Utc::now() - start_at).num_milliseconds());
                         break true;
                     },

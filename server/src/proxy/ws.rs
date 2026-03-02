@@ -53,8 +53,7 @@ async fn handle_upgrade(
 ) {
     let server_addr = SocketAddr::new(
         PEER_IP,
-        state
-            .service
+        state.service
             .config()
             .server
             .port
@@ -64,7 +63,7 @@ async fn handle_upgrade(
     let player_client = state.session.get_or_create(client_id, req.name, server_addr);
 
     let (client_tx, mut client_rx) = mpsc::channel(32);
-    player_client.subscribe(client_tx);
+    let subscription_id = player_client.subscribe(client_tx);
 
     match player_client.connect().await {
         Ok(_) => {
@@ -81,6 +80,7 @@ async fn handle_upgrade(
                 e
             );
             let _ = socket.send("Failed to connect to server".into()).await;
+            player_client.unsubscribe(subscription_id);
             return;
         }
     }
@@ -114,7 +114,7 @@ async fn handle_upgrade(
                     Ok(msg) => msg,
                     Err(e) => {
                         error!("[WS Proxy] Client[{client_id}] Failed to receive message: {}", e);
-                        return;
+                        break;
                     },
                 };
 
@@ -154,6 +154,7 @@ async fn handle_upgrade(
             }
         }
     }
+    player_client.unsubscribe(subscription_id);
 }
 
 fn ws_into_mpsc_tx<const BUF_SIZE: usize>(

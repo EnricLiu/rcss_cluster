@@ -43,7 +43,7 @@ impl PlayerBuilder {
     }
 
     pub async fn build(&self) -> Result<Player, String> {
-        todo!()
+        self.clone().build_into().await
     }
 
     pub async fn build_into(self) -> Result<Player, String> {
@@ -52,6 +52,9 @@ impl PlayerBuilder {
             client,
         };
         if !self.enable_resolver {
+            if self.init_on_build.is_some() {
+                return Err("init_on_build requires resolver to be enabled".to_string());
+            }
             return Ok(player)
         }
         
