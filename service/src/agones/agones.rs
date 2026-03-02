@@ -176,7 +176,7 @@ impl AgonesService {
         }
     }
 
-    pub async fn shutdown(&mut self) -> Result<()> {
+    pub async fn shutdown(&self) -> Result<()> {
         self.cancel_token.cancel();
         self.service.shutdown().await?;
         self.sdk.write().await.shutdown().await

@@ -10,7 +10,7 @@ use tokio::task::JoinHandle;
 use uuid::Uuid;
 
 use common::client::{Client, Error as ClientError};
-use crate::state::AppState;
+use crate::state::{AppState, AppStateStatus};
 use crate::PEER_IP;
 
 // Timeout for inactive UDP sessions
@@ -36,6 +36,7 @@ impl Drop for SessionInfo {
 pub struct UdpProxy {
     socket: Arc<UdpSocket>,
     sessions: Arc<DashMap<SocketAddr, SessionInfo>>,
+    cleanup_task: JoinHandle<()>,
     state: AppState,
 }
 
@@ -51,7 +52,8 @@ impl UdpProxy {
         // Start cleanup task
         let sessions_clone = sessions.clone();
         let state_clone = state.clone();
-        tokio::spawn(async move {
+
+        let cleanup_task = tokio::spawn(async move {
             let mut interval = tokio::time::interval(CLEANUP_INTERVAL);
             loop {
                 interval.tick().await;
@@ -76,73 +78,90 @@ impl UdpProxy {
         Ok(Self {
             socket,
             sessions,
+            cleanup_task,
             state,
         })
     }
 
-    pub async fn run(self) {
+    pub async fn run(mut self) {
         let mut buf = [0u8; 4096];
         loop {
-            let (len, addr) = match self.socket.recv_from(&mut buf).await {
-                Ok(v) => v,
-                Err(e) => {
-                    error!("[UDP Proxy] Recv error: {}", e);
-                    continue;
-                }
-            };
 
-            let data_str = match std::str::from_utf8(&buf[..len]) {
-                Ok(v) => v,
-                Err(_) => {
-                     warn!("[UDP Proxy] Received non-UTF8 data from {}, ignoring.", addr);
-                     continue;
-                }
-            };
-
-            if !self.sessions.contains_key(&addr) {
-                let uuid = Uuid::now_v7();
-                let server_port = self.state.service.lock().await.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT);
-                let server_addr = SocketAddr::new(PEER_IP, server_port);
-
-                let name = Some(format!("udp-{}", addr));
-                let client = self.state.session.get_or_create(uuid, name, server_addr);
-
-                let connect_result = client.connect().await;
-                match connect_result {
-                    Ok(_) => {},
-                    Err(ClientError::AlreadyConnected { .. }) => {},
-                    Err(e) => {
-                         error!("[UDP Proxy] Failed to connect upstream for {}: {}", addr, e);
-                         continue;
+            tokio::select! {
+                _ = self.state.status_rx.changed() => {
+                    match *self.state.status_rx.borrow() {
+                        AppStateStatus::ShuttingDown|AppStateStatus::Stopped => {
+                            info!("[UDP Proxy] Shutting down UDP proxy...");
+                            self.cleanup_task.abort();
+                            break;
+                        }
+                        _ => continue
                     }
                 }
 
-                let (tx, mut rx) = mpsc::channel(32);
-                let _sub_id = client.subscribe(tx);
+                res = self.socket.recv_from(&mut buf) => {
+                    let (len, addr) = match res {
+                        Ok(v) => v,
+                        Err(e) => {
+                            error!("[UDP Proxy] Recv error: {}", e);
+                            continue;
+                        }
+                    };
 
-                let socket_clone = self.socket.clone();
-                let forward_task = tokio::spawn(async move {
-                    while let Some(msg) = rx.recv().await {
-                        let bytes = msg.as_bytes();
-                        if let Err(_e) = socket_clone.send_to(bytes, addr).await {
-                             // quiet error
+                    let data_str = match std::str::from_utf8(&buf[..len]) {
+                        Ok(v) => v,
+                        Err(_) => {
+                             warn!("[UDP Proxy] Received non-UTF8 data from {}, ignoring.", addr);
+                             continue;
+                        }
+                    };
+
+                    if !self.sessions.contains_key(&addr) {
+                        let uuid = Uuid::now_v7();
+                let server_port = self.state.service.config().server.port.unwrap_or(DEFAULT_SERVER_UDP_PORT);
+                        let server_addr = SocketAddr::new(PEER_IP, server_port);
+
+                        let name = Some(format!("udp-{}", addr));
+                        let client = self.state.session.get_or_create(uuid, name, server_addr);
+
+                        let connect_result = client.connect().await;
+                        match connect_result {
+                            Ok(_) => {},
+                            Err(ClientError::AlreadyConnected { .. }) => {},
+                            Err(e) => {
+                                 warn!("[UDP Proxy] Failed to connect upstream for {}: {}, ignoring", addr, e);
+                                 continue;
+                            }
+                        }
+
+                        let (tx, mut rx) = mpsc::channel(32);
+                        let _sub_id = client.subscribe(tx);
+
+                        let socket_clone = self.socket.clone();
+                        let forward_task = tokio::spawn(async move {
+                            while let Some(msg) = rx.recv().await {
+                                let bytes = msg.as_bytes();
+                                if let Err(_e) = socket_clone.send_to(bytes, addr).await {
+                                     // quiet error
+                                }
+                            }
+                        });
+
+                        self.sessions.insert(addr, SessionInfo {
+                            uuid,
+                            client: client.clone(),
+                            last_active: Instant::now(),
+                            forward_task,
+                        });
+                        info!("[UDP Proxy] New session established for {}", addr);
+                    }
+
+                    if let Some(mut session) = self.sessions.get_mut(&addr) {
+                        session.last_active = Instant::now();
+                        if let Err(e) = session.client.send_data(data_str.into()).await {
+                            error!("[UDP Proxy] Failed to send data upstream for {}: {}", addr, e);
                         }
                     }
-                });
-
-                self.sessions.insert(addr, SessionInfo {
-                    uuid,
-                    client: client.clone(),
-                    last_active: Instant::now(),
-                    forward_task,
-                });
-                info!("[UDP Proxy] New session established for {}", addr);
-            }
-
-            if let Some(mut session) = self.sessions.get_mut(&addr) {
-                session.last_active = Instant::now();
-                if let Err(e) = session.client.send_data(data_str.into()).await {
-                    error!("[UDP Proxy] Failed to send data upstream for {}: {}", addr, e);
                 }
             }
         }
