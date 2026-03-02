@@ -23,7 +23,7 @@ pub async fn post<C: Command<Kind = TrainerCommand>>(
     State(s): State<AppState>,
     Json(req): Json<PostRequest<C>>,
 ) -> Json<Response> {
-    let result = s.service.lock().await.send_trainer_command(req.0).await;
+    let result = s.service.send_trainer_command(req.0).await;
     if let Err(e) = result {
         return Json(Error::from(e).into());
     }

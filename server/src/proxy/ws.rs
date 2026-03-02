@@ -53,10 +53,7 @@ async fn handle_upgrade(
 ) {
     let server_addr = SocketAddr::new(
         PEER_IP,
-        state
-            .service
-            .lock()
-            .await
+        state.service
             .config()
             .server
             .port

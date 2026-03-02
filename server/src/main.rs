@@ -56,7 +56,7 @@ pub async fn listen(
     let (shutdown_tx, shutdown_rx) = oneshot::channel();
     let state = AppState::new(service, Some(shutdown_rx));
 
-    state.service.lock().await.spawn().await.expect("FATAL: Service failed to start");
+    state.service.spawn().await.expect("FATAL: Service failed to start");
 
     let listener = TcpListener::bind(addr).await.unwrap();
     let addr = listener.local_addr().unwrap();
