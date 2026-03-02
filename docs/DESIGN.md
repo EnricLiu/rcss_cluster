@@ -29,56 +29,35 @@
 
 ### 2.1 系统架构全景
 
-```
-                            ┌──────────────────────────────────────────────────────┐
-                            │                 Kubernetes Cluster                   │
-                            │                                                      │
-┌──────────┐   HTTP/WS     │  ┌────────────┐        ┌───────────────────────────┐ │
-│          │───────────────────│   Client   │        │      Agones Fleet         │ │
-│  外部    │                │  │ (Gateway)  │        │  ┌─────────────────────┐  │ │
-│  用户    │                │  │   :6000    │        │  │    GameServer Pod   │  │ │
-│          │                │  │            │ Agones │  │ ┌─────────────────┐ │  │ │
-└──────────┘                │  │ ┌────────┐ │Allocate│  │ │     Server      │ │  │ │
-                            │  │ │ Rooms  │─┼────────┤  │ │    :55555       │ │  │ │
-                            │  │ └────────┘ │        │  │ │  ┌───────────┐  │ │  │ │
-                            │  └──────┬─────┘        │  │ │  │  Service  │  │ │  │ │
-                            │         │   WS Proxy   │  │ │  │(Standalone│  │ │  │ │
-                            │         └──────────────────│ │  │ /Agones) │  │ │  │ │
-                            │                        │  │ │  └─────┬─────┘  │ │  │ │
-                            │                        │  │ │        │        │ │  │ │
-                            │                        │  │ │  ┌─────▼─────┐  │ │  │ │
-                            │                        │  │ │  │  Process  │  │ │  │ │
-                            │                        │  │ │  │(rcssserver│  │ │  │ │
-                            │                        │  │ │  │ +coach)   │  │ │  │ │
-                            │                        │  │ │  └───────────┘  │ │  │ │
-                            │                        │  │ └─────────────────┘ │  │ │
-                            │                        │  │                     │  │ │
-                            │                        │  │ ┌─────────────────┐ │  │ │
-                            │                        │  │ │ Match Composer  │ │  │ │
-                            │                        │  │ │   (Sidecar)     │ │  │ │
-                            │                        │  │ └─────────────────┘ │  │ │
-                            │                        │  └─────────────────────┘  │ │
-                            │                        └───────────────────────────┘ │
-                            └──────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    User["外部用户"]
+
+    subgraph K8s["Kubernetes Cluster"]
+        subgraph Fleet["Agones Fleet"]
+            subgraph Pod["GameServer Pod"]
+                subgraph ServerBox["Server :55555"]
+                    Service["Service<br/>(Standalone / Agones)"]
+                    Process["Process<br/>(rcssserver + coach)"]
+                    Service --> Process
+                end
+                Composer["Match Composer<br/>(Sidecar)"]
+            end
+        end
+    end
+
+    User -->|"HTTP / WS"| ServerBox
 ```
 
 ### 2.2 部署模式
 
 系统支持两种部署模式，通过编译时 feature flag 切换：
 
-```
-  ┌───────────────────────────────────┐
-  │         部署模式选择               │
-  │  (互斥 feature flag)              │
-  ├─────────────────┬─────────────────┤
-  │   standalone    │     agones      │
-  ├─────────────────┼─────────────────┤
-  │ 本地单实例模式   │ K8s 集群模式    │
-  │ 适合开发调试     │ 适合生产环境    │
-  │ 无需 K8s 环境   │ 自动健康检查    │
-  │                 │ Fleet 弹性伸缩  │
-  │                 │ 自动生命周期管理 │
-  └─────────────────┴─────────────────┘
+```mermaid
+flowchart TB
+    Deploy["部署模式选择<br/>(互斥 feature flag)"]
+    Deploy --> Standalone["<b>standalone</b><br/>本地单实例模式<br/>适合开发调试<br/>无需 K8s 环境"]
+    Deploy --> Agones["<b>agones</b><br/>K8s 集群模式<br/>适合生产环境<br/>自动健康检查<br/>Fleet 弹性伸缩<br/>自动生命周期管理"]
 ```
 
 ---
@@ -118,13 +97,6 @@ rcss_cluster/                      Cargo Workspace Root
 │       ├── state.rs               应用状态管理
 │       └── main.rs                入口点
 │
-├── client/                        API 网关/代理服务器
-│   └── src/
-│       ├── controller/            HTTP 控制器 (RESTful API)
-│       ├── room/                  房间管理 (UDP↔WS 代理)
-│       ├── proxy.rs               代理服务器核心
-│       └── main.rs                入口点
-│
 └── sidecars/
     └── match_composer/            比赛编排 Sidecar
         └── src/
@@ -139,31 +111,15 @@ rcss_cluster/                      Cargo Workspace Root
 
 ### 3.1 依赖关系图
 
-```
-                  ┌─────────────────┐
-                  │     common      │  ← 最底层，无内部依赖
-                  └────────┬────────┘
-                           │
-                  ┌────────▼────────┐
-                  │     process     │  ← 依赖 common
-                  └────────┬────────┘
-                           │
-                  ┌────────▼────────┐
-                  │     service     │  ← 依赖 common + process
-                  └────────┬────────┘
-                           │
-              ┌────────────┼────────────┐
-              │                         │
-    ┌─────────▼─────────┐   ┌──────────▼──────────┐
-    │      server       │   │   match_composer     │
-    │ (依赖 common +    │   │ (依赖 common)        │
-    │  service)         │   │                      │
-    └───────────────────┘   └──────────────────────┘
-
-    ┌───────────────────┐
-    │      client       │  ← 独立网关，不依赖 service/process
-    │ (依赖 common)     │     仅通过 HTTP/WS 与 server 通信
-    └───────────────────┘
+```mermaid
+graph BT
+    common["common<br/>(最底层，无内部依赖)"]
+    process["process"] -->|依赖| common
+    service["service"] -->|依赖| common
+    service -->|依赖| process
+    server["server"] -->|依赖| common
+    server -->|依赖| service
+    match_composer["match_composer"] -->|依赖| common
 ```
 
 ---
@@ -193,13 +149,16 @@ common::client::Client
 - **连接生命周期**: 使用 `OnceLock` 确保 `connect()` 仅执行一次，避免重复连接。
 - **初始化握手**: `run()` 启动时先等待上层通过 `data_tx` 发送 init 消息（rcssserver 协议要求），然后执行 UDP 握手获取服务器端口重定向。
 
-```
-连接流程:
-  ┌──────┐    data_tx     ┌──────────┐    UDP init     ┌────────────┐
-  │上层  │───────────────▶│  Client  │────────────────▶│ rcssserver │
-  │代码  │                │  (run)   │◀────────────────│            │
-  │      │◀───────────────│          │ UDP redirect    │            │
-  └──────┘  consumers[*]  └──────────┘    response     └────────────┘
+```mermaid
+sequenceDiagram
+    participant Caller as 上层代码
+    participant Client as Client (run)
+    participant RCSS as rcssserver
+
+    Caller->>Client: data_tx (init message)
+    Client->>RCSS: UDP init
+    RCSS-->>Client: UDP redirect response
+    Client-->>Caller: consumers[*] broadcast
 ```
 
 #### 4.1.2 Command 子模块 — 命令编解码系统
@@ -251,10 +210,13 @@ common::process::Process
 
 **进程状态机**:
 
-```
-  Init ──▶ Booting ──▶ Running ──▶ Returned (正常退出)
-                          │
-                          └──▶ Dead (异常退出)
+```mermaid
+stateDiagram-v2
+    [*] --> Init
+    Init --> Booting
+    Booting --> Running
+    Running --> Returned : 正常退出
+    Running --> Dead : 异常退出
 ```
 
 #### 4.1.4 Types 子模块 — RoboCup 仿真类型
@@ -276,21 +238,13 @@ common::process::Process
 
 #### 4.2.1 核心架构
 
-```
-                        ┌─────────────────────┐
-                        │   CoachedProcess    │  ← 顶层封装
-                        │  (Server + Coach)   │
-                        ├─────────┬───────────┤
-                        │         │           │
-               ┌────────▼───┐  ┌─▼──────────┐
-               │ServerProcess│  │OfflineCoach│
-               │(rcssserver) │  │ (Trainer)  │
-               └────────┬────┘  └─────┬──────┘
-                        │             │
-                    ┌───▼───┐    ┌────▼────┐
-                    │Process│    │RichClient│
-                    │(common)│   │+ Resolver│
-                    └───────┘   └─────────┘
+```mermaid
+graph TB
+    CP["CoachedProcess<br/>(Server + Coach)"]
+    CP --> SP["ServerProcess<br/>(rcssserver)"]
+    CP --> OC["OfflineCoach<br/>(Trainer)"]
+    SP --> Proc["Process<br/>(common)"]
+    OC --> RC["RichClient<br/>+ Resolver"]
 ```
 
 #### 4.2.2 ServerProcess — 服务器进程封装
@@ -317,45 +271,38 @@ Config
 
 `RichClient` 在 `common::Client` 基础上叠加了可插拔的 Addon 扩展机制：
 
-```
-                    ┌──────────────────────────────────────┐
-                    │            RichClient                │
-                    │  ┌────────────────────────────────┐  │
-                    │  │       common::Client           │  │
-                    │  │  (UDP 收发 + 订阅/取消订阅)     │  │
-                    │  └──────────────┬─────────────────┘  │
-                    │                 │                     │
-                    │     ┌───────────▼───────────┐        │
-                    │     │   Addon 注册表         │        │
-                    │     │  DashMap<TypeId, Box>  │        │
-                    │     └───────────────────────┘        │
-                    └──────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph RichClient["RichClient"]
+        Client["common::Client<br/>(UDP 收发 + 订阅/取消订阅)"]
+        Addons["Addon 注册表<br/>DashMap&lt;TypeId, Box&gt;"]
+        Client --- Addons
+    end
 
-Addon trait 体系:
-  Addon (基础 trait)
-    ├── RawAddon         接收原始 signal_tx/data_tx/data_rx
-    └── CallerAddon<CMD> 接收 CallResolver 的 Sender
+    subgraph AddonTraits["Addon trait 体系"]
+        Base["Addon (基础 trait)"]
+        Base --> RawAddon["RawAddon<br/>接收原始 signal_tx/data_tx/data_rx"]
+        Base --> CallerAddon["CallerAddon&lt;CMD&gt;<br/>接收 CallResolver 的 Sender"]
+    end
 ```
 
 #### 4.2.4 CallResolver — 命令-响应解析器
 
 这是整个命令系统最精巧的设计，解决了 **UDP 协议的异步请求-响应匹配** 问题：
 
-```
-  发送端                       接收端                    rcssserver
-    │                           │                          │
-    │  call(CheckBall)          │                          │
-    │──▶ encode → data_tx ──────┼──▶ UDP send ────────────▶│
-    │      ↓                    │                          │
-    │  oneshot::Sender          │                          │
-    │  加入 queue[CheckBall]    │                          │
-    │      ↓                    │                          │
-    │  await oneshot::Receiver  │   UDP recv ◀─────────────│
-    │      ↑                    │      ↓                   │
-    │      │                    │  parse response          │
-    │      │                    │  match → CheckBall       │
-    │      │◀───── oneshot ─────│  queue[CheckBall].pop()  │
-    │  Ok(BallPosition)        │                          │
+```mermaid
+sequenceDiagram
+    participant Sender as 发送端
+    participant Receiver as 接收端
+    participant RCSS as rcssserver
+
+    Sender->>Receiver: call(CheckBall)<br/>encode → data_tx
+    Note over Sender: oneshot::Sender<br/>加入 queue[CheckBall]
+    Receiver->>RCSS: UDP send
+    RCSS-->>Receiver: UDP recv
+    Note over Receiver: parse response<br/>match → CheckBall<br/>queue[CheckBall].pop()
+    Receiver-->>Sender: oneshot → Ok(BallPosition)
+    Note over Sender: await oneshot::Receiver<br/>→ Ok(BallPosition)
 ```
 
 **关键设计决策**:
@@ -367,15 +314,16 @@ Addon trait 体系:
 
 #### 4.2.5 CoachedProcess — 服务器+教练协同
 
-```
-CoachedProcess 启动流程:
+```mermaid
+flowchart TB
+    S1["1. 启动 rcssserver (ServerProcess)"]
+    S2["2. 等待 rcssserver 就绪<br/>('Hit CTRL-C to exit')"]
+    S3["3. 构建 OfflineCoach (Trainer 客户端)"]
+    S4["4. OfflineCoach 连接 rcssserver<br/>并发送 (init (version 19))"]
+    S5["5. 注册 CallResolver&lt;TrainerCommand&gt; 为 Addon"]
+    S6["6. 返回 CoachedProcess { server, coach }"]
 
-  1. 启动 rcssserver (ServerProcess)
-  2. 等待 rcssserver 就绪 ("Hit CTRL-C to exit")
-  3. 构建 OfflineCoach (Trainer 客户端)
-  4. OfflineCoach 连接 rcssserver 并发送 (init (version 19))
-  5. 注册 CallResolver<TrainerCommand> 为 Addon
-  6. 返回 CoachedProcess { server, coach }
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
 ```
 
 ---
@@ -397,17 +345,22 @@ BaseService
 
 **服务状态机**:
 
-```
-                    ┌──────┐
-                    │      │  restart(force=true)
-                    ▼      │
-  Uninitialized ──▶ Idle ──┼──▶ Simulating ──▶ Finished
-       │              ▲    │         │              │
-       │              │    │         │              │
-       │              └────┼─────────┘              │
-       │           restart │    half-time auto      │
-       ▼                   │                        ▼
-    Shutdown ◀─────────────┴────────────────── Shutdown
+```mermaid
+stateDiagram-v2
+    [*] --> Uninitialized
+    Uninitialized --> Idle
+    Uninitialized --> Shutdown
+
+    Idle --> Simulating
+    Idle --> Idle : restart(force=true)
+    Idle --> Shutdown
+
+    Simulating --> Finished
+    Simulating --> Idle : restart / half-time auto
+    Simulating --> Shutdown
+
+    Finished --> Idle : restart
+    Finished --> Shutdown
 ```
 
 **后台任务**:
@@ -449,18 +402,19 @@ AgonesService
 
 **Agones 集成点**:
 
-```
-AgonesService                  Agones SDK (gRPC :9357)
-     │                               │
-     │  health_check (每N秒)          │
-     │──────────────────────────────▶│  → 维持 GameServer 存活
-     │                               │
-     │  sdk.ready()                  │
-     │──────────────────────────────▶│  → 标记为可分配
-     │                               │
-     │  sdk.shutdown()               │
-     │──────────────────────────────▶│  → 触发 Pod 回收
-     │                               │
+```mermaid
+sequenceDiagram
+    participant AS as AgonesService
+    participant SDK as Agones SDK (gRPC :9357)
+
+    loop 每N秒
+        AS->>SDK: health_check
+        Note right of SDK: 维持 GameServer 存活
+    end
+    AS->>SDK: sdk.ready()
+    Note right of SDK: 标记为可分配
+    AS->>SDK: sdk.shutdown()
+    Note right of SDK: 触发 Pod 回收
 ```
 
 ---
@@ -471,29 +425,31 @@ AgonesService                  Agones SDK (gRPC :9357)
 
 #### 4.4.1 路由设计
 
-```
-HTTP 路由 (:55555)
-├── /command/trainer/             教练命令
-│   ├── POST /change_mode         修改比赛模式
-│   ├── POST /check_ball          查询球位
-│   ├── POST /ear                 教练听觉开关
-│   ├── POST /eye                 教练视觉开关
-│   ├── POST /init                初始化教练
-│   ├── POST /look                教练观察
-│   ├── POST /move                移动球员/球
-│   ├── POST /recover             恢复球员体力
-│   ├── POST /start               开始比赛
-│   └── POST /team_names          查询队名
-│
-├── /control/                     服务控制
-│   └── POST /restart             重启服务
-│
-├── /gateway/                     网关路由 (待实现)
-│
-├── /player                       WebSocket 球员连接
-│   └── WS  /player               UDP↔WS 双向代理
-│
-└── /health                       健康检查
+```mermaid
+graph LR
+    Root[":55555"]
+
+    Root --> Command["/command"]
+    Command --> Trainer["/trainer"]
+    Trainer --> CM["POST /change_mode"]
+    Trainer --> CB["POST /check_ball"]
+    Trainer --> Ear["POST /ear"]
+    Trainer --> Eye["POST /eye"]
+    Trainer --> Init["POST /init"]
+    Trainer --> Look["POST /look"]
+    Trainer --> Move["POST /move"]
+    Trainer --> Recover["POST /recover"]
+    Trainer --> Start["POST /start"]
+    Trainer --> TN["POST /team_names"]
+
+    Root --> Control["/control"]
+    Control --> Restart["POST /restart"]
+
+    Root --> Gateway["/gateway"]
+    Gateway --> GGet["GET ?clientId=uuid"]
+
+    Root --> Player["/player"]
+    Player --> WS["WS /{id}"]
 ```
 
 #### 4.4.2 应用状态管理
@@ -508,176 +464,100 @@ AppState {
 
 **优雅关闭流程**:
 
-```
-  Ctrl+C / 外部信号
-       │
-       ▼
-  status → ShuttingDown
-       │
-       ├──▶ 停止接受新连接
-       │
-       ├──▶ service.shutdown()      关闭 rcssserver
-       │         │
-       │         ├── 等待进程退出 (轮询间隔 1s)
-       │         └── 超时 30s 后强制结束
-       │
-       └──▶ status → Stopped
+```mermaid
+flowchart TB
+    Signal["Ctrl+C / 外部信号"]
+    Signal --> Status["status → ShuttingDown"]
+    Status --> Stop["停止接受新连接"]
+    Status --> Shutdown["service.shutdown()"]
+    Shutdown --> Wait["等待进程退出<br/>(轮询间隔 1s)"]
+    Wait --> Timeout["超时 30s 后强制结束"]
+    Stop --> Stopped["status → Stopped"]
+    Timeout --> Stopped
 ```
 
 #### 4.4.3 代理系统
 
 **UDP 代理 (SessionManager)**:
 
-```
-  外部 UDP 客户端                Session Manager              rcssserver
-  (球员程序)                     (DashMap 路由)               (UDP :6000)
-       │                              │                          │
-       │  UDP packet ────────────────▶│                          │
-       │  (src addr = session key)    │  forward ───────────────▶│
-       │                              │                          │
-       │                              │  response ◀──────────────│
-       │  ◀───────── forward ─────────│                          │
-       │                              │                          │
-       │                  60s timeout │                          │
-       │                  cleanup ───▶│ remove stale sessions    │
+```mermaid
+sequenceDiagram
+    participant UDP as 外部 UDP 客户端<br/>(球员程序)
+    participant SM as Session Manager<br/>(DashMap 路由)
+    participant RCSS as rcssserver<br/>(UDP :6000)
+
+    UDP->>SM: UDP packet<br/>(src addr = session key)
+    SM->>RCSS: forward
+    RCSS-->>SM: response
+    SM-->>UDP: forward
+
+    Note over SM: 60s timeout<br/>cleanup stale sessions
 ```
 
 **WebSocket 代理**:
 
-```
-  外部 WS 客户端                  WS Handler                  rcssserver
-       │                              │                          │
-       │  WS connect ─────────────────▶│                          │
-       │                              │  UDP bind ──────────────▶│
-       │  Text("init ...") ──────────▶│  UDP send ──────────────▶│
-       │                              │  UDP recv ◀──────────────│
-       │  ◀────── Text(response) ─────│                          │
-       │                              │                          │
-       │  Ping ──────────────────────▶│                          │
-       │  ◀────── Pong ──────────────│                          │
-       │                              │                          │
-       │  Close ─────────────────────▶│  cleanup                 │
-```
+```mermaid
+sequenceDiagram
+    participant WS as 外部 WS 客户端
+    participant Handler as WS Handler
+    participant RCSS as rcssserver
 
----
+    WS->>Handler: WS connect
+    Handler->>RCSS: UDP bind
+    WS->>Handler: Text("init ...")
+    Handler->>RCSS: UDP send
+    RCSS-->>Handler: UDP recv
+    Handler-->>WS: Text(response)
 
-### 4.5 client — API 网关
+    WS->>Handler: Ping
+    Handler-->>WS: Pong
 
-`client` crate 作为系统的入口网关，管理"房间"并将 UDP 流量代理到后端 WebSocket 服务。
-
-#### 4.5.1 ProxyServer 核心
-
-```
-ProxyServer
-├── rooms: DashMap<String, Room>     房间注册表
-├── agones_client: AgonesClient      Agones 分配器客户端
-│
-├── create_room(name, config)        创建房间 → 分配 GameServer
-├── drop_room(name)                  关闭房间 → 释放资源
-├── room_info(name)                  查询房间信息
-└── list_rooms()                     列出所有房间
-```
-
-#### 4.5.2 Room 管理
-
-每个 Room 代表一个到后端 GameServer 的代理会话：
-
-```
-Room
-├── config: RoomConfig               房间配置
-├── conns: DashMap<SocketAddr,        每个 UDP 客户端一个连接
-│          LazyProxyConnection>
-├── status: AtomicU8                 房间状态
-├── udp_listen_task                  UDP 监听循环
-└── cleanup_task                     定期清理断开的连接
-```
-
-**UDP ↔ WebSocket 代理流程**:
-
-```
-  外部球员程序          Room             ProxyConnection          后端 Server
-  (UDP Client)     (UDP Listener)     (WS Client)             (WS :55555)
-       │                 │                  │                       │
-       │  UDP packet ───▶│                  │                       │
-       │                 │  首次: 创建      │                       │
-       │                 │  LazyProxy ────▶│                       │
-       │                 │                  │  WS connect ─────────▶│
-       │                 │  forward ──────▶│  WS send ────────────▶│
-       │                 │                  │                       │
-       │                 │                  │  WS recv ◀────────────│
-       │  ◀── UDP resp ──│◀── forward ─────│                       │
-       │                 │                  │                       │
-       │                 │                  │  heartbeat ping ─────▶│
-       │                 │                  │  ◀── pong ────────────│
-       │                 │                  │                       │
-       │                 │  断线检测         │                       │
-       │                 │  → 自动重连 ─────▶│  WS reconnect ──────▶│
-```
-
-#### 4.5.3 HTTP 控制器
-
-```
-HTTP 路由 (:6000)
-├── GET  /health              健康检查
-├── GET  /rooms               房间列表 (支持分页)
-├── POST /rooms/create        创建房间
-└── POST /rooms/{name}        查询房间信息
-```
-
-**响应格式**:
-
-```json
-{
-  "id": "unique-response-id",
-  "timestamp": "2025-01-01T00:00:00Z",
-  "code": 200,
-  "data": { ... }
-}
+    WS->>Handler: Close
+    Note over Handler: cleanup
 ```
 
 ---
 
-### 4.6 sidecars/match_composer — 比赛编排 Sidecar
+### 4.5 sidecars/match_composer — 比赛编排 Sidecar
 
 `match_composer` 是部署在 GameServer Pod 内的 sidecar 容器，负责编排完整比赛。
 
-#### 4.6.1 整体职责
+#### 4.5.1 整体职责
 
-```
-  ┌─────────────────── GameServer Pod ───────────────────┐
-  │                                                       │
-  │  ┌──────────────┐        ┌────────────────────────┐  │
-  │  │  rcssserver   │◀──UDP──│   Match Composer       │  │
-  │  │  (主容器)     │        │   (Sidecar 容器)       │  │
-  │  │              │        │                        │  │
-  │  │  :6000 球员   │        │  ┌──────────────────┐  │  │
-  │  │  :6001 教练   │        │  │ Bot 进程 (Helios) │  │  │
-  │  │  :6002 OlCoach│        │  │ Agent (SSP+gRPC)  │  │  │
-  │  │              │        │  └──────────────────┘  │  │
-  │  └──────────────┘        │                        │  │
-  │                          │  HTTP API :8080        │  │
-  │                          └────────────────────────┘  │
-  │                                                       │
-  │         Agones SDK (:9357)  ◀──── health/ready/shutdown │
-  └───────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    subgraph Pod["GameServer Pod"]
+        subgraph Main["rcssserver (主容器)"]
+            P6000[":6000 球员"]
+            P6001[":6001 教练"]
+            P6002[":6002 OlCoach"]
+        end
+        subgraph MC["Match Composer (Sidecar 容器)"]
+            Bot["Bot 进程 (Helios)"]
+            Agent["Agent (SSP+gRPC)"]
+            API["HTTP API :8080"]
+        end
+        SDK["Agones SDK (:9357)"]
+        MC -->|UDP| Main
+        SDK -.->|"health/ready/shutdown"| Pod
+    end
 ```
 
-#### 4.6.2 配置 Schema 系统 (v1)
+#### 4.5.2 配置 Schema 系统 (v1)
 
 采用 **Schema → Runtime Config** 两层配置架构：
 
-```
-Schema 层 (JSON 输入)                 Runtime 层 (内部使用)
-┌─────────────────┐                  ┌───────────────────┐
-│   ConfigV1      │   validate &     │ MatchComposerConfig│
-│ ├── teams[]     │   transform      │ ├── server_config  │
-│ │   ├── name    │──────────────▶  │ ├── teams[]        │
-│ │   ├── side    │                  │ │   ├── team_config│
-│ │   └── players │                  │ │   └── players[]  │
-│ ├── referee     │                  │ └── ...            │
-│ ├── stopping    │                  └───────────────────┘
-│ └── init_state  │
-└─────────────────┘
+```mermaid
+flowchart LR
+    subgraph Schema["Schema 层 (JSON 输入)"]
+        ConfigV1["ConfigV1<br/>├── teams[]<br/>│ ├── name<br/>│ ├── side<br/>│ └── players<br/>├── referee<br/>├── stopping<br/>└── init_state"]
+    end
+
+    Schema -->|"validate &<br/>transform"| Runtime
+
+    subgraph Runtime["Runtime 层 (内部使用)"]
+        MCC["MatchComposerConfig<br/>├── server_config<br/>├── teams[]<br/>│ ├── team_config<br/>│ └── players[]<br/>└── ..."]
+    end
 ```
 
 **输入配置 (ConfigV1) 校验规则**:
@@ -690,7 +570,7 @@ Schema 层 (JSON 输入)                 Runtime 层 (内部使用)
 | `player.position` | x ∈ [0,1], y ∈ [0,1] (归一化球场坐标) |
 | `policy.image` | 格式为 `provider/model` |
 
-#### 4.6.3 镜像与策略系统
+#### 4.5.3 镜像与策略系统
 
 ```
 Hub 目录结构:
@@ -706,39 +586,36 @@ Hub 目录结构:
 
 **策略注册表 (PolicyRegistry)**:
 
-```
-PolicyRegistry
-├── ImageRegistry              镜像注册表
-│   └── load(provider, model)  加载镜像
-│       ├── "SoccerSimulationProxy" → SSPImage
-│       └── 其他 → HeliosBaseImage
-│
-├── fetch_bot(image_str)       获取 Bot 策略
-│   └── BotPolicy { config, image: HeliosBaseImage }
-│
-└── fetch_agent(image_str)     获取 Agent 策略
-    └── AgentPolicy { config, image: SSPImage }
+```mermaid
+graph TB
+    PR["PolicyRegistry"]
+    PR --> IR["ImageRegistry<br/>load(provider, model)"]
+    IR --> SSP["'SoccerSimulationProxy' → SSPImage"]
+    IR --> Helios["其他 → HeliosBaseImage"]
+
+    PR --> FetchBot["fetch_bot(image_str)"]
+    FetchBot --> BotPolicy["BotPolicy { config, image: HeliosBaseImage }"]
+
+    PR --> FetchAgent["fetch_agent(image_str)"]
+    FetchAgent --> AgentPolicy["AgentPolicy { config, image: SSPImage }"]
 ```
 
 **两种球员策略**:
 
-```
-┌──────────── Bot 策略 ──────────────┐  ┌────────── Agent 策略 ─────────────┐
-│                                     │  │                                    │
-│  HeliosBaseImage                   │  │  SSPImage (SoccerSimulationProxy) │
-│  └── start_player.sh               │  │  └── ssp_binary                   │
-│      -h <host> -p <port>           │  │      -h <host> -p <port>          │
-│      -t <team> -u <unum>           │  │      -t <team> -u <unum>          │
-│      [-g (goalie)]                  │  │      --g-ip <grpc_host>           │
-│      [--debug] [--log-dir]          │  │      --g-port <grpc_port>         │
-│                                     │  │      [--debug] [--log-dir]        │
-│  特点: 本地执行，自包含决策         │  │                                    │
-│                                     │  │  特点: gRPC 远程决策代理           │
-│                                     │  │  外部 AI 通过 gRPC 控制球员       │
-└─────────────────────────────────────┘  └────────────────────────────────────┘
+```mermaid
+graph LR
+    subgraph Bot["Bot 策略"]
+        HBI["HeliosBaseImage<br/>└── start_player.sh<br/>&nbsp;&nbsp;&nbsp;&nbsp;-h &lt;host&gt; -p &lt;port&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;-t &lt;team&gt; -u &lt;unum&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;[-g (goalie)]<br/>&nbsp;&nbsp;&nbsp;&nbsp;[--debug] [--log-dir]"]
+        BotNote["特点: 本地执行，自包含决策"]
+    end
+
+    subgraph Agent["Agent 策略"]
+        SSPI["SSPImage (SoccerSimulationProxy)<br/>└── ssp_binary<br/>&nbsp;&nbsp;&nbsp;&nbsp;-h &lt;host&gt; -p &lt;port&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;-t &lt;team&gt; -u &lt;unum&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;--g-ip &lt;grpc_host&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;--g-port &lt;grpc_port&gt;<br/>&nbsp;&nbsp;&nbsp;&nbsp;[--debug] [--log-dir]"]
+        AgentNote["特点: gRPC 远程决策代理<br/>外部 AI 通过 gRPC 控制球员"]
+    end
 ```
 
-#### 4.6.4 MatchComposer — 比赛编排器
+#### 4.5.4 MatchComposer — 比赛编排器
 
 ```
 MatchComposer
@@ -753,31 +630,25 @@ MatchComposer
 
 **Team 状态机**:
 
-```
-  Init ──▶ Starting ──▶ Ready
-               │
-               └──▶ Error
+```mermaid
+stateDiagram-v2
+    [*] --> Init
+    Init --> Starting
+    Starting --> Ready
+    Starting --> Error
 ```
 
 Team 通过 `watch::channel` 广播状态变化，上层可订阅监听。
 
-#### 4.6.5 HTTP API
+#### 4.5.5 HTTP API
 
-```
-HTTP 路由 (:8080)
-├── POST /start              开始比赛 (可选 ConfigV1 覆盖)
-├── POST /stop               停止比赛
-├── POST /restart            重启比赛
-└── GET  /status             查询状态
-    └── Response:
-        {
-          "state": "running",
-          "agents": [            // Agent gRPC 连接信息
-            { "side": "left", "unum": 1, "team_name": "SSP",
-              "grpc_host": "0.0.0.0", "grpc_port": 6657 }
-          ],
-          "started_at": "2025-..."
-        }
+```mermaid
+graph LR
+    Root[":8080"]
+    Root --> Start["POST /start<br/>开始比赛"]
+    Root --> Stop["POST /stop<br/>停止比赛"]
+    Root --> Restart["POST /restart<br/>重启比赛"]
+    Root --> Status["GET /status<br/>查询状态"]
 ```
 
 ---
@@ -788,12 +659,10 @@ HTTP 路由 (:8080)
 
 整个系统广泛采用 **信号/数据通道分离** 模式：
 
-```
-  ┌──────────┐  signal_tx (控制)  ┌──────────┐
-  │  调用方  │──────────────────▶│  工作者  │
-  │          │  data_tx   (数据)  │          │
-  │          │──────────────────▶│          │
-  └──────────┘                   └──────────┘
+```mermaid
+flowchart LR
+    Caller["调用方"] -->|"signal_tx (控制)"| Worker["工作者"]
+    Caller -->|"data_tx (数据)"| Worker
 ```
 
 **优势**: 控制命令（如 Shutdown）不会被大量数据消息阻塞，确保系统在高负载下仍能及时响应控制信号。
@@ -817,7 +686,6 @@ data_tx: OnceLock<mpsc::Sender<ArcStr>>,
 | 使用场景 | Key | Value |
 |---------|-----|-------|
 | 客户端消费者注册表 | `Uuid` | `mpsc::Sender` |
-| 房间管理 | `String` (名称) | `Room` |
 | UDP 会话管理 | `SocketAddr` | `Session` |
 | 命令响应队列 | `CMD` (命令枚举) | `VecDeque<oneshot::Sender>` |
 
@@ -827,46 +695,47 @@ data_tx: OnceLock<mpsc::Sender<ArcStr>>,
 
 对于需要多方监听的状态变化，系统统一使用 `tokio::sync::watch`：
 
-```
-  状态生产者                     状态消费者 (多个)
-  watch::Sender                 watch::Receiver (clone)
-       │                              │
-       │  send(new_status)            │  changed().await
-       │──────────────────────────▶  │  → 获取最新状态
-       │                              │
-       │                              │  borrow()
-       │                              │  → 直接读取当前值
+```mermaid
+sequenceDiagram
+    participant Producer as 状态生产者<br/>watch::Sender
+    participant Consumer as 状态消费者 (多个)<br/>watch::Receiver (clone)
+
+    Producer->>Consumer: send(new_status)
+    Consumer->>Consumer: changed().await<br/>→ 获取最新状态
+    Consumer->>Consumer: borrow()<br/>→ 直接读取当前值
 ```
 
 使用场景：进程状态、服务状态、时间戳追踪、应用关闭信号。
 
 ### 5.5 优雅关闭 — 分层清理
 
-```
-  外部信号 (Ctrl+C / Agones shutdown)
-       │
-       ▼
-  ┌─ Server 层 ─────────────────────────────┐
-  │  1. 标记 status = ShuttingDown          │
-  │  2. 停止接受新连接                       │
-  └────────────────┬────────────────────────┘
-                   │
-  ┌─ Service 层 ───▼────────────────────────┐
-  │  3. service.shutdown()                   │
-  │  4. 等待后台任务结束                      │
-  └────────────────┬────────────────────────┘
-                   │
-  ┌─ Process 层 ───▼────────────────────────┐
-  │  5. SIGINT → rcssserver                  │
-  │  6. 等待超时 → SIGKILL                   │
-  │  7. 回收子进程                           │
-  └────────────────┬────────────────────────┘
-                   │
-  ┌─ Client 层 ────▼────────────────────────┐
-  │  8. signal_tx → Shutdown                 │
-  │  9. 等待 UDP 任务结束                     │
-  │ 10. 清理消费者                           │
-  └─────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    Signal["外部信号 (Ctrl+C / Agones shutdown)"]
+
+    subgraph ServerLayer["Server 层"]
+        S1["1. 标记 status = ShuttingDown"]
+        S2["2. 停止接受新连接"]
+    end
+
+    subgraph ServiceLayer["Service 层"]
+        S3["3. service.shutdown()"]
+        S4["4. 等待后台任务结束"]
+    end
+
+    subgraph ProcessLayer["Process 层"]
+        S5["5. SIGINT → rcssserver"]
+        S6["6. 等待超时 → SIGKILL"]
+        S7["7. 回收子进程"]
+    end
+
+    subgraph ClientLayer["Client 层 (common::client)"]
+        S8["8. signal_tx → Shutdown"]
+        S9["9. 等待 UDP 任务结束"]
+        S10["10. 清理消费者"]
+    end
+
+    Signal --> ServerLayer --> ServiceLayer --> ProcessLayer --> ClientLayer
 ```
 
 ---
@@ -875,52 +744,47 @@ data_tx: OnceLock<mpsc::Sender<ArcStr>>,
 
 ### 6.1 教练命令数据流 (HTTP → rcssserver)
 
-```
-  HTTP Client          Server (Axum)        Service          Process
-       │                    │                  │                │
-       │ POST /command/     │                  │                │
-       │ trainer/move ─────▶│                  │                │
-       │ {x: 10, y: 5}     │                  │                │
-       │                    │  trainer()       │                │
-       │                    │────────────────▶│                │
-       │                    │                  │  call(Move)    │
-       │                    │                  │───────────────▶│
-       │                    │                  │                │
-       │                    │                  │                │  encode()
-       │                    │                  │                │  "(move 10 5)"
-       │                    │                  │                │      │
-       │                    │                  │                │      ▼
-       │                    │                  │                │  data_tx → UDP
-       │                    │                  │                │      │
-       │                    │                  │                │  rcssserver
-       │                    │                  │                │      │
-       │                    │                  │                │  UDP recv
-       │                    │                  │                │      │
-       │                    │                  │                │  CallResolver
-       │                    │                  │                │  parse → oneshot
-       │                    │                  │◀───────────────│
-       │                    │◀─────────────────│  Ok(())        │
-       │◀───────────────────│  Response(200)   │                │
-       │                    │                  │                │
+```mermaid
+sequenceDiagram
+    participant HTTP as HTTP Client
+    participant Server as Server (Axum)
+    participant Service as Service
+    participant Process as Process
+    participant RCSS as rcssserver
+
+    HTTP->>Server: POST /command/<br/>trainer/move<br/>{x: 10, y: 5}
+    Server->>Service: trainer()
+    Service->>Process: call(Move)
+    Note over Process: encode()<br/>"(move 10 5)"
+    Process->>RCSS: data_tx → UDP
+    RCSS-->>Process: UDP recv
+    Note over Process: CallResolver<br/>parse → oneshot
+    Process-->>Service: Ok(())
+    Service-->>Server: Ok(())
+    Server-->>HTTP: Response(200)
 ```
 
-### 6.2 球员连接数据流 (外部 → 网关 → 后端 → rcssserver)
+### 6.2 球员 WebSocket 连接数据流 (外部 → Server → rcssserver)
 
-```
-  球员程序         Client (Gateway)       Server (Backend)     rcssserver
-  (UDP)           (Room / ProxyConn)     (WS Handler)         (UDP)
-    │                   │                      │                  │
-    │  UDP init ──────▶│                      │                  │
-    │                   │  创建 LazyProxy      │                  │
-    │                   │  WS connect ────────▶│                  │
-    │                   │  WS send(init) ─────▶│                  │
-    │                   │                      │  UDP send ──────▶│
-    │                   │                      │                  │
-    │                   │                      │  UDP recv ◀──────│
-    │                   │  WS recv ◀──────────│                  │
-    │  UDP resp ◀──────│                      │                  │
-    │                   │                      │                  │
-    │  ... 后续正常收发 ...                                       │
+```mermaid
+sequenceDiagram
+    participant Player as 球员程序<br/>(WS Client)
+    participant Server as Server<br/>(WS Handler)
+    participant RCSS as rcssserver<br/>(UDP)
+
+    Player->>Server: WS connect /player/{id}
+    Server->>RCSS: UDP bind
+    Player->>Server: WS send("init ...")
+    Server->>RCSS: UDP send
+    RCSS-->>Server: UDP recv
+    Server-->>Player: WS Text(response)
+
+    loop 后续正常收发
+        Player->>Server: WS Text(command)
+        Server->>RCSS: UDP send
+        RCSS-->>Server: UDP recv
+        Server-->>Player: WS Text(response)
+    end
 ```
 
 ---
@@ -929,78 +793,65 @@ data_tx: OnceLock<mpsc::Sender<ArcStr>>,
 
 ### 7.1 Agones 资源模型
 
-```
-Fleet (agones-rcss-server)
-├── replicas: 5                      初始副本数
-├── scheduling: Packed               优先填满节点
-├── strategy: RollingUpdate          滚动更新
-│
-├── counters:
-│   └── rooms: { count: 0, cap: 100 }  房间计数器
-│
-├── lists:
-│   └── players: []                  球员列表
-│
-└── template:                        GameServer 模板
-    ├── ports:
-    │   ├── default  :55555/TCP      HTTP API
-    │   ├── player   :6000/TCP       球员端口
-    │   ├── trainer  :6001/TCP       教练端口
-    │   └── coach    :6002/TCP       OlCoach 端口
-    │
-    ├── health:
-    │   ├── initialDelay: 30s
-    │   ├── period: 30s
-    │   └── failureThreshold: 3
-    │
-    └── sdkServer:
-        ├── grpcPort: 9357
-        └── httpPort: 9358
+```mermaid
+graph TB
+    subgraph Fleet["Fleet (agones-rcss-server)"]
+        Config["replicas: 5<br/>scheduling: Packed<br/>strategy: RollingUpdate"]
+        Counters["counters:<br/>rooms: { count: 0, cap: 100 }"]
+        Lists["lists:<br/>players: []"]
+
+        subgraph Template["GameServer 模板"]
+            Ports["ports:<br/>default :55555/TCP (HTTP API)<br/>player :6000/TCP<br/>trainer :6001/TCP<br/>coach :6002/TCP"]
+            Health["health:<br/>initialDelay: 30s<br/>period: 30s<br/>failureThreshold: 3"]
+            SDK["sdkServer:<br/>grpcPort: 9357<br/>httpPort: 9358"]
+        end
+    end
 ```
 
 ### 7.2 Docker 构建流程
 
-```
-┌──── 构建阶段 ──────────────────────────────────────────────┐
-│                                                             │
-│  Stage 1: chef        → 安装 cargo-chef + protoc            │
-│  Stage 2: planner     → 生成依赖 recipe.json                │
-│  Stage 3: builder     → 编译 rcssserver + agones-server     │
-│                          (cargo-chef 缓存依赖层)             │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-                          │
-                          ▼
-┌──── 运行阶段 ──────────────────────────────────────────────┐
-│                                                             │
-│  alpine:latest                                              │
-│  ├── /usr/local/bin/agones-server    Rust 编译产物          │
-│  ├── /usr/local/bin/rcssserver       rcssserver 二进制      │
-│  └── /usr/local/lib/*               rcssserver 共享库      │
-│                                                             │
-│  EXPOSE: 6000-6002/UDP, 55555/TCP                           │
-│  ENTRYPOINT: agones-server                                  │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph Build["构建阶段"]
+        Chef["Stage 1: chef<br/>安装 cargo-chef + protoc"]
+        Planner["Stage 2: planner<br/>生成依赖 recipe.json"]
+        Builder["Stage 3: builder<br/>编译 rcssserver + agones-server<br/>(cargo-chef 缓存依赖层)"]
+        Chef --> Planner --> Builder
+    end
+
+    Build --> Run
+
+    subgraph Run["运行阶段 (alpine:latest)"]
+        Bin1["/usr/local/bin/agones-server"]
+        Bin2["/usr/local/bin/rcssserver"]
+        Lib["/usr/local/lib/*"]
+        Expose["EXPOSE: 6000-6002/UDP, 55555/TCP<br/>ENTRYPOINT: agones-server"]
+    end
 ```
 
 ### 7.3 Match Composer 容器构建
 
 Match Composer 的 Dockerfile 采用更复杂的多阶段构建：
 
-```
-  cpp-base        → C++ 编译工具链
-  librcsc-builder → librcsc 库 (RoboCup 基础库)
-  grpc-builder    → gRPC C++ v1.62.0
-  ssp-builder     → SoccerSimulationProxy (Cyrus2D)
-  helios-builder  → helios-base (HELIOS 基础球员)
-  rust-builder    → match_composer Rust 二进制
+```mermaid
+flowchart TB
+    cpp["cpp-base<br/>C++ 编译工具链"]
+    cpp --> librcsc["librcsc-builder<br/>librcsc 库 (RoboCup 基础库)"]
+    cpp --> grpc["grpc-builder<br/>gRPC C++ v1.62.0"]
+    librcsc --> helios["helios-builder<br/>helios-base (HELIOS 基础球员)"]
+    grpc --> ssp["ssp-builder<br/>SoccerSimulationProxy (Cyrus2D)"]
+    rust["rust-builder<br/>match_composer Rust 二进制"]
 
-  最终镜像:
-  ├── match_composer          编排器
-  ├── helios-base/            HELIOS Bot
-  ├── SoccerSimulationProxy/  SSP Agent
-  └── 依赖库 (librcsc, grpc)
+    subgraph Final["最终镜像"]
+        F1["match_composer (编排器)"]
+        F2["helios-base/ (HELIOS Bot)"]
+        F3["SoccerSimulationProxy/ (SSP Agent)"]
+        F4["依赖库 (librcsc, grpc)"]
+    end
+
+    helios --> Final
+    ssp --> Final
+    rust --> Final
 ```
 
 ---
@@ -1009,21 +860,15 @@ Match Composer 的 Dockerfile 采用更复杂的多阶段构建：
 
 系统采用分层错误处理，每层定义自己的 `Error` 枚举并向上转换：
 
-```
-  common::client::Error          底层 UDP/通道错误
-       │
-       ▼
-  process::Error                 进程启动/关闭错误
-       │
-       ▼
-  service::Error                 服务级错误 (含业务语义)
-       │
-       ▼
-  server::error::Error           HTTP 错误 (映射到状态码)
-       │
-       ▼
-  HTTP Response                  标准化 JSON 响应
-  { code: 4xx/5xx, data: "..." }
+```mermaid
+flowchart TB
+    E1["common::client::Error<br/>底层 UDP/通道错误"]
+    E2["process::Error<br/>进程启动/关闭错误"]
+    E3["service::Error<br/>服务级错误 (含业务语义)"]
+    E4["server::error::Error<br/>HTTP 错误 (映射到状态码)"]
+    E5["HTTP Response<br/>标准化 JSON 响应<br/>{ code: 4xx/5xx, data: '...' }"]
+
+    E1 --> E2 --> E3 --> E4 --> E5
 ```
 
 **HTTP 状态码映射**:
