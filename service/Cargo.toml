@@ -12,6 +12,8 @@ common = { path = "../common" }
 process = { path = "../process" }
 
 agones = { workspace = true, optional = true }
+reqwest = { version = "0.13", features = ["json"] }
+
 clap = { version = "4.5.53", features = ["derive"] }
 tokio-util = "0.7"
 

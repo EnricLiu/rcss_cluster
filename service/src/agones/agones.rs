@@ -6,7 +6,7 @@ use log::{debug, info, warn};
 use tokio::sync::{mpsc, watch, RwLock};
 use tokio_util::sync::CancellationToken;
 use agones::Sdk as AgonesSdk;
-use process::CoachedProcessSpawner;
+use reqwest::Client;
 use crate::{Error, Result, ServerStatus};
 use crate::agones::config::AgonesAutoShutdownConfig;
 use super::{AgonesConfig, AgonesArgs, BaseService};
@@ -44,10 +44,13 @@ impl Display for AgonesService {
 
 impl AgonesService {
     pub async fn from_args(args: AgonesArgs) -> Result<Self> {
-        let sdk = agones::Sdk::new(
+        let mut sdk = agones::Sdk::new(
             args.agones_port,
             args.agones_keep_alive.map(|s| Duration::from_secs(s)),
-        ).await.map_err(|e| Error::AgonesSdkFailToConnect(e))?;
+        ).await.map_err(Error::AgonesSdkFailToConnect)?;
+
+        let gs = sdk.get_gameserver()
+            .await.map_err(Error::AgonesSdkFailToConnect)?;
 
         let base = BaseService::from_args(args.base_args).await;
 
@@ -57,6 +60,10 @@ impl AgonesService {
             cfg.shutdown.on_finish = args.auto_shutdown_on_finish;
             cfg.sdk.port = args.agones_port;
             cfg.sdk.keep_alive = args.agones_keep_alive.map(|s| Duration::from_secs(s));
+
+            if let Some(meta) = gs.object_meta {
+                cfg.metadata = meta.try_into().map_err(Error::AgonesMetadataFailedToParse)?;
+            }
 
             cfg
         };
@@ -95,6 +102,26 @@ impl AgonesService {
                 self.shutdown_tx.clone(),
             )
         );
+
+        if self.cfg.metadata.has_match_composer() {
+            use reqwest::Client;
+
+            let mut tick = tokio::time::interval(Duration::from_millis(200));
+            let client = Client::builder().build().expect("Failed to build HTTP client for Match Composer");
+            let port = self.cfg.metadata.labels.match_composer_port.expect("Match Composer port must be specified in labels if Match Composer is enabled");
+            let url = format!("http://localhost:{port}/ready");
+            loop {
+                let res = client.get(&url).send().await.expect("Failed to send ready signal to Match Composer");
+                if res.status().is_success() {
+                    info!("[AgonesService] Successfully sent ready signal to Match Composer at {url}");
+                    break;
+                } else {
+                    debug!("[AgonesService] Failed to send ready signal to Match Composer at {url}, status: {}", res.status());
+                }
+
+                tick.tick().await;
+            }
+        }
 
         sdk_guard.ready().await
             .map_err(Error::AgonesSdkReadyFailed)?;

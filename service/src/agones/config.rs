@@ -1,10 +1,13 @@
 use std::time::Duration;
+use crate::agones::metadata::AgonesMetadata;
 
 #[derive(Clone, Debug)]
 pub struct AgonesConfig {
     pub health_check_interval: Duration,
     pub sdk: AgonesSdkConfig,
     pub shutdown: AgonesAutoShutdownConfig,
+    
+    pub metadata: AgonesMetadata,
 }
 
 impl AgonesConfig { pub fn new() -> Self { Self::default() } }
@@ -14,6 +17,7 @@ impl Default for AgonesConfig {
             health_check_interval: Duration::from_secs(5),
             sdk: AgonesSdkConfig::default(),
             shutdown: AgonesAutoShutdownConfig::default(),
+            metadata: AgonesMetadata::default(),
         }
     }
 }

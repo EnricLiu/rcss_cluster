@@ -32,6 +32,11 @@ pub enum Error {
     #[cfg(feature = "agones")]
     #[error("Failed to shutdown Agones SDK: {0}")]
     AgonesSdkShutdownFailed(#[source] agones::errors::Error),
+    
+    #[cfg(feature = "agones")]
+    #[error("Failed to parse Agones metadata: {0}")]
+    AgonesMetadataFailedToParse(String),
+
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

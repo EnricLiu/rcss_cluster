@@ -1,6 +1,7 @@
 mod agones;
 mod args;
 mod config;
+mod metadata;
 
 use crate::base::{BaseService, BaseArgs};
 
