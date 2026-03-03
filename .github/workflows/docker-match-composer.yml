@@ -42,9 +42,9 @@ jobs:
 
       - name: Log in to Alibaba Cloud Container Registry
         if: github.event_name != 'pull_request'
-        uses: aliyun/acr-login@v1
+        uses: docker/login-action@v3
         with:
-          login-server: ${{ env.REGISTRY }}
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.ALIYUN_DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_DOCKER_REGISTRY_PASSWORD }}
 
