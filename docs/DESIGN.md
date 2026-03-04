@@ -29,39 +29,6 @@
 
 ### 2.1 系统架构全景
 
-```
-                            ┌──────────────────────────────────────────────────────┐
-                            │                 Kubernetes Cluster                   │
-                            │                                                      │
-┌──────────┐   HTTP/WS     │  ┌────────────┐        ┌───────────────────────────┐ │
-│          │───────────────────│   Client   │        │      Agones Fleet         │ │
-│  外部    │                │  │ (Gateway)  │        │  ┌─────────────────────┐  │ │
-│  用户    │                │  │   :6000    │        │  │    GameServer Pod   │  │ │
-│          │                │  │            │ Agones │  │ ┌─────────────────┐ │  │ │
-└──────────┘                │  │ ┌────────┐ │Allocate│  │ │     Server      │ │  │ │
-                            │  │ │ Rooms  │─┼────────┤  │ │    :55555       │ │  │ │
-                            │  │ └────────┘ │        │  │ │  ┌───────────┐  │ │  │ │
-                            │  └──────┬─────┘        │  │ │  │  Service  │  │ │  │ │
-                            │         │   WS Proxy   │  │ │  │(Standalone│  │ │  │ │
-                            │         └──────────────────│ │  │ /Agones) │  │ │  │ │
-                            │                        │  │ │  └─────┬─────┘  │ │  │ │
-                            │                        │  │ │        │        │ │  │ │
-                            │                        │  │ │  ┌─────▼─────┐  │ │  │ │
-                            │                        │  │ │  │  Process  │  │ │  │ │
-                            │                        │  │ │  │(rcssserver│  │ │  │ │
-                            │                        │  │ │  │ +coach)   │  │ │  │ │
-                            │                        │  │ │  └───────────┘  │ │  │ │
-                            │                        │  │ └─────────────────┘ │  │ │
-                            │                        │  │                     │  │ │
-                            │                        │  │ ┌─────────────────┐ │  │ │
-                            │                        │  │ │ Match Composer  │ │  │ │
-                            │                        │  │ │   (Sidecar)     │ │  │ │
-                            │                        │  │ └─────────────────┘ │  │ │
-                            │                        │  └─────────────────────┘  │ │
-                            │                        └───────────────────────────┘ │
-                            └──────────────────────────────────────────────────────┘
-```
-
 ### 2.2 部署模式
 
 系统支持两种部署模式，通过编译时 feature flag 切换：
@@ -118,13 +85,6 @@ rcss_cluster/                      Cargo Workspace Root
 │       ├── state.rs               应用状态管理
 │       └── main.rs                入口点
 │
-├── client/                        API 网关/代理服务器
-│   └── src/
-│       ├── controller/            HTTP 控制器 (RESTful API)
-│       ├── room/                  房间管理 (UDP↔WS 代理)
-│       ├── proxy.rs               代理服务器核心
-│       └── main.rs                入口点
-│
 └── sidecars/
     └── match_composer/            比赛编排 Sidecar
         └── src/
@@ -159,11 +119,6 @@ rcss_cluster/                      Cargo Workspace Root
     │ (依赖 common +    │   │ (依赖 common)        │
     │  service)         │   │                      │
     └───────────────────┘   └──────────────────────┘
-
-    ┌───────────────────┐
-    │      client       │  ← 独立网关，不依赖 service/process
-    │ (依赖 common)     │     仅通过 HTTP/WS 与 server 通信
-    └───────────────────┘
 ```
 
 ---
@@ -557,82 +512,6 @@ AppState {
        │  ◀────── Pong ──────────────│                          │
        │                              │                          │
        │  Close ─────────────────────▶│  cleanup                 │
-```
-
----
-
-### 4.5 client — API 网关
-
-`client` crate 作为系统的入口网关，管理"房间"并将 UDP 流量代理到后端 WebSocket 服务。
-
-#### 4.5.1 ProxyServer 核心
-
-```
-ProxyServer
-├── rooms: DashMap<String, Room>     房间注册表
-├── agones_client: AgonesClient      Agones 分配器客户端
-│
-├── create_room(name, config)        创建房间 → 分配 GameServer
-├── drop_room(name)                  关闭房间 → 释放资源
-├── room_info(name)                  查询房间信息
-└── list_rooms()                     列出所有房间
-```
-
-#### 4.5.2 Room 管理
-
-每个 Room 代表一个到后端 GameServer 的代理会话：
-
-```
-Room
-├── config: RoomConfig               房间配置
-├── conns: DashMap<SocketAddr,        每个 UDP 客户端一个连接
-│          LazyProxyConnection>
-├── status: AtomicU8                 房间状态
-├── udp_listen_task                  UDP 监听循环
-└── cleanup_task                     定期清理断开的连接
-```
-
-**UDP ↔ WebSocket 代理流程**:
-
-```
-  外部球员程序          Room             ProxyConnection          后端 Server
-  (UDP Client)     (UDP Listener)     (WS Client)             (WS :55555)
-       │                 │                  │                       │
-       │  UDP packet ───▶│                  │                       │
-       │                 │  首次: 创建      │                       │
-       │                 │  LazyProxy ────▶│                       │
-       │                 │                  │  WS connect ─────────▶│
-       │                 │  forward ──────▶│  WS send ────────────▶│
-       │                 │                  │                       │
-       │                 │                  │  WS recv ◀────────────│
-       │  ◀── UDP resp ──│◀── forward ─────│                       │
-       │                 │                  │                       │
-       │                 │                  │  heartbeat ping ─────▶│
-       │                 │                  │  ◀── pong ────────────│
-       │                 │                  │                       │
-       │                 │  断线检测         │                       │
-       │                 │  → 自动重连 ─────▶│  WS reconnect ──────▶│
-```
-
-#### 4.5.3 HTTP 控制器
-
-```
-HTTP 路由 (:6000)
-├── GET  /health              健康检查
-├── GET  /rooms               房间列表 (支持分页)
-├── POST /rooms/create        创建房间
-└── POST /rooms/{name}        查询房间信息
-```
-
-**响应格式**:
-
-```json
-{
-  "id": "unique-response-id",
-  "timestamp": "2025-01-01T00:00:00Z",
-  "code": 200,
-  "data": { ... }
-}
 ```
 
 ---
