@@ -8,7 +8,6 @@ A Rust-based cluster management system for RoboCup Soccer Simulator (rcssserver)
 
 `rcss_cluster` provides infrastructure for running and managing multiple RoboCup Soccer Simulator instances in a distributed environment. It consists of five main components:
 
-- **client**: API gateway / proxy server for managing rooms and routing client connections to backend servers
 - **server**: Backend server providing HTTP/WebSocket API for controlling rcssserver instances
 - **service**: Service layer with standalone and Agones deployment modes
 - **process**: Process management for spawning and controlling rcssserver with trainer/coach support
@@ -18,7 +17,6 @@ A Rust-based cluster management system for RoboCup Soccer Simulator (rcssserver)
 
 ```
 rcss_cluster/
-├── client/        # API gateway/proxy server (Axum-based, listens on 0.0.0.0:6000)
 ├── server/        # Backend server (HTTP/WebSocket API, listens on 0.0.0.0:55555)
 ├── service/       # Service layer (standalone/agones modes)
 ├── process/       # rcssserver process management with trainer/coach
@@ -62,16 +60,6 @@ cargo build -p server --features agones
 > **Note**: `standalone` and `agones` features are mutually exclusive.
 
 ## Components
-
-### Client (API Gateway)
-
-The client acts as an API gateway/proxy server for managing rooms and routing connections. By default, it listens on `0.0.0.0:6000`.
-
-Features:
-- Room management (`/rooms` endpoints)
-- Health check endpoints (`/health`)
-- WebSocket proxy connections to backend servers
-- Agones allocator integration for room allocation
 
 ### Server (Backend)
 
