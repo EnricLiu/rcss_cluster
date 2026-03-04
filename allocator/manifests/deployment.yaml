@@ -1,0 +1,67 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: allocator
+  namespace: default
+  labels:
+    app: allocator
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: allocator
+  template:
+    metadata:
+      labels:
+        app: allocator
+    spec:
+      serviceAccountName: allocator-sa
+      containers:
+        - name: allocator
+          image: allocator:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: RUST_LOG
+              value: "info"
+            - name: BIND_ADDRESS
+              value: "0.0.0.0:8080"
+            - name: FLEET_NAME
+              value: "rl-training-fleet"
+            - name: NAMESPACE
+              value: "default"
+            - name: MAX_BOT_COUNT
+              value: "20"
+            - name: MIN_BOT_COUNT
+              value: "1"
+            # Optional: Uncomment to enable authentication
+            # - name: AUTH_TOKEN
+            #   valueFrom:
+            #     secretKeyRef:
+            #       name: allocator-secret
+            #       key: auth-token
+            # Optional: Uncomment to restrict client versions
+            # - name: ALLOWED_VERSIONS
+            #   value: "v2.0,v2.1,v2.2"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
