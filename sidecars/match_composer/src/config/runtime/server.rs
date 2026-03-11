@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug)]
+#[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ServerConfig {
     pub host: Ipv4Addr,
     pub port: u16,

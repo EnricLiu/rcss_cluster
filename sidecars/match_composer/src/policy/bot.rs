@@ -1,31 +1,68 @@
+use std::path::PathBuf;
 use crate::config::BotConfig;
-use crate::image::{Image, ImageProcess};
-use super::Policy;
+use crate::image::{PolicyImage};
+use crate::player::{PlayerMeta, PolicyMeta};
+use super::{PolicyConfig};
 
-pub type BotPolicy = Policy<BotConfig>;
+#[derive(Debug)]
+pub struct PolicyBotConfig {
+    pub config: BotConfig,
+    pub image: Box<dyn PolicyImage>,
+}
 
-impl BotPolicy {
-    pub fn new(config: BotConfig, image: Box<dyn Image>) -> Self {
-        BotPolicy {
-            cfg: config,
+impl PolicyConfig for PolicyBotConfig {
+    fn command(&self) -> tokio::process::Command {
+        let config = &self.config.player();
+        
+        let mut cmd = self.image.cmd();
+        cmd.arg("-h")
+            .arg(config.host.to_string())
+            .arg("-p")
+            .arg(config.port.to_string())
+            .arg("-t")
+            .arg(&config.team_name)
+            .arg("-u")
+            .arg(config.unum.to_string());
+
+        if let Some(log_root) = &config.log_root {
+            cmd.arg("--debug")
+                .arg("--log-dir")
+                .arg(log_root);
+        }
+
+        if config.goalie {
+            cmd.arg("-g");
+        }
+        
+        cmd
+    }
+
+    fn meta(&self) -> PolicyMeta {
+        
+        let player = PlayerMeta {
+            unum: self.config.unum,
+            kind: crate::player::PlayerKind::Bot,
+            team_name: self.config.team.clone(),
+        };
+
+        let image = self.image.meta().clone();
+        
+        PolicyMeta {
+            player,
             image,
         }
     }
 
-    pub async fn spawn(&self) -> ImageProcess {
-        let cmd = self.image.player_cmd(&self.cfg.player());
-
-        let stdout_log_path = self.cfg.log_root.as_ref().map(|p| {
-            p.join(format!("{}_{:02}_stdout.log", &self.cfg.team, self.cfg.unum))
-        });
-
-        log::debug!("Spawning bot with command: {:?}", cmd);
-
-        ImageProcess::spawn(cmd, stdout_log_path.map(|p| p.into_boxed_path()))
-            .expect("Failed to spawn bot process")
+    fn log_dir(&self) -> Option<PathBuf> {
+        self.config.log_root.clone()
     }
+}
 
-    pub fn unum(&self) -> u8 {
-        self.cfg.unum
+impl PolicyBotConfig {
+    pub fn new(config: BotConfig, image: Box<dyn PolicyImage>) -> Self {
+        PolicyBotConfig {
+            config,
+            image,
+        }
     }
 }

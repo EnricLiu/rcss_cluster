@@ -12,11 +12,11 @@ use chrono::{Duration, Utc};
 use log::{debug, error, info};
 use tokio::net::TcpListener;
 use tokio::sync::{oneshot, Mutex, RwLock};
-
+use common::types::Side;
 pub use error::Error;
 pub use response::StatusResponse;
 
-use crate::composer::{AgentConnectionInfo, MatchComposer};
+use crate::composer::MatchComposer;
 use crate::config::MatchComposerConfig;
 use crate::schema::v1::ConfigV1;
 
@@ -67,7 +67,8 @@ impl AppState {
         debug!("[AppState] Shutdown notifier received, cleaning up composer...");
 
         let mut interval =
-            tokio::time::interval(Self::CLEANER_POLL_INTERVAL.to_std().expect("CLEANER_POLL_INTERVAL must be a positive duration"));
+            tokio::time::interval(Self::CLEANER_POLL_INTERVAL.to_std()
+                .expect("CLEANER_POLL_INTERVAL must be a positive duration"));
         let start_at = Utc::now();
 
         loop {
@@ -98,7 +99,7 @@ impl AppState {
     }
 
     /// Start composer from a `ConfigV1`. Returns error if already running.
-    pub async fn start(&self, config: Option<ConfigV1>) -> Result<Vec<AgentConnectionInfo>, Error> {
+    pub async fn start(&self, config: Option<ConfigV1>) -> Result<(), Error> {
         let config = self.build_config(config).await?;
 
         let mut guard = self.inner.lock().await;
@@ -125,7 +126,7 @@ impl AppState {
     }
 
     /// Stop (if running) then start with new config.
-    pub async fn restart(&self, config: Option<ConfigV1>) -> Result<Vec<AgentConnectionInfo>, Error> {
+    pub async fn restart(&self, config: Option<ConfigV1>) -> Result<(), Error> {
         let config = self.build_config(config).await?;
 
         let mut guard = self.inner.lock().await;
@@ -140,14 +141,25 @@ impl AppState {
     pub async fn status(&self) -> Json<StatusResponse> {
         let guard = self.inner.lock().await;
         match &*guard {
-            ComposerState::Idle => Json(StatusResponse { state: "idle", agents: None, started_at: None }),
+            ComposerState::Idle => Json(
+                StatusResponse {
+                    state: "idle",
+                    team_l: None,
+                    team_r: None,
+                    started_at: None
+                }
+            ),
             ComposerState::Running { composer, started_at } => {
-                let agents = composer
-                    .agent_conns()
-                    .iter()
-                    .map(response::AgentConnInfo::from)
-                    .collect();
-                Json(StatusResponse { state: "running", agents: Some(agents), started_at: Some(*started_at) })
+                let left = composer.team(Side::LEFT);
+                let right = composer.team(Side::RIGHT);
+                Json(
+                    StatusResponse {
+                        state: "running",
+                        team_l: Some(left),
+                        team_r: Some(right),
+                        started_at: Some(*started_at),
+                    }
+                )
             }
         }
     }
@@ -167,9 +179,9 @@ impl AppState {
         &self,
         config: ConfigV1,
         state: &mut ComposerState,
-    ) -> Result<Vec<AgentConnectionInfo>, Error> {
+    ) -> Result<(), Error> {
         let started_at = Utc::now();
-        let log_root = self.log_root.clone().join(started_at.format("%Y%m%d_%H%M%S").to_string());
+        let log_root = self.log_root.join(started_at.format("%Y%m%d_%H%M%S").to_string());
 
         let composer_config =
             MatchComposerConfig::from_schema(config.clone(), Some(log_root))
@@ -183,10 +195,9 @@ impl AppState {
             .await
             .map_err(|e| Error::internal(format!("Failed to spawn players: {e}")))?;
 
-        let agents = composer.agent_conns();
         *state = ComposerState::Running { composer, started_at };
         *self.cfg.write().await = Some(config);
-        Ok(agents)
+        Ok(())
     }
 }
 

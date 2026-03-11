@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use crate::schema::v1::ConfigV1;
 use super::super::{AppState, Error};
-use super::super::response::{AgentConnInfo, StartResponse};
+use super::super::response::{StartResponse};
 
 #[derive(Deserialize)]
 pub struct StartRequest {
@@ -16,9 +16,9 @@ async fn post(
     State(state): State<AppState>,
     Json(req): Json<StartRequest>,
 ) -> Result<Json<StartResponse>, Error> {
-    let agents = state.start(req.config).await?;
+    state.start(req.config).await?;
     Ok(Json(StartResponse {
-        agents: agents.iter().map(AgentConnInfo::from).collect(),
+
     }))
 }
 

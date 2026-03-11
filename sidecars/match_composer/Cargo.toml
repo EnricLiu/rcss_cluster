@@ -7,8 +7,9 @@ edition = "2024"
 agones.workspace = true
 
 tokio.workspace = true
+futures.workspace = true
 axum.workspace = true
-tower-http.workspace = true
+dashmap = "6"
 
 log.workspace = true
 clap.workspace = true
@@ -19,6 +20,7 @@ chrono.workspace = true
 thiserror.workspace = true
 
 common = { path = "../../common" }
+async-trait = "0.1.89"
 
 [dev-dependencies]
 schemars = { version = "1", features = ["derive"] }

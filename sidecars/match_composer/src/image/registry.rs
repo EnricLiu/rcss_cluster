@@ -1,7 +1,7 @@
 use std::path::Path;
 
-use crate::config::{ImageConfig, ImageMeta};
-use crate::image::{HeliosBaseImage, Image, SSPImage};
+use crate::config::{ImageMeta};
+use crate::image::{HeliosBaseImage, PolicyImage, SSPImage};
 
 pub struct ImageRegistry {
     pub local: Box<Path>,
@@ -56,12 +56,12 @@ impl ImageRegistry {
         Some(ret)
     }
     
-    pub fn try_get(&self, image: ImageConfig) -> Option<Box<dyn Image>> {
-        let dir = self.local.join(&image.provider).join(&image.model);
+    pub fn try_get(&self, provider: &str, model: &str) -> Option<Box<dyn PolicyImage>> {
+        let dir = self.local.join(provider).join(model);
         let meta = dir.is_dir().then_some(
             ImageMeta {
-                provider: image.provider,
-                model: image.model,
+                provider: provider.to_string(),
+                model: model.to_string(),
                 path: dir.into(),
             }
         )?;
@@ -69,7 +69,7 @@ impl ImageRegistry {
         Self::load_image(meta)
     }
     
-    fn load_image(meta: ImageMeta) -> Option<Box<dyn Image>> {
+    fn load_image(meta: ImageMeta) -> Option<Box<dyn PolicyImage>> {
         if &meta.model == "SoccerSimulationProxy" {
             return Some(Box::new(SSPImage::from(meta)));
         }

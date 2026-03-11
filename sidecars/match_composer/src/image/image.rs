@@ -1,20 +1,21 @@
-use crate::config::{ImageMeta, PlayerProcessConfig};
-use std::path::Path;
+use crate::config::{ImageMeta, ImageQuery};
+use std::fmt::Debug;
 use tokio::process::Command;
 
-pub trait Image: Send + Sync {
+pub trait PolicyImage: Send + Sync {
     fn meta(&self) -> &ImageMeta;
-    fn provider(&self) -> &str {
-        &self.meta().provider
-    }
-    fn model(&self) -> &str {
-        &self.meta().model
-    }
-
-    fn path(&self) -> &Path {
-        &self.meta().path
+    fn query(&self) -> ImageQuery {
+        ImageQuery {
+            provider: self.meta().provider.to_string(),
+            model: self.meta().model.to_string(),
+        }
     }
 
     fn cmd(&self) -> Command;
-    fn player_cmd(&self, config: &PlayerProcessConfig) -> Command;
+}
+
+impl Debug for dyn PolicyImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self.meta())
+    }
 }

@@ -1,8 +1,8 @@
 use std::path::PathBuf;
 
 use common::types::Side;
-
-use super::{ImageConfig, ServerConfig};
+use crate::player::{PlayerKind, PlayerMeta};
+use super::{ImageQuery, ServerConfig};
 
 #[derive(Clone, Debug)]
 pub struct AgentConfig {
@@ -12,6 +12,18 @@ pub struct AgentConfig {
     pub goalie: bool,
     pub server: ServerConfig,
     pub grpc: ServerConfig,
-    pub image: ImageConfig,
+    pub image: ImageQuery,
     pub log_root: Option<PathBuf>,
+}
+
+impl From<AgentConfig> for PlayerMeta {
+    fn from(config: AgentConfig) -> Self {
+        PlayerMeta {
+            unum: config.unum,
+            kind: PlayerKind::Agent {
+                grpc: config.grpc.clone()
+            },
+            team_name: config.team.clone(),
+        }
+    }
 }

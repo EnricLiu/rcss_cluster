@@ -1,4 +1,6 @@
-#[derive(Clone, Debug)]
+use serde::Serialize;
+
+#[derive(Serialize, Clone, Debug)]
 pub struct ImageMeta {
     pub provider: String,
     pub model: String,
@@ -6,12 +8,12 @@ pub struct ImageMeta {
 }
 
 #[derive(Clone, Debug)]
-pub struct ImageConfig {
+pub struct ImageQuery {
     pub provider: String,
     pub model: String,
 }
 
-impl TryFrom<&str> for ImageConfig {
+impl TryFrom<&str> for ImageQuery {
     type Error = ();
 
     fn try_from(value: &str) -> Result<Self, Self::Error> {
@@ -21,7 +23,7 @@ impl TryFrom<&str> for ImageConfig {
                 return Err(());
             }
 
-            return Ok(ImageConfig {
+            return Ok(ImageQuery {
                 provider: provider.to_string(),
                 model: model.to_string(),
             });

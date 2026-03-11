@@ -4,8 +4,8 @@ mod policy;
 mod registry;
 
 
-pub use bot::BotPolicy;
-pub use agent::AgentPolicy;
+pub use bot::PolicyBotConfig;
+pub use agent::PolicyAgentConfig;
 pub use registry::PolicyRegistry;
 
-use policy::Policy;
+pub use policy::PolicyConfig;

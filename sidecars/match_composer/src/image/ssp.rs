@@ -1,5 +1,5 @@
 use crate::config::{ImageMeta, PlayerProcessConfig};
-use crate::image::image::Image;
+use crate::image::image::PolicyImage;
 use tokio::process::Command;
 
 pub struct SSPImage {
@@ -12,16 +12,12 @@ impl From<ImageMeta> for SSPImage {
     }
 }
 
-impl Image for SSPImage {
+impl PolicyImage for SSPImage {
     fn meta(&self) -> &ImageMeta {
         &self.cfg
     }
 
     fn cmd(&self) -> Command {
-        Command::new(self.path().join("start_player.sh"))
-    }
-
-    fn player_cmd(&self, _config: &PlayerProcessConfig) -> Command {
-        unimplemented!("SSPImage uses cmd() with manual args, player_cmd() is not supported")
+        Command::new(self.meta().path.join("start_player.sh"))
     }
 }

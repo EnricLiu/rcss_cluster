@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use common::types::Side;
 
-use super::{AgentConfig, BotConfig, ImageConfig, ServerConfig};
+use super::{AgentConfig, BotConfig, ImageQuery, ServerConfig};
 use crate::config::schema::{PlayerPolicySchema, PlayerSchema};
 
 #[derive(Clone, Debug)]
@@ -42,7 +42,7 @@ impl PlayerConfig {
             PlayerPolicySchema::Bot { image } => image.as_str(),
             PlayerPolicySchema::Agent { image, .. } => image.as_str(),
         };
-        let image = ImageConfig::try_from(image_value)
+        let image = ImageQuery::try_from(image_value)
             .map_err(|_| "Invalid policy image format".to_string())?;
 
         match &player.policy {
