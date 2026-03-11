@@ -18,5 +18,5 @@ pub use status::AtomicClientStatus as AtomicStatus;
 pub use status::ClientStatusKind as StatusKind;
 
 pub const INIT_MSG_TIMEOUT_MS: u64 = 5000;
-pub const BUFFER_SIZE: usize = 1500;
+pub const BUFFER_SIZE: usize = 8192;
 pub const CHANNEL_CAPACITY: usize = 32;

@@ -20,4 +20,6 @@ pub use process::Config as ProcessConfig;
 pub use common::process::ProcessStatus;
 pub use error::{Result, Error};
 
+pub use player::{Player};
+
 pub const RCSS_PROCESS_NAME: &str = "rcssserver";

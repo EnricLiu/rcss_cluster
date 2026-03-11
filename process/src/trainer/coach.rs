@@ -59,6 +59,11 @@ impl OfflineCoach {
         debug!("[OfflineCoach] Connected.");
         self.init_resolver()?;
         debug!("[OfflineCoach] CallResolver initialized.");
+        Ok(())
+    }
+
+    pub async fn connect_and_init(&self) -> Result<()> {
+        self.connect().await?;
 
         match self.call(command::trainer::Init { version: Some(5) }).await? {
             Ok(ok) => {

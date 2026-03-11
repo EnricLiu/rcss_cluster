@@ -4,11 +4,21 @@ use super::{Command, PlayerCommand};
 use arcstr::{ArcStr, format, literal};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct CommandInit {
     pub team_name: String,
     pub version: Option<u8>,
     pub is_goalie: bool,
+}
+
+impl Default for CommandInit {
+    fn default() -> Self {
+        Self {
+            team_name: String::new(),
+            version: Some(19),
+            is_goalie: false,
+        }
+    }
 }
 
 impl Command for CommandInit {
