@@ -1,0 +1,54 @@
+use std::collections::HashMap;
+use std::net::IpAddr;
+
+use axum::{extract::State, routing, Json, Router};
+use serde::{Deserialize, Serialize};
+
+use crate::schema::v1;
+use super::{Error, Result, AppState, Response};
+
+
+#[derive(Deserialize, Debug)]
+pub struct PostRequest {
+    #[serde(flatten)]
+    pub schema: v1::ConfigV1,
+}
+
+#[derive(Serialize, Debug)]
+pub struct PostResponse {
+    pub name: String,
+    pub host: IpAddr,
+    pub ports: HashMap<String, u16>,
+}
+
+pub async fn post(
+    State(state): State<AppState>,
+    Json(PostRequest{ schema }): Json<PostRequest>,
+) -> Response {
+    // TODO
+    let res = state.k8s.allocate(
+        &state.config.namespace,
+        &state.config.fleet_name,
+        state.config.scheduling.as_str(),
+        schema.clone(),
+    ).await.expect("TODO");
+
+    Response::success(Some(
+        PostResponse {
+            name: res.name,
+            host: res.host,
+            ports: res.ports,
+        }
+    ))
+}
+
+pub fn route(path: &str) -> Router<AppState> {
+    let inner = Router::new()
+        .route("/", routing::post(post));
+
+    if path == "/" {
+        inner
+    } else {
+        Router::new().nest(path, inner)
+    }
+}

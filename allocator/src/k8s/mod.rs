@@ -1,6 +1,13 @@
 use kube::Client;
 
-pub mod allocation;
+mod fleet;
+mod allocation;
+pub mod error;
+
+pub use error::{Error, Result};
+
+pub use allocation::GsAllocation;
+
 
 #[derive(Clone)]
 pub struct K8sClient {
@@ -8,12 +15,14 @@ pub struct K8sClient {
 }
 
 impl K8sClient {
-    pub async fn new() -> Result<Self, kube::Error> {
-        let client = Client::try_default().await?;
+    pub async fn new() -> Result<Self> {
+        let client = Client::try_default().await
+            .map_err(Error::CreateClient)?;
+        
         Ok(Self { client })
     }
 
-    pub fn client(&self) -> &Client {
+    fn client(&self) -> &Client {
         &self.client
     }
 }

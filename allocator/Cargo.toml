@@ -22,4 +22,4 @@ k8s-openapi = { version = "0.27.0", features = ["latest", "schemars"] }
 schemars = { version = "1" }
 agones = "1.55"
 
-common = { path = "../common" }
+common = { path = "../common", features = ["axum"] }

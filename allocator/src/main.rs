@@ -12,7 +12,8 @@ use clap::Parser;
 
 use k8s::K8sClient;
 use args::Args;
-use controller::allocate::AppState;
+
+use crate::controller::AppState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,16 +33,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize Kubernetes client
     log::info!("Initializing Kubernetes client");
-    let k8s_client = K8sClient::new().await?;
+    let k8s = K8sClient::new().await?;
 
     // Create app state
     let state = AppState {
         config: Arc::new(args.clone()),
-        k8s_client,
+        k8s,
     };
 
     // Create router
-    let app = controller::create_router(state);
+    let app = controller::route("/", state);
 
     // Start server
     let listener = tokio::net::TcpListener::bind(&addr).await?;

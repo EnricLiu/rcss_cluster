@@ -1,19 +1,29 @@
 pub mod allocate;
 pub mod error;
 pub mod health;
-pub mod response;
+// pub mod response;
+pub mod fleet;
+mod gs;
+mod state;
 
-use axum::{
-    routing::{get, post},
-    Router,
-};
+use axum::Router;
 
-use allocate::AppState;
+pub use error::{Error, Result};
+pub use state::AppState;
+pub use common::axum::response::Response;
 
-pub fn create_router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(health::health))
-        .route("/ready", get(health::ready))
-        .route("/api/v1/allocate", post(allocate::allocate))
-        .with_state(state)
+
+pub fn route(path: &str, state: AppState) -> Router {
+    let inner = Router::new()
+        .merge(gs::route("/gs"))
+        .merge(fleet::route("/fleet"))
+        .merge(health::route("/ready"))
+        .merge(health::route("/health"))
+        .with_state(state);
+
+    if path == "/" {
+        inner
+    } else {
+        Router::new().nest(path, inner)
+    }
 }
