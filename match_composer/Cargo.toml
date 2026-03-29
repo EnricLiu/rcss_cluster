@@ -19,5 +19,5 @@ serde_json.workspace = true
 chrono.workspace = true
 thiserror.workspace = true
 
-common = { path = "../../common" }
+common = { path = "../common" }
 async-trait = "0.1.89"
