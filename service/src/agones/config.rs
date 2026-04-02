@@ -1,4 +1,5 @@
 use std::time::Duration;
+use super::match_composer::MatchComposerConfig;
 
 #[derive(Clone, Debug)]
 pub struct AgonesConfig {
@@ -16,21 +17,6 @@ impl Default for AgonesConfig {
             sdk: AgonesSdkConfig::default(),
             shutdown: AgonesAutoShutdownConfig::default(),
             match_composer: None,
-        }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct MatchComposerConfig {
-    pub port: u16,
-    pub status_poll_interval: Duration,
-}
-
-impl Default for MatchComposerConfig {
-    fn default() -> Self {
-        Self {
-            port: 6657,
-            status_poll_interval: Duration::from_secs(5),
         }
     }
 }

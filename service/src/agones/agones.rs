@@ -6,9 +6,8 @@ use log::{debug, info, warn};
 use tokio::sync::{mpsc, watch, RwLock};
 use tokio_util::sync::CancellationToken;
 use agones::Sdk as AgonesSdk;
-use process::CoachedProcessSpawner;
 use crate::{Error, Result, ServerStatus};
-use crate::agones::config::{AgonesAutoShutdownConfig, MatchComposerConfig};
+use crate::agones::config::{AgonesAutoShutdownConfig};
 use super::{AgonesConfig, AgonesArgs, BaseService};
 use super::match_composer::MatchComposerClient;
 
@@ -53,13 +52,10 @@ impl AgonesService {
 
         let base = BaseService::from_args(args.base_args).await;
 
-        let mc_client = if args.mc_args.is_enabled() {
-            let port = args.mc_args.match_composer_port;
-            info!("[AgonesService] MatchComposer enabled on port {port}");
-            Some(MatchComposerClient::new(port))
-        } else {
-            None
-        };
+        let mc_config = args.mc_args.into_config();
+        let mc_client = mc_config.as_ref()
+            .map(|cfg| MatchComposerClient::new(cfg.client_cfg.clone()));
+        
 
         let config = {
             let mut cfg = AgonesConfig::default();
@@ -67,13 +63,7 @@ impl AgonesService {
             cfg.shutdown.on_finish = args.auto_shutdown_on_finish;
             cfg.sdk.port = args.agones_port;
             cfg.sdk.keep_alive = args.agones_keep_alive.map(Duration::from_secs);
-
-            if args.mc_args.is_enabled() {
-                cfg.match_composer = Some(MatchComposerConfig {
-                    port: args.mc_args.match_composer_port,
-                    ..Default::default()
-                });
-            }
+            cfg.match_composer = mc_config;
 
             cfg
         };

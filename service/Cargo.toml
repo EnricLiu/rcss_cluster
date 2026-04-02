@@ -16,7 +16,7 @@ agones = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
-clap = { version = "4.5.53", features = ["derive"] }
+clap.workspace = true
 tokio-util = "0.7"
 
 thiserror = "2"
