@@ -44,7 +44,7 @@ impl TeamModel {
     }
 
     pub fn players(&self) -> &DashMap<Unum, PlayerModel> {
-        self.players.get_or_init(|| DashMap::new())
+        self.players.get_or_init(|| self.parse_players())
     }
 
     fn parse_players(&self) -> DashMap<Unum, PlayerModel> {

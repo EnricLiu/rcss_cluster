@@ -94,11 +94,31 @@ impl ProcessStatusKind {
         }
     }
 
+    pub fn is_booting(&self) -> bool {
+        matches!(self, ProcessStatusKind::Booting)
+    }
+
+    pub fn is_running(&self) -> bool {
+        matches!(self, ProcessStatusKind::Running)
+    }
+
     pub fn is_err(&self) -> bool {
         match self {
             ProcessStatusKind::Returned(status) => !status.success(),
             ProcessStatusKind::Dead(_) => true,
             _ => false,
+        }
+    }
+
+    pub fn err(&self) -> Option<String> {
+        match self {
+            ProcessStatusKind::Returned(status) => {
+                (!status.success()).then(||
+                    format!("Process exited with status code: {}", status.code().unwrap_or(-1))
+                )
+            },
+            ProcessStatusKind::Dead(desc) => Some(desc.clone()),
+            _ => None,
         }
     }
 

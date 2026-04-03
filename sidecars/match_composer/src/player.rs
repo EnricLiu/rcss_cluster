@@ -5,9 +5,10 @@ use std::time::Duration;
 use log::{error, info, warn};
 use tokio::fs::File;
 use tokio::io::{AsyncWriteExt, BufWriter};
-use tokio::sync::{watch, OnceCell, SetError};
+use tokio::sync::{mpsc, watch, OnceCell, SetError};
 use tokio::task::JoinHandle;
 use common::process::{Process, ProcessStatus};
+use crate::declarations::Unum;
 use crate::model::player::PlayerBaseModel;
 use crate::policy::Policy;
 
@@ -31,7 +32,6 @@ pub trait Player: Debug + Send + Sync + 'static {
 pub struct PolicyPlayer<Config: Policy + Sync + Send + 'static> {
     pub config: Config,
     pub process: OnceCell<Process>,
-    pub monitor_task: OnceCell<JoinHandle<()>>,
     pub logging_task: OnceCell<JoinHandle<Result<()>>>,
 }
 
@@ -40,7 +40,6 @@ impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
         Self {
             config,
             process: OnceCell::new(),
-            monitor_task: OnceCell::new(),
             logging_task: OnceCell::new(),
         }
     }
@@ -51,7 +50,6 @@ impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
         }
         Ok(())
     }
-
 
     /// log_path should have existed parents and should be a file path (not a directory)
     fn spawn_log_task(process: &Process, log_path: impl AsRef<Path>) -> Result<JoinHandle<Result<()>>> {
@@ -173,7 +171,7 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
             let child = command.spawn().map_err(Error::ChildFailedSpawn)?;
             <Result<_>>::Ok(Process::new(child)?)
         }).await?;
-
+        
         if let Some(log_root) = &self.config.log_dir() {
             let info = self.model();
             let path = log_root.join(
@@ -182,18 +180,7 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
 
             let logging_task = Self::spawn_log_task(&process, path)?;
             if let Err(e) = self.logging_task.set(logging_task) {
-                let task = match e {
-                    SetError::InitializingError(task) => {
-                        error!("Player logging task initialization error");
-                        task
-                    },
-                    SetError::AlreadyInitializedError(task) => {
-                        warn!("Player logging task already initialized, skipping");
-                        task
-                    },
-                };
-
-                task.abort()
+                set_task_error_abort("logging", e);
             }
         }
 
@@ -201,15 +188,31 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
     }
 
     async fn shutdown(&mut self) -> Result<()> {
-        if !self.monitor_task.initialized() || !self.process.initialized() {
+        if !self.process.initialized() {
             return Err(Error::NotRunning)
         }
 
         self.process.get_mut().unwrap().shutdown().await?;
-        self.monitor_task.get().unwrap().abort();
+        if let Some(task) = self.logging_task.get() {
+            task.abort();
+        }
 
         Ok(())
     }
+}
+
+fn set_task_error_abort<T>(task_name: &str, err: SetError<JoinHandle<T>>) {
+    let task = match err {
+        SetError::InitializingError(task) => {
+            error!("Player {task_name} task initialization error");
+            task
+        },
+        SetError::AlreadyInitializedError(task) => {
+            warn!("Player {task_name} task already initialized, skipping");
+            task
+        },
+    };
+    task.abort()
 }
 
 #[derive(Debug, thiserror::Error)]
