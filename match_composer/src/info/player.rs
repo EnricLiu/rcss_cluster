@@ -1,7 +1,9 @@
 use serde::Serialize;
-use crate::model::{PlayerKind};
-use crate::declarations::{ImageDeclaration, Unum};
 use common::process::ProcessStatusSerializable;
+
+use crate::model::{PlayerKind};
+use crate::declaration::{ImageDeclaration, Unum};
+
 
 #[derive(Serialize, Debug, Clone)]
 pub struct PlayerInfo {

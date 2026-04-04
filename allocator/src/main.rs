@@ -18,10 +18,8 @@ use crate::controller::AppState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logger
     env_logger::init();
 
-    // Parse configuration
     let args = Args::parse();
     let addr = SocketAddr::from((args.host, args.http_port));
 
@@ -31,25 +29,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("    Scheduling: {}", args.scheduling.as_str());
     log::info!("    Bind address: {}", addr);
 
-
-    // Initialize Kubernetes client
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);
     let k8s = K8sClient::new(namespace).await?;
 
-    // Create app state
     let state = AppState {
         config: Arc::new(args.clone()),
         k8s,
     };
 
-    // Create router
-    let app = controller::route("/", state);
-
-    // Start server
     let listener = tokio::net::TcpListener::bind(&addr).await?;
     log::info!("Listening on {}", addr);
 
+    let app = controller::route("/", state);
     axum::serve(listener, app)
         .with_graceful_shutdown(shutdown_signal())
         .await?;
