@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::process::ExitStatus;
-
+use serde::ser::SerializeMap;
+use serde::Serialize;
 use tokio::sync::RwLock;
-
 use crate::utils::ringbuf::OverwriteRB;
 
 #[derive(Clone, Debug)]
@@ -74,6 +74,20 @@ impl<const OUT: usize, const ERR: usize> ProcessStatus<OUT, ERR> {
     pub async fn stderr_logs(&self) -> Vec<String> {
         self.stderr().read().await.to_vec()
     }
+
+    pub fn serialize(&self) -> ProcessStatusSerializable {
+        ProcessStatusSerializable {
+            kind: self.kind.clone(),
+        }
+    }
+
+    pub async fn serialize_verbose(&self) -> ProcessStatusSerializableVerbose {
+        ProcessStatusSerializableVerbose {
+            status: self.serialize(),
+            stdout: self.stdout_logs().await,
+            stderr: self.stderr_logs().await,
+        }   
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -86,6 +100,16 @@ pub enum ProcessStatusKind {
 }
 
 impl ProcessStatusKind {
+    pub fn name(&self) -> &'static str {
+        match self {
+            ProcessStatusKind::Init => "init",
+            ProcessStatusKind::Booting => "booting",
+            ProcessStatusKind::Running => "running",
+            ProcessStatusKind::Returned(_) => "returned",
+            ProcessStatusKind::Dead(_) => "dead",
+        }
+    }
+    
     pub fn is_finished(&self) -> bool {
         match self {
             ProcessStatusKind::Returned(_) => true,
@@ -94,11 +118,48 @@ impl ProcessStatusKind {
         }
     }
 
+    pub fn is_booting(&self) -> bool {
+        matches!(self, ProcessStatusKind::Booting)
+    }
+
+    pub fn is_running(&self) -> bool {
+        matches!(self, ProcessStatusKind::Running)
+    }
+
     pub fn is_err(&self) -> bool {
         match self {
             ProcessStatusKind::Returned(status) => !status.success(),
             ProcessStatusKind::Dead(_) => true,
             _ => false,
+        }
+    }
+    
+    pub fn is_success(&self) -> bool {
+        match self {
+            ProcessStatusKind::Returned(status) => status.success(),
+            _ => false,
+        }
+    }
+    
+    pub fn as_err(&self) -> Option<String> {
+        match self {
+            ProcessStatusKind::Returned(status) => (!status.success()).then(||
+                format!("Process exited with status code: {}", status.code().unwrap_or(-1))
+            ),
+            ProcessStatusKind::Dead(desc) => Some(desc.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn as_finished(&self) -> Option<String> {
+        match self {
+            ProcessStatusKind::Returned(status) => {
+                (!status.success()).then(||
+                    format!("Process exited with status code: {}", status.code().unwrap_or(-1))
+                ).or_else(|| Some("Process exited with no error.".to_string()))
+            },
+            ProcessStatusKind::Dead(desc) => Some(desc.clone()),
+            _ => None,
         }
     }
 
@@ -118,4 +179,34 @@ impl ProcessStatusKind {
             ProcessStatusKind::Dead(_) => 4,
         }
     }
+}
+
+impl Serialize for ProcessStatusKind {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut ser = serializer.serialize_map(None)?;
+        
+        ser.serialize_entry("status", self.name())?;
+        if let Some(error) = self.as_err() {
+            ser.serialize_entry("error", &error)?;
+        }
+
+        ser.end()
+    }
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ProcessStatusSerializable {
+    #[serde(flatten)]
+    pub kind: ProcessStatusKind,
+}
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ProcessStatusSerializableVerbose {
+    #[serde(flatten)]
+    pub status: ProcessStatusSerializable,
+    pub stdout: Vec<String>,
+    pub stderr: Vec<String>,
 }

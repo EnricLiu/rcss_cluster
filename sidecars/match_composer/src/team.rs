@@ -1,13 +1,21 @@
+use std::collections::HashMap;
+use std::future::Future;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::time::Duration;
 
+use futures::stream::FuturesUnordered;
+use futures::StreamExt;
+use log::{info, trace, warn};
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use dashmap::{DashMap, DashSet};
+use common::process::{ProcessStatus, ProcessStatusKind};
 use crate::model::TeamModel;
 use crate::player::{Player, PolicyPlayer};
 use crate::policy::PolicyRegistry;
 use crate::declarations::{ImageDeclaration, Unum};
-use crate::info::{PlayerInfo, TeamInfo};
+use crate::info::{PlayerInfo, PlayerStatusInfo, TeamInfo, TeamStatusInfo};
 pub use crate::info::TeamStatusInfo as TeamStatus;
 
 pub const SPAWN_DURATION: Duration = Duration::from_millis(100);
@@ -36,11 +44,16 @@ impl DerefMut for PlayerWrap {
 
 impl PlayerWrap {
     pub fn info(&self) -> PlayerInfo {
+        let status = self.status_now()
+            .map(|s| PlayerStatusInfo::Some(s.serialize()))
+            .unwrap_or(PlayerStatusInfo::Unknown);
+        
         let model = self.model();
         PlayerInfo {
             unum: model.unum,
             kind: model.kind,
             image: model.image.clone(),
+            status,
         }
     }
 }
@@ -53,6 +66,8 @@ pub struct Team {
     status_rx: watch::Receiver<TeamStatus>,
     players: DashMap<Unum, PlayerWrap>,
     agents: DashSet<Unum>,
+
+    monitor_task: Option<JoinHandle<()>>,
 }
 
 impl Team {
@@ -64,6 +79,7 @@ impl Team {
             status_rx,
             players: DashMap::new(),
             agents: DashSet::new(),
+            monitor_task: None,
         }
     }
 
@@ -111,10 +127,22 @@ impl Team {
             interval.tick().await;
         }
 
-        if let Err(e) = self.status_tx.send(TeamStatus::Running) {
-            self.shutdown().await;
-            return Err(Error::ChannelClosed { ch_name: "TeamStatus" });
-        }
+        // Start the aggregation task: listen for player events and drive TeamStatus.
+        let monitor_task = {
+            let player_watches: HashMap<Unum, watch::Receiver<ProcessStatus>> = {
+                self.players.iter()
+                    .map(|p| (
+                        *p.key(),
+                        p.status_watch().expect("The player process is initialized by the player.spawn().await, so the unwrap here should be safe.")
+                    ))
+                    .collect()
+            };
+            Self::spawn_monitor_task(
+                &self.config, player_watches, self.status_tx.clone()
+            )
+        }?;
+        self.monitor_task = Some(monitor_task);
+
 
         Ok(())
     }
@@ -131,6 +159,10 @@ impl Team {
     }
 
     pub async fn shutdown(&mut self) {
+        // Abort the aggregation task first so it won't react to player shutdowns.
+        if let Some(task) = self.monitor_task.take() {
+            task.abort();
+        }
         self.shutdown_players().await;
         self.status_tx.send(TeamStatus::Idle).ok();
     }
@@ -141,6 +173,99 @@ impl Team {
         }
         self.players.clear();
         self.agents.clear();
+    }
+
+    fn spawn_monitor_task(
+        config: &TeamModel,
+        status_watches: HashMap<Unum, watch::Receiver<ProcessStatus>>,
+        status_tx: watch::Sender<TeamStatus>
+    ) -> Result<JoinHandle<()>> {
+        let team_name = config.name().to_string();
+
+        type WatchFut = Pin<Box<dyn
+            Future<Output = (Unum, ProcessStatusKind, watch::Receiver<ProcessStatus>)>
+            + Send
+        >>;
+
+        fn next_change(unum: Unum, mut rx: watch::Receiver<ProcessStatus>) -> WatchFut {
+            Box::pin(async move {
+                let kind = match rx.changed().await {
+                    Ok(()) => rx.borrow().kind.clone(),
+                    Err(_) => ProcessStatusKind::Dead("watch channel closed".into()),
+                };
+                (unum, kind, rx)
+            })
+        }
+
+        let handle = tokio::spawn(async move {
+            let mut snapshots: HashMap<Unum, ProcessStatusKind> = HashMap::new();
+
+            let mut futs: FuturesUnordered<WatchFut> = status_watches.into_iter()
+                .map(|(unum, rx)| next_change(unum, rx))
+                .collect();
+
+            while let Some((unum, kind, rx)) = futs.next().await {
+                trace!("[{team_name}] Player {unum} status: {}", kind.name());
+                snapshots.insert(unum, kind);
+
+                let new_status = Self::evaluate_team_status(&snapshots);
+                let is_terminal = new_status.is_finished();
+
+                status_tx.send_if_modified(|current| {
+                    if current.kind() == new_status.kind() {
+                        return false;
+                    }
+                    info!("[{team_name}] TeamStatus: {} -> {}", current.kind(), new_status.kind());
+                    *current = new_status;
+                    true
+                });
+
+                if is_terminal {
+                    break;
+                }
+
+                futs.push(next_change(unum, rx));
+            }
+        });
+
+        Ok(handle)
+    }
+
+    fn evaluate_team_status(snapshots: &HashMap<Unum, ProcessStatusKind>) -> TeamStatus {
+        if snapshots.is_empty() {
+            return TeamStatus::Starting;
+        }
+
+        let all_success  = snapshots.values().all(|s| s.is_success());
+        if all_success { return TeamStatus::Idle; }
+
+        let all_finished = snapshots.values().all(|s| s.is_finished());
+        let first_err  = snapshots.iter().find(|(_, s)| s.is_err());
+        if all_finished {
+            if let Some((&unum, kind)) = first_err {
+                return TeamStatus::Error(Error::PlayerExited {
+                    unum,
+                    reason: kind.as_err().unwrap_or_default(),
+                });
+            }
+        }
+
+        if let Some((&unum, kind)) = first_err {
+            return TeamStatus::Aborting(Error::PlayerExited {
+                unum,
+                reason: kind.as_err().unwrap_or_default(),
+            });
+        }
+
+        let any_success  = snapshots.values().any(|s| s.is_success());
+        if any_success {
+            return TeamStatus::ShuttingDown;
+        }
+
+        let all_running  = snapshots.values().all(|s| s.is_running());
+        if all_running { return TeamStatus::Running; }
+
+        TeamStatus::Starting
     }
 
     pub fn info(&self) -> TeamInfo {
@@ -156,6 +281,7 @@ impl Team {
         self.players.len()
     }
 }
+
 
 #[derive(thiserror::Error, Debug, Clone)]
 pub enum Error {
@@ -173,6 +299,9 @@ pub enum Error {
 
     #[error("Failed to spawn player: {0}")]
     SpawnPlayer(String),
+
+    #[error("Player {unum} exited unexpectedly: {reason}")]
+    PlayerExited { unum: Unum, reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

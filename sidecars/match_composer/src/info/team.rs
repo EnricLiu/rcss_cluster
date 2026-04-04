@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use serde::ser::SerializeStruct;
+use serde::ser::{SerializeMap, SerializeStruct};
 use serde::Serialize;
 
 use common::types::Side;
@@ -23,6 +23,7 @@ pub enum TeamStatusInfo {
     Starting,
     Running,
     ShuttingDown,
+    Aborting(TeamError),
     Error(TeamError),
 }
 
@@ -31,16 +32,16 @@ impl Serialize for TeamStatusInfo {
     where
         S: serde::Serializer,
     {
+        use TeamStatusInfo::*;
         let status = self.kind();
-        let error = self.as_err().map(|e| e.to_string());
 
-        let len = if error.is_some() { 2 } else { 1 };
+        let mut state = serializer.serialize_map(None)?;
+        state.serialize_entry("status", status)?;
 
-        let mut state = serializer.serialize_struct("GetResponse", len)?;
-        state.serialize_field("status", status)?;
-        if let Some(error) = error {
-            state.serialize_field("error", &error)?;
+        if let Aborting(reason) = self {
+            state.serialize_entry("reason", &reason.to_string())?;
         }
+        
         state.end()
     }
 }
@@ -53,12 +54,14 @@ impl TeamStatusInfo {
             Starting => "starting",
             Running => "running",
             ShuttingDown => "shutting_down",
+            Aborting(_) => "aborting",
             Error(_) => "error",
         }
     }
 
     pub fn as_err(&self) -> Option<&TeamError> {
         match self {
+            TeamStatusInfo::Aborting(e) => Some(e),
             TeamStatusInfo::Error(e) => Some(e),
             _ => None,
         }
