@@ -21,7 +21,10 @@ async fn post(
     Json(req): Json<PostRequest>
 ) -> Response {
     let res = state.k8s.create_fleet(req.name, req.conf, req.version).await;
-    Response::success::<()>(None)
+    match res {
+        Ok(_) => Response::success::<()>(None),
+        Err(err) => Response::error("TODO", &err.to_string()),
+    }
 }
 
 pub fn route(path: &str) -> Router<AppState> {

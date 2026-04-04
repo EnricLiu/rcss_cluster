@@ -18,7 +18,10 @@ async fn delete(
     Json(req): Json<DeleteRequest>
 ) -> Response {
     let res = state.k8s.drop_fleet(&req.name).await;
-    Response::success::<()>(None)
+    match res {
+        Ok(_) => Response::success::<()>(None),
+        Err(err) => Response::error("TODO", &err.to_string()),
+    }
 }
 
 pub fn route(path: &str) -> Router<AppState> {

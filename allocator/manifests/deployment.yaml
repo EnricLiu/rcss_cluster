@@ -22,30 +22,15 @@ spec:
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 8080
+              containerPort: 6666
               protocol: TCP
           env:
-            - name: RUST_LOG
-              value: "info"
-            - name: BIND_ADDRESS
-              value: "0.0.0.0:8080"
-            - name: FLEET_NAME
-              value: "rl-training-fleet"
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT_HTTP
+              value: "6666"
             - name: NAMESPACE
-              value: "default"
-            - name: MAX_BOT_COUNT
-              value: "20"
-            - name: MIN_BOT_COUNT
-              value: "1"
-            # Optional: Uncomment to enable authentication
-            # - name: AUTH_TOKEN
-            #   valueFrom:
-            #     secretKeyRef:
-            #       name: allocator-secret
-            #       key: auth-token
-            # Optional: Uncomment to restrict client versions
-            # - name: ALLOWED_VERSIONS
-            #   value: "v2.0,v2.1,v2.2"
+              value: "rcss-ray"
           livenessProbe:
             httpGet:
               path: /health

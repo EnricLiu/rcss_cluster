@@ -363,19 +363,19 @@ impl FleetBuilder {
                                 name: "player".to_string(),
                                 port_policy: "Dynamic".to_string(),
                                 container_port: 6000,
-                                protocol: "TCP".to_string(),
+                                protocol: "UDP".to_string(),
                             },
                             GameServerPortSpec {
                                 name: "trainer".to_string(),
                                 port_policy: "Dynamic".to_string(),
                                 container_port: 6001,
-                                protocol: "TCP".to_string(),
+                                protocol: "UDP".to_string(),
                             },
                             GameServerPortSpec {
                                 name: "coach".to_string(),
                                 port_policy: "Dynamic".to_string(),
                                 container_port: 6002,
-                                protocol: "TCP".to_string(),
+                                protocol: "UDP".to_string(),
                             },
                         ]),
                         health: Some(HealthSpec {
