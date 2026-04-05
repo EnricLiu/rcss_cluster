@@ -26,11 +26,7 @@ pub struct Args {
     
     #[arg(long, env = "PORT_HTTP", default_value_t = 6666, help = "Http Server port to bind")]
     pub http_port: u16,
-
-    /// Target Agones Fleet name
-    #[arg(long, env = "FLEET_NAME", default_value = "rl-training-fleet")]
-    pub fleet_name: String,
-
+    
     /// Kubernetes namespace
     #[arg(long, env = "NAMESPACE", default_value = "rcss-agones")]
     pub namespace: String,

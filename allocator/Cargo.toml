@@ -25,3 +25,4 @@ agones = "1.55"
 common = { path = "../common", features = ["axum"] }
 
 arcstr.workspace = true
+uuid = { version = "1.18", features = ["v4"] }

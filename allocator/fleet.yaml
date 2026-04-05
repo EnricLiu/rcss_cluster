@@ -90,12 +90,28 @@ spec:
       template:
         spec:
           containers:
-            - name: agones-rcss-server
-              image: registry.cn-beijing.aliyuncs.com/nn4h0u/agones-rcss-server:latest
+            - name: rcss-cluster
+              image: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:latest
               resources:
                 requests:
-                  memory: 128Mi
-                  cpu: 100m
+                  memory: 192Mi
+                  cpu: 200m
                 limits:
-                  memory: 128Mi
-                  cpu: 100m
+                  memory: 256Mi
+                  cpu: 300m
+              env:
+                - name: RUST_LOG
+                  value: "info"
+
+            - name: match-composer
+              image: registry.cn-beijing.aliyuncs.com/nexus-prime/match-composer:latest
+              resources:
+                requests:
+                  memory: 256Mi
+                  cpu: 500m
+                limits:
+                  memory: 512Mi
+                  cpu: 800m
+              env:
+                - name: RUST_LOG
+                  value: "info"

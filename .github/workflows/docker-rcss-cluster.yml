@@ -30,7 +30,7 @@ on:
 
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
-  IMAGE_NAME: nn4h0u/agones-rcss-server
+  IMAGE_NAME: nexus-prime/rcss-cluster
 
 jobs:
   build-and-push:

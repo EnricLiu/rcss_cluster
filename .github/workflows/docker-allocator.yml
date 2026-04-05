@@ -1,30 +1,28 @@
-name: Build & Push match_composer Image
+name: Build & Push allocator Image
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
     paths:
-      - "match_composer/**"
       - "allocator/**"
       - "common/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - ".github/workflows/docker-match-composer.yml"
+      - ".github/workflows/docker-allocator.yml"
   pull_request:
     branches: [main]
     paths:
-      - "match_composer/**"
       - "allocator/**"
       - "common/**"
       - "Cargo.toml"
       - "Cargo.lock"
-      - ".github/workflows/docker-match-composer.yml"
+      - ".github/workflows/docker-allocator.yml"
   workflow_dispatch:
 
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
-  IMAGE_NAME: nexus-prime/rcss-match-composer
+  IMAGE_NAME: nexus-prime/rcss-allocator
 
 jobs:
   build-and-push:
@@ -65,7 +63,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./match_composer/Dockerfile
+          file: ./allocator/Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

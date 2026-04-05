@@ -24,7 +24,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from((args.host, args.http_port));
 
     log::info!("Starting Allocator service");
-    log::info!("    Fleet: {}", args.fleet_name);
     log::info!("    Namespace: {}", args.namespace);
     log::info!("    Scheduling: {}", args.scheduling.as_str());
     log::info!("    Bind address: {}", addr);
