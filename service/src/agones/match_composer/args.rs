@@ -12,7 +12,7 @@ pub struct MatchComposerArgs {
     #[arg(long, env = "MATCH_COMPOSER_HOST", default_value = "127.0.0.1", requires = "match_composer_group", help = "Match Composer HTTP server host, default at 127.0.0.1")]
     pub mc_host: IpAddr,
 
-    #[arg(long, env = "MATCH_COMPOSER_PORT", default_value_t = 7777, requires = "match_composer_group", help = "Match Composer HTTP server port, default at 6657")]
+    #[arg(long, env = "MATCH_COMPOSER_PORT", default_value_t = 7777, requires = "match_composer_group", help = "Match Composer HTTP server port, default at 7777")]
     pub mc_port: u16,
 
     #[arg(long, env = "MATCH_COMPOSER_STATUS_POLL_INTERVAL_MS", default_value_t = 5000, requires = "match_composer_group", help = "Match Composer status poll interval in milliseconds, default at 5000ms")]

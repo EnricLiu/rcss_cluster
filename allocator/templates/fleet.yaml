@@ -151,7 +151,7 @@ spec:
                   value: "6002"
                 - name: RCSSSERVER_SYNC_MODE_EN
                   value: "true"
-                - name: RCSS_MAX_TIMESTEPS
+                - name: RCSSSERVER_MAX_TIMESTEP
                   value: "6000"
                 - name: RCSSSERVER_LOG_DIR
                   value: "/mnt/logs"

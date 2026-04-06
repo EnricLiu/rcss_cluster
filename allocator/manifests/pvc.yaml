@@ -2,6 +2,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: oss-nexus-prime-env-dev
+  namespace: rcss-env-dev
 spec:
   accessModes:
     - ReadWriteMany
@@ -16,6 +17,7 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: oss-nexus-prime-env-allocator-dev
+  namespace: rcss-gateway-dev
 spec:
     accessModes:
         - ReadWriteMany
