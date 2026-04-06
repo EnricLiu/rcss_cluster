@@ -14,7 +14,8 @@ use clap::Parser;
 use k8s::K8sClient;
 use args::Args;
 
-use crate::controller::AppState;
+use metadata::MetaData;
+use controller::AppState;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -24,9 +25,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = SocketAddr::from((args.host, args.http_port));
 
     log::info!("Starting Allocator service");
-    log::info!("    Namespace: {}", args.namespace);
-    log::info!("    Scheduling: {}", args.scheduling.as_str());
     log::info!("    Bind address: {}", addr);
+    log::info!("    Namespace: {}", args.namespace);
+    log::info!("    Fleet template path: {}", args.fleet_template.display());
+
+    log::info!("Loading fleet template");
+    k8s::init_fleet_template(&args.fleet_template)
+        .map_err(|e| format!("Fleet template initialization failed: {e}"))?;
 
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);

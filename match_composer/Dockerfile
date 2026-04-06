@@ -189,12 +189,11 @@ COPY --from=helios-builder /tmp/helios-base/src/formations-dt \
 RUN chmod +x /app/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh \
              /app/hub/HELIOS/helios-base/start_player.sh
 
-ENV HUB_PATH=/app/hub
-ENV LOG_ROOT=/app/logs
+ENV MC_HUB_PATH=/app/hub
+ENV MC_LOG_ROOT=/app/logs
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-EXPOSE 6657/tcp
+EXPOSE 7777/tcp
 
 ENTRYPOINT ["/app/match_composer"]
-CMD ["--hub-path", "/app/hub", "--log-root", "/app/logs"]
 

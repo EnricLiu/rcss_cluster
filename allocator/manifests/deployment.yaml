@@ -1,36 +1,58 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: allocator
+  name: rcss-env-allocator
   namespace: rcss-gateway-dev
   labels:
-    app: allocator
+    app: rcss-env-allocator
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: allocator
+      app: rcss-env-allocator
   template:
     metadata:
       labels:
-        app: allocator
+        app: rcss-env-allocator
     spec:
-      serviceAccountName: allocator-sa
+      serviceAccountName: rcss-env-allocator-sa
+      volumes:
+        - name: oss-env-allocator-dev
+          persistentVolumeClaim:
+            claimName: oss-nexus-prime-env-allocator-dev
       containers:
-        - name: allocator
-          image: allocator:latest
+        - name: rcss-env-allocator
+          image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-allocator:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
-              containerPort: 6666
+              containerPort: 5555
               protocol: TCP
+          volumeMounts:
+            - name: oss-env-allocator-dev
+              mountPath: /mnt/template
+              subPath: manifests/template
           env:
-            - name: HOST
+            - name: RUST_LOG
+              value: "debug"
+            - name: ALLOCATOR_HOST
               value: "0.0.0.0"
-            - name: PORT_HTTP
-              value: "6666"
-            - name: NAMESPACE
+            - name: ALLOCATOR_HTTP_PORT
+              value: "5555"
+
+            - name: AGONES_FLEET_NAMESPACE
               value: "rcss-env-dev"
+            - name: AGONES_FLEET_TEMPLATE_PATH
+              value: "/mnt/template/fleet.yaml"
+
+#            - name: ALLOCATOR_AUTH_TOKEN
+#              valueFrom:
+#                secretKeyRef:
+#                  name: xxx
+#                  key: xxx
+#            - name: AGONES_GSA_SCHEDULE_STRATEGY
+#              value: "Packed"
+
           livenessProbe:
             httpGet:
               path: /health
@@ -45,8 +67,8 @@ spec:
             periodSeconds: 5
           resources:
             requests:
-              cpu: 100m
+              cpu: 50m
               memory: 128Mi
             limits:
-              cpu: 500m
+              cpu: 200m
               memory: 256Mi

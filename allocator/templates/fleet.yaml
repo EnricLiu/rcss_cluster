@@ -1,0 +1,224 @@
+---
+# Copyright 2018 Google LLC All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# ------------------------------------------------------------------
+# MODIFICATION NOTICE:
+# This file has been modified by EnricLiu(https://github.com/EnricLiu)
+# The modifications are licensed under Apache 2.0.
+# ------------------------------------------------------------------
+
+apiVersion: agones.dev/v1
+kind: Fleet
+metadata:
+  name: rcss-env-fleet-template-v260406001
+spec:
+  replicas: 8
+  scheduling: Packed
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+
+  allocationOverflow:
+    labels:
+      version: ""
+    annotations:
+      overflow: "true"
+
+  priorities:
+    - type: Counter
+      key: rooms
+      order: Descending
+    - type: List
+      key: players
+      order: Ascending
+
+  template:
+    spec:
+      ports:
+        - name: default
+          portPolicy: Dynamic
+          containerPort: 6666
+          protocol: TCP
+
+        - name: player
+          portPolicy: Dynamic
+          containerPort: 6657
+          protocol: UDP
+        - name: trainer
+          portPolicy: Dynamic
+          containerPort: 6658
+          protocol: UDP
+        - name: coach
+          portPolicy: Dynamic
+          containerPort: 6659
+          protocol: UDP
+
+        - name: player-raw
+          portPolicy: Dynamic
+          containerPort: 6000
+          protocol: UDP
+        - name: trainer-raw
+          portPolicy: Dynamic
+          containerPort: 6001
+          protocol: UDP
+        - name: coach-raw
+          portPolicy: Dynamic
+          containerPort: 6002
+          protocol: UDP
+
+      health:
+        disabled: false
+        initialDelaySeconds: 30
+        periodSeconds: 30
+        failureThreshold: 3
+
+      sdkServer:
+        logLevel: Info
+        grpcPort: 9357
+        httpPort: 9358
+
+      counters:
+        rooms:
+          count: 0
+          capacity: 100
+
+      lists:
+        players:
+          values: []
+
+      template:
+        spec:
+          volumes:
+            - name: oss-env-dev
+              persistentVolumeClaim:
+                claimName: oss-nexus-prime-env-dev
+          containers:
+            - name: rcss-cluster
+              image: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:latest
+              volumeMounts:
+                - name: oss-env-dev
+                  mountPath: /mnt/logs
+                  subPath: game_logs
+              resources:
+                requests:
+                  memory: 192Mi
+                  cpu: 200m
+                limits:
+                  memory: 256Mi
+                  cpu: 500m
+              env:
+                - name: RUST_LOG
+                  value: "debug"
+
+                - name: SERVER_HOST
+                  value: "0.0.0.0"
+                - name: SERVER_HTTP_PORT
+                  value: "6666"
+
+                - name: SERVER_UDP_PORT_PLAYER
+                  value: "6657"
+                - name: SERVER_UDP_PORT_TRAINER
+                  value: "6658"
+                - name: SERVER_UDP_PORT_COACH
+                  value: "6659"
+
+                - name: AGONES_GRPC_PORT
+                  value: "9357"
+                - name: AGONES_KEEP_ALIVE_S
+                  value: "30"
+                - name: AGONES_HEALTH_INTERVAL_S
+                  value: "5"
+
+                - name: RCSSSERVER_PLAYER_UDP
+                  value: "6000"
+                - name: RCSSSERVER_TRAINER_UDP
+                  value: "6001"
+                - name: RCSSSERVER_COACH_UDP
+                  value: "6002"
+                - name: RCSSSERVER_SYNC_MODE_EN
+                  value: "true"
+                - name: RCSSSERVER_MAX_TIMESTEP
+                  value: "6000"
+                - name: RCSSSERVER_LOG_DIR
+                  value: "/mnt/logs"
+
+                - name: TRAINER_HALF_TIME_AUTO_START_EN
+                  value: "true"
+                - name: CONTAINER_AUTO_SHUTDOWN_ON_FINISH_EN
+                  value: "true"
+#                - name: LOGGER_STDOUT_ALWAYS_EN
+#                  value: "true"
+
+                - name: MATCH_COMPOSER_EN
+                  value: "true"
+                - name: MATCH_COMPOSER_HOST
+                  value: "127.0.0.1"
+                - name: MATCH_COMPOSER_PORT
+                  value: "7777"
+                - name: MATCH_COMPOSER_STATUS_POLL_INTERVAL_MS
+                  value: "2000"
+                - name: MATCH_COMPOSER_CLIENT_CONNECT_TIMEOUT_MS
+                  value: "5000"
+                - name: MATCH_COMPOSER_CLIENT_REQUEST_TIMEOUT_MS
+                  value: "60000"
+                - name: MATCH_COMPOSER_CLIENT_START_MAX_RETRIES
+                  value: "3"
+                - name: MATCH_COMPOSER_CLIENT_START_RETRY_DELAY_MS
+                  value: "1000"
+
+            - name: match-composer
+              image: registry.cn-beijing.aliyuncs.com/nexus-prime/match-composer:latest
+              volumeMounts:
+                - name: oss-env-dev
+                  mountPath: /mnt/hub
+                  subPath: mc/hub
+                - name: oss-env-dev
+                  mountPath: /mnt/logs
+                  subPath: mc/agent_logs
+              resources:
+                requests:
+                  memory: 256Mi
+                  cpu: 500m
+                limits:
+                  memory: 512Mi
+                  cpu: 800m
+              env:
+                - name: RUST_LOG
+                  value: "debug"
+
+                - name: MC_HOST
+                  value: "0.0.0.0"
+                - name: MC_PORT
+                  value: "7777"
+                - name: SERVER_HOST
+                  value: "127.0.0.1"
+                - name: SERVER_PORT
+                  value: "6666"
+
+                - name: MC_HUB_PATH
+                  value: "/mnt/hub"
+                - name: MC_LOG_ROOT
+                  value: "/mnt/logs"
+
+                - name: MC_AGONES_EN
+                  value: "true"
+                - name: AGONES_GRPC_PORT
+                  value: "9357"
+                - name: AGONES_KEEP_ALIVE_S
+                  value: "30"
+#                - name: MC_CONFIG_FILE should not set in Agones mode
+#                  value: "0.0.0.0"

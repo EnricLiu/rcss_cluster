@@ -27,10 +27,17 @@ pub const PEER_IP: IpAddr = IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
 #[derive(Parser, Debug)]
 #[clap(author = "EnricLiu")]
 struct Args {
-    #[clap(long, default_value = "0.0.0.0", help = "Server IP to bind")]
+    #[clap(long, default_value = "0.0.0.0", env = "SERVER_HOST", help = "Server IP to bind")]
     ip: IpAddr,
-    #[clap(long, default_value_t = 55555, help = "Server port to bind")]
-    port: u16,
+    #[clap(long, default_value_t = 6666, env = "SERVER_HTTP_PORT", help = "Server port to bind")]
+    http_port: u16,
+
+    #[clap(long, default_value_t = 6657, env = "SERVER_UDP_PORT_PLAYER", help = "UDP Proxy port for players to bind")]
+    player_udp_port: u16,
+    #[clap(long, default_value_t = 6658, env = "SERVER_UDP_PORT_TRAINER", help = "UDP Proxy port for trainers to bind")]
+    trainer_udp_port: u16,
+    #[clap(long, default_value_t = 6659, env = "SERVER_UDP_PORT_COACH", help = "UDP Proxy port for coaches to bind")]
+    coach_udp_port: u16,
 
     #[clap(flatten)]
     service_args: service::Args,
@@ -38,7 +45,19 @@ struct Args {
 
 impl Args {
     pub fn listen_addr(&self) -> SocketAddr {
-        SocketAddr::new(self.ip, self.port)
+        SocketAddr::new(self.ip, self.http_port)
+    }
+
+    pub fn player_udp_listen_addr(&self) -> SocketAddr {
+        SocketAddr::new(self.ip, self.player_udp_port)
+    }
+
+    pub fn coach_udp_listen_addr(&self) -> SocketAddr {
+        SocketAddr::new(self.ip, self.coach_udp_port)
+    }
+
+    pub fn trainer_udp_listen_addr(&self) -> SocketAddr {
+        SocketAddr::new(self.ip, self.trainer_udp_port)
     }
 }
 
@@ -51,6 +70,7 @@ fn route(state: AppState) -> Router {
 
 pub async fn listen(
     addr: impl ToSocketAddrs,
+    player_prox_udp_addr: impl Into<SocketAddr>,
     service: Service,
     shutdown: Option<impl Future<Output=()> + Send + 'static>
 ) -> JoinHandle<Result<(), String>> {
@@ -63,16 +83,17 @@ pub async fn listen(
     let addr = listener.local_addr().unwrap();
 
     let _state = state.clone();
-    let udp_port = addr.port();
 
+    let player_prox_udp_addr = player_prox_udp_addr.into();
     tokio::spawn(async move {
-        match UdpProxy::new(_state, udp_port).await {
+        let addr = player_prox_udp_addr;
+        match UdpProxy::new(_state, addr).await {
             Ok(proxy) => {
-                 info!("[UDP Proxy] Started on port {}", udp_port);
+                 info!("[UDP Proxy(Player)] Started on {}", addr);
                  proxy.run().await;
             },
             Err(e) => {
-                error!("[UDP Proxy] Failed to start on port {}: {}", udp_port, e);
+                error!("[UDP Proxy(Player)] Failed to start on {}: {}", addr, e);
             }
         }
     });
@@ -108,11 +129,11 @@ pub async fn listen(
 
 #[tokio::main]
 async fn main() {
-    unsafe { env::set_var("RUST_LOG", "debug") }
     env_logger::init();
 
     let args = Args::parse();
     let listen_addr = args.listen_addr();
+    let player_udp_listen_addr = args.player_udp_listen_addr();
     let service = match Service::from_args(args.service_args).await {
         Ok(svc) => svc,
         Err(e) => {
@@ -122,6 +143,6 @@ async fn main() {
     };
 
     let shutdown_signal = Some(service.shutdown_signal());
-    let app = listen(listen_addr, service, shutdown_signal).await;
+    let app = listen(listen_addr, player_udp_listen_addr, service, shutdown_signal).await;
     app.await.unwrap().unwrap();
 }

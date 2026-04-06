@@ -41,13 +41,13 @@ pub struct UdpProxy {
 }
 
 impl UdpProxy {
-    pub async fn new(state: AppState, port: u16) -> std::io::Result<Self> {
-        let socket = UdpSocket::bind(format!("0.0.0.0:{}", port)).await?;
+    pub async fn new(state: AppState, listen_addr: SocketAddr) -> std::io::Result<Self> {
+        let socket = UdpSocket::bind(listen_addr).await?;
         let socket = Arc::new(socket);
         let sessions =
             Arc::new(DashMap::<SocketAddr, SessionInfo>::new());
 
-        info!("[UDP Proxy] Listening on 0.0.0.0:{}", port);
+        info!("[UDP Proxy] Listening on {listen_addr}");
 
         // Start cleanup task
         let sessions_clone = sessions.clone();
