@@ -30,8 +30,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("    Fleet template path: {}", args.fleet_template.display());
 
     log::info!("Loading fleet template");
-    k8s::init_fleet_template(&args.fleet_template)
-        .map_err(|e| format!("Fleet template initialization failed: {e}"))?;
+    if let Err(e) = k8s::init_fleet_template(&args.fleet_template) {
+        log::error!("Failed to load fleet template: {}", e);
+
+        if let Ok(entries) = std::fs::read_dir("/mnt") {
+            log::error!("Contents of /mnt:");
+            for entry in entries.flatten() {
+                log::error!("  - {}", entry.path().display());
+            }
+        } else {
+            log::error!("Failed to read /mnt directory");
+        }
+
+        Err(e)?;
+    }
 
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);

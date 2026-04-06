@@ -23,7 +23,7 @@ spec:
       containers:
         - name: rcss-env-allocator
           image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-allocator:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 5555
