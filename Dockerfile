@@ -41,7 +41,6 @@ COPY --from=builder /usr/local/bin/* /usr/local/bin/
 COPY --from=builder /usr/local/lib/* /usr/local/lib/
 
 EXPOSE 6000/udp 6001/udp 6002/udp
-EXPOSE 55555/tcp
+EXPOSE 6666/tcp
 
 ENTRYPOINT ["./agones-server"]
-CMD ["--player-port", "6000", "--trainer-port", "6001", "--coach-port", "6002", "--port", "55555"]

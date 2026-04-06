@@ -193,8 +193,7 @@ ENV HUB_PATH=/app/hub
 ENV LOG_ROOT=/app/logs
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
-EXPOSE 6657/tcp
+EXPOSE 7777/tcp
 
 ENTRYPOINT ["/app/match_composer"]
-CMD ["--hub-path", "/app/hub", "--log-root", "/app/logs"]
 

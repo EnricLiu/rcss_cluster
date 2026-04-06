@@ -4,7 +4,7 @@ pub(crate) mod error;
 mod response;
 mod config;
 
-pub use args::Args as MatchComposerArgs;
+pub use args::MatchComposerArgs;
 pub use error::Error as MatchComposerError;
 
 pub use client::MatchComposerClient;

@@ -1,10 +1,10 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: allocator
+  name: rcss-env-allocator
   namespace: rcss-gateway-dev
   labels:
-    app: allocator
+    app: rcss-env-allocator
 spec:
   type: ClusterIP
   ports:
@@ -13,16 +13,16 @@ spec:
       protocol: TCP
       name: http
   selector:
-    app: allocator
+    app: rcss-env-allocator
 ---
 # Optional: Uncomment to expose via LoadBalancer
 # apiVersion: v1
 # kind: Service
 # metadata:
-#   name: allocator-external
+#   name: rcss-env-allocator-ext
 #   namespace: rcss-gateway-dev
 #   labels:
-#     app: allocator
+#     app: rcss-env-allocator-ext
 # spec:
 #   type: LoadBalancer
 #   ports:

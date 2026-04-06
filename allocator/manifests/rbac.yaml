@@ -1,31 +1,32 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: allocator-sa
+  name: rcss-env-allocator-sa
   namespace: rcss-gateway-dev
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
+kind: Role
 metadata:
-  name: allocator-role
+  name: rcss-env-allocator-dev-role
+  namespace: rcss-env-dev
 rules:
   - apiGroups: ["allocation.agones.dev"]
     resources: ["gameserverallocations"]
-    verbs: ["create"]
+    verbs: ["create", "get"]
   - apiGroups: ["agones.dev"]
     resources: ["fleets"]
-    verbs: ["create", "delete"]
+    verbs: ["create", "delete", "get", "list", "watch", "update", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRoleBinding
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: ClusterRole
-  name: allocator-role
+kind: RoleBinding
 metadata:
-  name: allocator-rolebinding
+  name: rcss-env-allocator-dev-sarb
   namespace: rcss-env-dev
 subjects:
   - kind: ServiceAccount
-    name: allocator-sa
+    name: rcss-env-allocator-sa
     namespace: rcss-gateway-dev
+roleRef:
+  kind: Role
+  name: rcss-env-allocator-dev-role
+  apiGroup: rbac.authorization.k8s.io

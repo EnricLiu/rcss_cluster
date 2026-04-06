@@ -32,4 +32,3 @@ COPY --from=builder /usr/src/rcss_cluster/target/release/allocator .
 EXPOSE 6666/tcp
 
 ENTRYPOINT ["./allocator"]
-CMD ["--host", "0.0.0.0", "--http-port", "6666"]
