@@ -4,8 +4,9 @@ use serde_json::Value;
 use crate::metadata::MetaData;
 use crate::schema::v1::ConfigV1;
 
+use super::crd::Fleet;
+use super::builder::FleetBuilder;
 use super::{Error, Result, K8sClient};
-use super::crd::{ContainerBuilder, Fleet, FleetBuilder};
 
 
 impl K8sClient {
@@ -37,14 +38,12 @@ impl K8sClient {
             let mut fleet = FleetBuilder::new();
             fleet.with_name(name)
                 .with_labels(labels)
-                .with_annotations(annotations)
-                .add_container(ContainerBuilder::default_rcss())
-                .map_err(|e| Error::InvalidMetaData(format!("{e:?}")))?;
-            
+                .with_annotations(annotations);
+
             fleet.build_into()
                 .map_err(|e| Error::InvalidMetaData(format!("{e:?}")))?
         };
-        
+
         api.create(&PostParams::default(), &fleet).await
             .map_err(Error::CreateFleet)?;
 

@@ -7,7 +7,20 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: 200Gi
+      storage: 180Gi
   storageClassName: oss
   volumeName: oss.nexus-prime.env-dev
 
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: oss-nexus-prime-env-allocator-dev
+spec:
+    accessModes:
+        - ReadWriteMany
+    resources:
+        requests:
+          storage: 3Gi
+    storageClassName: oss
+    volumeName: oss.nexus-prime.gateway.dev

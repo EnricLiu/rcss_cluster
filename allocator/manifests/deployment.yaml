@@ -16,6 +16,10 @@ spec:
         app: rcss-env-allocator
     spec:
       serviceAccountName: rcss-env-allocator-sa
+      volumes:
+        - name: oss-env-allocator-dev
+          persistentVolumeClaim:
+            claimName: oss-nexus-prime-env-allocator-dev
       containers:
         - name: rcss-env-allocator
           image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-allocator:latest
@@ -24,15 +28,23 @@ spec:
             - name: http
               containerPort: 5555
               protocol: TCP
+          volumeMounts:
+            - name: oss-env-allocator-dev
+              mountPath: /mnt/template
+              subPath: manifests/template
           env:
             - name: RUST_LOG
               value: "debug"
-            - name: AGONES_FLEET_NAMESPACE
-              value: "rcss-env-dev"
             - name: ALLOCATOR_HOST
               value: "0.0.0.0"
             - name: ALLOCATOR_HTTP_PORT
               value: "5555"
+
+            - name: AGONES_FLEET_NAMESPACE
+              value: "rcss-env-dev"
+            - name: AGONES_FLEET_TEMPLATE_PATH
+              value: "/mnt/template/fleet.yaml"
+
 #            - name: ALLOCATOR_AUTH_TOKEN
 #              valueFrom:
 #                secretKeyRef:
@@ -40,6 +52,7 @@ spec:
 #                  key: xxx
 #            - name: AGONES_GSA_SCHEDULE_STRATEGY
 #              value: "Packed"
+
           livenessProbe:
             httpGet:
               path: /health

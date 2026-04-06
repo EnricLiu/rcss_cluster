@@ -22,9 +22,9 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: agones-rcss-server
+  name: rcss-env-fleet-template-v260406001
 spec:
-  replicas: 5
+  replicas: 8
   scheduling: Packed
   strategy:
     type: RollingUpdate
@@ -122,7 +122,7 @@ spec:
                   cpu: 500m
               env:
                 - name: RUST_LOG
-                  value: "info"
+                  value: "debug"
 
                 - name: SERVER_HOST
                   value: "0.0.0.0"
@@ -198,7 +198,7 @@ spec:
                   cpu: 800m
               env:
                 - name: RUST_LOG
-                  value: "info"
+                  value: "debug"
 
                 - name: MC_HOST
                   value: "0.0.0.0"

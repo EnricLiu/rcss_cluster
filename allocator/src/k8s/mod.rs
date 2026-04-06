@@ -1,14 +1,19 @@
 use kube::Client;
 use arcstr::ArcStr;
 
-mod crd;
 mod fleet;
 mod allocation;
+
 pub mod error;
 
 pub use error::{Error, Result};
 
 pub use allocation::GsAllocation;
+pub use fleet::{
+    init_fleet_template,
+    fleet_template,
+    fleet_template_version,
+};
 
 
 #[derive(Clone)]

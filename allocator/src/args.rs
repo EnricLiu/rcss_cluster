@@ -1,4 +1,5 @@
 use std::net::Ipv4Addr;
+use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -27,14 +28,16 @@ pub struct Args {
     #[arg(long, env = "ALLOCATOR_HTTP_PORT", default_value_t = 5555, help = "Http Server port to bind")]
     pub http_port: u16,
     
-    /// Kubernetes namespace
-    #[arg(long, env = "AGONES_FLEET_NAMESPACE", default_value = "rcss-env-dev", help = "Kubernetes namespace, where the Fleet(GameServers) are allocated")]
-    pub namespace: String,
-
     /// Bearer token for authentication (optional)
     #[arg(long, env = "ALLOCATOR_AUTH_TOKEN")]
     pub auth_token: Option<String>,
-
+    
+    #[arg(long, env = "AGONES_FLEET_NAMESPACE", default_value = "rcss-env-dev", help = "Kubernetes namespace, where the Fleet(GameServers) are allocated")]
+    pub namespace: String,
+    
+    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "./templates/fleet.yaml", help = "Path to the Fleet template YAML file for GameServer allocation")]
+    pub fleet_template: PathBuf,
+    
     /// Scheduling strategy for GameServer allocation
     #[arg(long, env = "AGONES_GSA_SCHEDULE_STRATEGY", default_value = "packed")]
     pub scheduling: Scheduling,
