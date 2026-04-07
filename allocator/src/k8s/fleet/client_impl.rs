@@ -31,7 +31,8 @@ impl K8sClient {
         let metadata: MetaData = gs_conf.try_into()
             .map_err(|e: common::errors::BuilderError| Error::InvalidMetaData(format!("{e:?}")))?;
 
-        let labels = metadata.labels.into_map();
+        let labels = metadata.labels.try_into_map()
+            .map_err(|e| Error::InvalidMetaData(format!("{e:?}")))?;
         let annotations = metadata.annotations.into_map();
 
         let fleet = {

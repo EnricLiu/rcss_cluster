@@ -13,11 +13,14 @@ pub use ser_impl::validate_label_value;
 
 /// Field separator used between encoded segments.
 /// Chosen because K8s label values allow `_` and it does not appear in
-/// image provider/model names (which use alphanumeric + `-`).
+/// image provider/model names (enforced by [`Image::try_from`]: only `[A-Za-z0-9-]`).
 pub const FIELD_SEP: char = '_';
 
 /// Separator that replaces `/` inside image strings so the value stays
 /// K8s-label-safe.  `provider/model` → `provider.model`
+///
+/// `.` is forbidden in image segments (enforced by [`Image::try_from`]),
+/// so the first `.` in the encoded image always corresponds to the original `/`.
 pub const IMAGE_SEP: char = '.';
 
 /// Original separator in image strings.
@@ -75,8 +78,9 @@ mod tests {
         use crate::declaration::{PlayerBaseDeclaration, PlayerDeclaration, Unum};
         use crate::declaration::image::Image;
 
+        let unum = Unum::try_from(3u8).unwrap();
         let base = PlayerBaseDeclaration {
-            unum: Unum::try_from(3u8).unwrap(),
+            unum,
             image: Image::try_from("HELIOS/helios-base").unwrap(),
             goalie: false,
             log: false,
@@ -88,7 +92,7 @@ mod tests {
         let encoded = ser(&label).expect("serialize");
         assert!(validate_label_value(&encoded).is_ok());
 
-        let decoded: PlayerLabel = des(&encoded).expect("deserialize");
+        let decoded: PlayerLabel = des(&(unum, encoded.clone())).expect("deserialize");
         let re_encoded = ser(&decoded).expect("re-serialize");
         assert_eq!(encoded, re_encoded);
     }
@@ -99,8 +103,9 @@ mod tests {
         use crate::declaration::{HostPort, PlayerBaseDeclaration, PlayerDeclaration, Unum};
         use crate::declaration::image::Image;
 
+        let unum = Unum::try_from(1u8).unwrap();
         let base = PlayerBaseDeclaration {
-            unum: Unum::try_from(1u8).unwrap(),
+            unum,
             image: Image::try_from("Cyrus2D/SoccerSimulationProxy").unwrap(),
             goalie: true,
             log: false,
@@ -119,7 +124,7 @@ mod tests {
         assert!(validate_label_value(&encoded).is_ok());
         assert!(encoded.len() <= K8S_LABEL_MAX_LEN);
 
-        let decoded: PlayerLabel = des(&encoded).expect("deserialize");
+        let decoded: PlayerLabel = des(&(unum, encoded.clone())).expect("deserialize");
         let re_encoded = ser(&decoded).expect("re-serialize");
         assert_eq!(encoded, re_encoded);
     }

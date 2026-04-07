@@ -43,10 +43,10 @@ impl Labels {
         });
 
         for (key, side, unum) in player_keys {
-            let value = map.remove(*key).unwrap();
+            let value = map.get(*key).unwrap();
             let unum = Unum::try_from(unum)?;
 
-            let player_label = label_serdes::des::<PlayerLabel>(&(unum, value))
+            let player_label = label_serdes::des::<PlayerLabel>(&(unum, value.clone()))
                 .map_err(|e| -> BuilderError { e.into() })?;
 
 

@@ -1,5 +1,8 @@
 use common::errors::BuilderError;
 
+use super::K8S_LABEL_MAX_LEN;
+
+
 #[derive(thiserror::Error, Debug)]
 pub enum LabelSerializeError {
     #[error("label value too long ({len} > {K8S_LABEL_MAX_LEN}): {encoded}")]

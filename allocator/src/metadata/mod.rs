@@ -2,7 +2,7 @@ mod metadata;
 mod labels;
 mod annotations;
 mod from_v1;
-pub(crate) mod label_serdes;
+mod label_serdes;
 
 pub use agones::Sdk;
 

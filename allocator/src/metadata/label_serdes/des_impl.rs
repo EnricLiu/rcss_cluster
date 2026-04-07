@@ -74,25 +74,15 @@ impl LabelDeserialize for PlayerLabel {
                 })
             }
             "s" => {
-                // remaining after splitn(5, _) at index 3 may be "host_port"
-                // We need host and port as two more fields.
-                if parts.len() < 4 {
+                // splitn(5, _) splits into: kind, image, flags, host, port
+                if parts.len() < 5 {
                     return Err(LabelDeserializeError::InvalidFormat {
                         raw: raw.1.clone(),
                         reason: "SSP label must have 5 fields: kind, image, flags, host, port",
                     });
                 }
-                // parts[3] is everything after the third `_`, e.g. "127.0.0.1_6657"
-                let rest = parts[3];
-                // Split rest by the *last* underscore to separate host from port
-                let last_sep = rest.rfind(FIELD_SEP).ok_or_else(|| {
-                    LabelDeserializeError::InvalidFormat {
-                        raw: raw.1.clone(),
-                        reason: "SSP label must have host and port separated by '_'",
-                    }
-                })?;
-                let host_str = &rest[..last_sep];
-                let port_str = &rest[last_sep + 1..];
+                let host_str = parts[3];
+                let port_str = parts[4];
 
                 let host: Ipv4Addr = host_str.parse().map_err(|e| {
                     LabelDeserializeError::InvalidField {
