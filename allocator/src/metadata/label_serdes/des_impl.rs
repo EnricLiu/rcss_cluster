@@ -20,11 +20,11 @@ impl LabelDeserialize for PlayerLabel {
     type Raw = (Unum, String);
 
     fn label_deserialize(raw: &Self::Raw) -> LabelDeserializeResult<Self> {
-        let parts: Vec<&str> = raw.splitn(5, FIELD_SEP).collect();
+        let parts: Vec<&str> = raw.1.splitn(5, FIELD_SEP).collect();
 
         if parts.len() < 3 {
             return Err(LabelDeserializeError::InvalidFormat {
-                raw: raw.clone(),
+                raw: raw.1.clone(),
                 reason: "expected at least 3 fields: kind, image, flags",
             });
         }
@@ -41,7 +41,7 @@ impl LabelDeserialize for PlayerLabel {
         );
         let image = Image::try_from(image_raw.clone()).map_err(|e| {
             LabelDeserializeError::InvalidField {
-                raw: raw.clone(),
+                raw: raw.1.clone(),
                 field: "image",
                 detail: format!("{e}"),
             }
@@ -50,23 +50,21 @@ impl LabelDeserialize for PlayerLabel {
         // ── Parse flags ─────────────────────────────────────────────────
         if flags.len() != 2 {
             return Err(LabelDeserializeError::InvalidFormat {
-                raw: raw.clone(),
+                raw: raw.1.clone(),
                 reason: "flags field must be exactly 2 characters (goalie + log)",
             });
         }
-        let goalie = parse_bool_flag(flags.as_bytes()[0], raw, "goalie")?;
-        let log = parse_bool_flag(flags.as_bytes()[1], raw, "log")?;
+        let goalie = parse_bool_flag(flags.as_bytes()[0], &raw.1, "goalie")?;
+        let log = parse_bool_flag(flags.as_bytes()[1], &raw.1, "log")?;
 
         // ── Build the player declaration by kind ────────────────────────
-        // unum is stored in the label *key* (p.l.{unum}), not the value,
-        // so we set a placeholder here; the caller will override it.
-        let unum = Unum::default();
+        let unum = raw.0;
 
         match kind {
             "h" => {
                 if parts.len() != 3 {
                     return Err(LabelDeserializeError::InvalidFormat {
-                        raw: raw.clone(),
+                        raw: raw.1.clone(),
                         reason: "Helios label must have exactly 3 fields",
                     });
                 }
@@ -80,7 +78,7 @@ impl LabelDeserialize for PlayerLabel {
                 // We need host and port as two more fields.
                 if parts.len() < 4 {
                     return Err(LabelDeserializeError::InvalidFormat {
-                        raw: raw.clone(),
+                        raw: raw.1.clone(),
                         reason: "SSP label must have 5 fields: kind, image, flags, host, port",
                     });
                 }
@@ -89,7 +87,7 @@ impl LabelDeserialize for PlayerLabel {
                 // Split rest by the *last* underscore to separate host from port
                 let last_sep = rest.rfind(FIELD_SEP).ok_or_else(|| {
                     LabelDeserializeError::InvalidFormat {
-                        raw: raw.clone(),
+                        raw: raw.1.clone(),
                         reason: "SSP label must have host and port separated by '_'",
                     }
                 })?;
@@ -98,14 +96,14 @@ impl LabelDeserialize for PlayerLabel {
 
                 let host: Ipv4Addr = host_str.parse().map_err(|e| {
                     LabelDeserializeError::InvalidField {
-                        raw: raw.clone(),
+                        raw: raw.1.clone(),
                         field: "grpc.host",
                         detail: format!("{e}"),
                     }
                 })?;
                 let port: u16 = port_str.parse().map_err(|e| {
                     LabelDeserializeError::InvalidField {
-                        raw: raw.clone(),
+                        raw: raw.1.clone(),
                         field: "grpc.port",
                         detail: format!("{e}"),
                     }
@@ -120,7 +118,7 @@ impl LabelDeserialize for PlayerLabel {
                 })
             }
             other => Err(LabelDeserializeError::UnknownKind {
-                raw: raw.clone(),
+                raw: raw.1.clone(),
                 kind: other.to_string(),
             }),
         }
