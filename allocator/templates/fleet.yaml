@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260406001
+  name: rcss-env-fleet-template-v260407001
 spec:
   replicas: 8
   scheduling: Packed
@@ -48,6 +48,7 @@ spec:
 
   template:
     spec:
+      container: rcss-cluster
       ports:
         - name: default
           portPolicy: Dynamic

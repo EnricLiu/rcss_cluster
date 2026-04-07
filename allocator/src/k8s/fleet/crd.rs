@@ -72,6 +72,8 @@ pub struct GameServerTemplateSpec {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerSpec {
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ports: Option<Vec<GameServerPortSpec>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub health: Option<HealthSpec>,
