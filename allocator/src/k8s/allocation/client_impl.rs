@@ -34,7 +34,8 @@ impl K8sClient {
 
         // Build selector to match fleet
         let match_labels = {
-            let mut labels = metadata.labels.into_map();
+            let mut labels = metadata.labels.try_into_map()
+                .map_err(|e| Error::InvalidMetaData(format!("{e:?}")))?;
             labels.insert("agones.dev/fleet".to_string(), fleet_name.to_string());
             labels
         };

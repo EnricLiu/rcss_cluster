@@ -27,13 +27,28 @@ impl Image {
     }
 }
 
+/// Characters allowed in provider and model segments of an image string.
+///
+/// Only ASCII alphanumeric and `-` are permitted.  In particular `_` and `.`
+/// are forbidden because the label-serialization layer uses them as
+/// [`FIELD_SEP`] and [`IMAGE_SEP`] respectively; allowing them here would
+/// make the encoded label ambiguous / non-roundtrippable.
+fn is_valid_image_char(c: char) -> bool {
+    matches!(c, 'A'..='Z' | 'a'..='z' | '0'..='9' | '-')
+}
+
 impl TryFrom<String> for Image {
     type Error = BuilderError;
 
     fn try_from(raw: String) -> BuilderResult<Image> {
         let mut parts = raw.split('/');
-        if let (Some(provider), Some(_)) = (parts.next(), parts.next()) {
-            if parts.next().is_none() {
+        if let (Some(provider), Some(model)) = (parts.next(), parts.next()) {
+            if parts.next().is_none()
+                && !provider.is_empty()
+                && !model.is_empty()
+                && provider.chars().all(is_valid_image_char)
+                && model.chars().all(is_valid_image_char)
+            {
                 let split_pos = provider.len();
                 let len = raw.len();
                 return Ok(Image {
@@ -47,7 +62,7 @@ impl TryFrom<String> for Image {
         Err(BuilderError::InvalidValue {
             field: "image",
             value: raw.to_string(),
-            expected: r"format: /^\w+/(\w+|\*):?\w*?$/".to_string(),
+            expected: "format: {provider}/{model} where each segment matches [A-Za-z0-9-]+".to_string(),
         })
     }
 }

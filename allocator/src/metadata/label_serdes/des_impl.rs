@@ -1,0 +1,128 @@
+use std::net::Ipv4Addr;
+
+use crate::declaration::{PlayerDeclaration, PlayerBaseDeclaration, HostPort, Unum};
+use crate::declaration::image::Image;
+
+use super::{
+    PlayerLabel,
+    LabelDeserialize,
+    LabelDeserializeResult,
+    LabelDeserializeError,
+    FIELD_SEP, IMAGE_SEP, IMAGE_ORIG_SEP,
+};
+
+/// Decodes a K8s-safe label value back into a [`PlayerLabel`].
+///
+/// Expected formats (fields separated by `_`):
+///   - Helios: `h_{provider}.{model}_{goalie}{log}`
+///   - SSP:    `s_{provider}.{model}_{goalie}{log}_{host}_{port}`
+impl LabelDeserialize for PlayerLabel {
+    type Raw = (Unum, String);
+
+    fn label_deserialize(raw: &Self::Raw) -> LabelDeserializeResult<Self> {
+        let parts: Vec<&str> = raw.1.splitn(5, FIELD_SEP).collect();
+
+        if parts.len() < 3 {
+            return Err(LabelDeserializeError::InvalidFormat {
+                raw: raw.1.clone(),
+                reason: "expected at least 3 fields: kind, image, flags",
+            });
+        }
+
+        let kind = parts[0];
+        let image_encoded = parts[1];
+        let flags = parts[2];
+
+        // ── Parse image ─────────────────────────────────────────────────
+        let image_raw = image_encoded.replacen(
+            IMAGE_SEP,
+            &IMAGE_ORIG_SEP.to_string(),
+            1, // only replace the first occurrence (provider.model → provider/model)
+        );
+        let image = Image::try_from(image_raw.clone()).map_err(|e| {
+            LabelDeserializeError::InvalidField {
+                raw: raw.1.clone(),
+                field: "image",
+                detail: format!("{e}"),
+            }
+        })?;
+
+        // ── Parse flags ─────────────────────────────────────────────────
+        if flags.len() != 2 {
+            return Err(LabelDeserializeError::InvalidFormat {
+                raw: raw.1.clone(),
+                reason: "flags field must be exactly 2 characters (goalie + log)",
+            });
+        }
+        let goalie = parse_bool_flag(flags.as_bytes()[0], &raw.1, "goalie")?;
+        let log = parse_bool_flag(flags.as_bytes()[1], &raw.1, "log")?;
+
+        // ── Build the player declaration by kind ────────────────────────
+        let unum = raw.0;
+
+        match kind {
+            "h" => {
+                if parts.len() != 3 {
+                    return Err(LabelDeserializeError::InvalidFormat {
+                        raw: raw.1.clone(),
+                        reason: "Helios label must have exactly 3 fields",
+                    });
+                }
+                let base = PlayerBaseDeclaration { unum, image, goalie, log };
+                Ok(PlayerLabel {
+                    player: PlayerDeclaration::Helios { base },
+                })
+            }
+            "s" => {
+                // splitn(5, _) splits into: kind, image, flags, host, port
+                if parts.len() < 5 {
+                    return Err(LabelDeserializeError::InvalidFormat {
+                        raw: raw.1.clone(),
+                        reason: "SSP label must have 5 fields: kind, image, flags, host, port",
+                    });
+                }
+                let host_str = parts[3];
+                let port_str = parts[4];
+
+                let host: Ipv4Addr = host_str.parse().map_err(|e| {
+                    LabelDeserializeError::InvalidField {
+                        raw: raw.1.clone(),
+                        field: "grpc.host",
+                        detail: format!("{e}"),
+                    }
+                })?;
+                let port: u16 = port_str.parse().map_err(|e| {
+                    LabelDeserializeError::InvalidField {
+                        raw: raw.1.clone(),
+                        field: "grpc.port",
+                        detail: format!("{e}"),
+                    }
+                })?;
+
+                let base = PlayerBaseDeclaration { unum, image, goalie, log };
+                Ok(PlayerLabel {
+                    player: PlayerDeclaration::Ssp {
+                        base,
+                        grpc: HostPort { host, port },
+                    },
+                })
+            }
+            other => Err(LabelDeserializeError::UnknownKind {
+                raw: raw.1.clone(),
+                kind: other.to_string(),
+            }),
+        }
+    }
+}
+
+fn parse_bool_flag(byte: u8, raw: &str, field: &'static str) -> LabelDeserializeResult<bool> {
+    match byte {
+        b'1' => Ok(true),
+        b'0' => Ok(false),
+        _ => Err(LabelDeserializeError::InvalidField {
+            raw: raw.to_string(),
+            field,
+            detail: format!("expected '0' or '1', got '{}'", byte as char),
+        }),
+    }
+}

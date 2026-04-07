@@ -4,8 +4,9 @@ use serde::{Deserialize, Serialize};
 
 use common::errors::{BuilderError, BuilderResult};
 use common::types::Side;
-use crate::declaration::{PlayerDeclaration, Unum};
 
+use crate::declaration::{PlayerDeclaration, Unum};
+use super::label_serdes;
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct PlayerLabel {
@@ -15,12 +16,12 @@ pub struct PlayerLabel {
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Labels {
-    pub left: HashMap<Unum, PlayerLabel>, // p.l.1, p.l.2 = {json}
-    pub right: HashMap<Unum, PlayerLabel>, // p.r.1, p.r.2 = {json}
+    pub left: HashMap<Unum, PlayerLabel>, // p.l.1, p.l.2 = str
+    pub right: HashMap<Unum, PlayerLabel>, // p.r.1, p.r.2 = str
 }
 
 impl Labels {
-    pub fn from_map(map: HashMap<String, String>) -> BuilderResult<Self> {
+    pub fn from_map(mut map: HashMap<String, String>) -> BuilderResult<Self> {
         let mut left = HashMap::new();
         let mut right = HashMap::new();
 
@@ -39,16 +40,19 @@ impl Labels {
 
             let unum = parts[2].parse::<u8>().ok()?;
             Some((full, side, unum))
-
         });
 
         for (key, side, unum) in player_keys {
             let value = map.get(*key).unwrap();
-            let player_label = serde_json::from_str::<PlayerLabel>(value)
-                .unwrap_or_else(|_| panic!("Failed to parse player label for key {}", key));
+            let unum = Unum::try_from(unum)?;
+
+            let player_label = label_serdes::des::<PlayerLabel>(&(unum, value.clone()))
+                .map_err(|e| -> BuilderError { e.into() })?;
+
+
             match side {
-                Side::LEFT => left.insert(unum.try_into()?, player_label),
-                Side::RIGHT => right.insert(unum.try_into()?, player_label),
+                Side::LEFT => left.insert(unum, player_label),
+                Side::RIGHT => right.insert(unum, player_label),
                 _ => unreachable!(),
             };
         }
@@ -61,19 +65,17 @@ impl Labels {
         )
     }
 
-    pub fn into_map(self) -> HashMap<String, String> {
-        let mut map = HashMap::new();
+    pub fn try_into_map(self) -> BuilderResult<HashMap<String, String>> {
+        let mut map = HashMap::with_capacity(self.left.len() + self.right.len());
         for (unum, label) in self.left {
-            if let Ok(label_str) = serde_json::to_string(&label) {
-                map.insert(format!("p.l.{}", unum), label_str);
-            }
+            let encoded = label_serdes::ser(&label)?;
+            map.insert(format!("p.l.{}", unum), encoded);
         }
         for (unum, label) in self.right {
-            if let Ok(label_str) = serde_json::to_string(&label) {
-                map.insert(format!("p.r.{}", unum), label_str);
-            }
+            let encoded = label_serdes::ser(&label)?;
+            map.insert(format!("p.r.{}", unum), encoded);
         }
-        map
+        Ok(map)
     }
 }
 
@@ -83,4 +85,3 @@ impl TryInto<Labels> for HashMap<String, String> {
         Labels::from_map(self)
     }
 }
-
