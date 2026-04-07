@@ -1,4 +1,4 @@
-mod crd;
+pub mod crd;
 mod builder;
 mod client_impl;
 

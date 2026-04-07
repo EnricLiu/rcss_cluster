@@ -15,6 +15,11 @@ pub use fleet::{
     fleet_template_version,
 };
 
+pub mod crd {
+    pub use super::fleet::crd::*;
+    pub use super::allocation::crd::*;
+}
+
 
 #[derive(Clone)]
 pub struct K8sClient {

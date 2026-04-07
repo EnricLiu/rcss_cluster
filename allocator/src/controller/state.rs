@@ -7,4 +7,3 @@ pub struct AppState {
     pub config: Arc<Args>,
     pub k8s: K8sClient,
 }
-
