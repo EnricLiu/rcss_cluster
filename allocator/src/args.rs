@@ -35,7 +35,7 @@ pub struct Args {
     #[arg(long, env = "AGONES_FLEET_NAMESPACE", default_value = "rcss-env-dev", help = "Kubernetes namespace, where the Fleet(GameServers) are allocated")]
     pub namespace: String,
     
-    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "./allocator/templates/fleet.yaml", help = "Path to the Fleet template YAML file for GameServer allocation")]
+    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "deploy/templates/fleet.yaml", help = "Path to the Fleet template YAML file for GameServer allocation")]
     pub fleet_template: PathBuf,
     
     /// Scheduling strategy for GameServer allocation
