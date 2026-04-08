@@ -34,6 +34,7 @@ impl TryFrom<ConfigV1> for MetaData {
             referee,
             stopping,
             init_state,
+            log,
             ..
         } = value;
 
@@ -48,6 +49,7 @@ impl TryFrom<ConfigV1> for MetaData {
             &mut players_r,
             &mut team_name_l,
             &mut team_name_r,
+            log,
         )?;
         insert_team(
             teams.opponents,
@@ -55,6 +57,7 @@ impl TryFrom<ConfigV1> for MetaData {
             &mut players_r,
             &mut team_name_l,
             &mut team_name_r,
+            log,
         )?;
 
         Ok(MetaData {
@@ -85,6 +88,7 @@ fn insert_team(
     player_r: &mut HashMap<Unum, PlayerLabel>,
     team_name_l: &mut Option<String>,
     team_name_r: &mut Option<String>,
+    log: bool,
 ) -> Result<(), BuilderError> {
     let TeamV1 {
         name,
@@ -105,7 +109,7 @@ fn insert_team(
     }
 
     for player in players {
-        let (unum, label) = convert_player(player)?;
+        let (unum, label) = convert_player(player, log)?;
         if labels.insert(unum, label).is_some() {
             return Err(BuilderError::InvalidField {
                 field: "teams.players",
@@ -117,7 +121,7 @@ fn insert_team(
     Ok(())
 }
 
-fn convert_player(player: PlayerV1) -> Result<(Unum, PlayerLabel), BuilderError> {
+fn convert_player(player: PlayerV1, log: bool) -> Result<(Unum, PlayerLabel), BuilderError> {
     let PlayerV1 {
         unum,
         goalie,
@@ -131,7 +135,7 @@ fn convert_player(player: PlayerV1) -> Result<(Unum, PlayerLabel), BuilderError>
         unum,
         image,
         goalie,
-        log: false,
+        log,
     };
 
     let player = match policy {
