@@ -120,7 +120,7 @@ jobs:
         env:
           SOURCE_IMAGE: ${{ steps.source-meta.outputs.tags }}
         run: |
-          for attempt in 1 2 3 4 5; do
+          for _ in 1 2 3 4 5; do
             if docker buildx imagetools inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
               exit 0
             fi
