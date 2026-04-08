@@ -113,12 +113,13 @@ jobs:
             if docker buildx imagetools inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
               exit 0
             fi
-            if [ "$attempt" -eq 5 ]; then
-              echo "Source image not found: $SOURCE_IMAGE" >&2
-              exit 1
-            fi
             sleep 30
           done
+          if docker buildx imagetools inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
+            exit 0
+          fi
+          echo "Source image not found: $SOURCE_IMAGE" >&2
+          exit 1
 
       - name: Retag release image
         env:
@@ -130,4 +131,3 @@ jobs:
             [ -n "$tag" ] && tags+=(-t "$tag")
           done <<< "$RELEASE_TAGS"
           docker buildx imagetools create "${tags[@]}" "$SOURCE_IMAGE"
-
