@@ -107,7 +107,7 @@ RUN git clone https://github.com/helios-base/helios-base.git && \
 # =============================================================================
 # Stage: build the match_composer Rust binary (cargo-chef pattern)
 # =============================================================================
-FROM rust:slim AS chef
+FROM rust:bookworm-slim AS chef
 RUN cargo install cargo-chef
 
 FROM chef AS planner
