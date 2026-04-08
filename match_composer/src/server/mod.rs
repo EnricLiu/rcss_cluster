@@ -246,6 +246,5 @@ pub async fn listen(addr: SocketAddr, meta: MetaData, config: MatchComposerConfi
             .expect("Server error");
     });
 
-    info!("Server shut down.");
     Ok(server)
 }

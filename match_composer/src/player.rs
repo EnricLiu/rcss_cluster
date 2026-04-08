@@ -2,7 +2,7 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::time::Duration;
-use log::{error, info, warn};
+use log::{debug, error, info, trace, warn};
 use tokio::fs::File;
 use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::{watch, OnceCell, SetError};
@@ -49,7 +49,9 @@ impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
 
     async fn create_log_path(&self) -> Result<()> {
         if let Some(dir) = self.config.log_dir() {
-            tokio::fs::create_dir_all(&dir).await.map_err(|e| Error::LogMkdir(dir, e))?;
+            trace!("[PolicyPlayer(unum={})] Ensuring log directory: {:?}", self.model().unum, dir);
+            tokio::fs::create_dir_all(&dir).await
+                .map_err(|e| Error::LogMkdir(dir, e))?;
         }
         Ok(())
     }
@@ -165,15 +167,19 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
     }
 
     async fn spawn(&self) -> Result<()> {
+        let unum = self.model().unum;
+        info!("[PolicyPlayer(unum={unum})] Spawning player...");
         self.create_log_path().await?;
 
         let mut command = self.config.command();
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
+        debug!("[PolicyPlayer(unum={unum})] Spawn command: {:?}", command);
 
         let process = self.process.get_or_try_init(|| async {
             let child = command.spawn().map_err(Error::ChildFailedSpawn)?;
             <Result<_>>::Ok(Process::new(child)?)
         }).await?;
+        info!("[PolicyPlayer(unum={unum})] Player task spawned successfully");
         
         if let Some(log_root) = &self.config.log_dir() {
             let info = self.model();
@@ -181,10 +187,12 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
                 format!("{}-{}-stdio.log", info.team, info.unum)
             );
 
-            let logging_task = Self::spawn_log_task(&process, path)?;
+            debug!("[PolicyPlayer(unum={unum})] Spawning log task with path: {:?}", path);
+            let logging_task = Self::spawn_log_task(process, path)?;
             if let Err(e) = self.logging_task.set(logging_task) {
                 set_task_error_abort("logging", e);
             }
+            info!("[PolicyPlayer(unum={unum})] Log task spawned successfully");
         }
 
         Ok(())
