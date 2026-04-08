@@ -17,9 +17,10 @@ pub struct StartResponse {
 
 async fn post(
     State(state): State<AppState>,
-    Json(req): Json<StartRequest>,
+    Json(req): Json<Option<StartRequest>>,
 ) -> Result<Json<StartResponse>, Error> {
-    state.start(req.config).await?;
+    let config = req.and_then(|r| r.config);
+    state.start(config).await?;
     Ok(Json(StartResponse {
 
     }))
