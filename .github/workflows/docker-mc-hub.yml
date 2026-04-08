@@ -1,46 +1,28 @@
-name: Build & Push match_composer Image
+name: Build & Push mc-hub Base Image
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
     paths:
-      - "match_composer/src/**"
-      - "match_composer/Cargo.toml"
-      - "match_composer/Dockerfile"
-      - "common/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/docker-match-composer.yml"
+      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub/**"
+      - ".github/workflows/docker-mc-hub.yml"
   pull_request:
     branches: [main]
     paths:
-      - "match_composer/src/**"
-      - "match_composer/Cargo.toml"
-      - "match_composer/Dockerfile"
-      - "common/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - ".github/workflows/docker-match-composer.yml"
-  # Rebuild when hub base image is updated
-  workflow_run:
-    workflows: ["Build & Push mc-hub Base Image"]
-    types: [completed]
-    branches: [main]
+      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub/**"
+      - ".github/workflows/docker-mc-hub.yml"
   workflow_dispatch:
 
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
-  IMAGE_NAME: nexus-prime/rcss-match-composer
-  HUB_IMAGE: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
+  IMAGE_NAME: nexus-prime/rcss-mc-base
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Skip if triggered by a failed hub build
-    if: >-
-      github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success'
 
     permissions:
       contents: read
@@ -68,6 +50,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -77,9 +60,11 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./match_composer/Dockerfile
+          file: ./match_composer/Dockerfile.hub
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+
