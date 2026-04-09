@@ -5,11 +5,14 @@ use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
 
 use allocator::metadata::MetaData as AllocatorMetadata;
-use allocator::declaration::{HostPort, PlayerDeclaration, TeamDeclaration, Unum};
+use allocator::declaration::{PlayerDeclaration, TeamDeclaration, Unum};
 use common::types::Side;
 
-use super::{Declaration, Model};
+use crate::config::RcssServerConfig;
 use crate::model::TeamModel;
+
+use super::{Declaration, Model};
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaData {
@@ -90,7 +93,7 @@ impl<'a> Declaration<'a, MetaData> {
 }
 
 impl<'a> Model<'a, MetaData> {
-    pub fn team(&self, side: Side, server: HostPort, log: Option<PathBuf>) -> TeamModel {
+    pub fn team(&self, side: Side, server: RcssServerConfig, log: Option<PathBuf>) -> TeamModel {
         let team_decl = self.as_declared().team(side);
         let mut team = TeamModel::builder();
         team.with_declaration(team_decl)
@@ -100,7 +103,7 @@ impl<'a> Model<'a, MetaData> {
         team.build().expect("Failed to build team model")
     }
 
-    pub fn teams(&self, server: HostPort, log: Option<PathBuf>) -> (TeamModel, TeamModel) {
+    pub fn teams(&self, server: RcssServerConfig, log: Option<PathBuf>) -> (TeamModel, TeamModel) {
         (self.team(Side::LEFT, server.clone(), log.clone()), self.team(Side::RIGHT, server, log))
     }
 }

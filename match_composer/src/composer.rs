@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::{Arc, OnceLock};
 use chrono::{DateTime, Utc};
 use log::info;
@@ -14,12 +13,7 @@ use crate::declaration::HostPort;
 use crate::info::game::GameStatusInfo;
 use crate::info::GameInfo;
 
-#[derive(Clone, Debug)]
-pub struct MatchComposerConfig {
-    pub server: HostPort,
-    pub log_root: Option<PathBuf>,
-    pub registry_path: PathBuf,
-}
+use crate::config::{MatchComposerConfig, RcssServerConfig};
 
 pub struct MatchComposer {
     pub config: MatchComposerConfig,
@@ -88,7 +82,7 @@ impl MatchComposer {
 }
 
 pub struct Match {
-    pub rcsss: HostPort,
+    pub rcsss: RcssServerConfig,
     pub config: Arc<MetaData>,
     pub team_l: Team,
     pub team_r: Team,
@@ -99,7 +93,7 @@ pub struct Match {
 
 impl Match {
     pub fn new(
-        rcsss: HostPort,
+        rcsss: RcssServerConfig,
         config: Arc<MetaData>,
         team_l: Team,
         team_r: Team,
@@ -165,7 +159,7 @@ impl Match {
 
     pub fn info(&self) -> GameInfo {
         GameInfo {
-            rcss: self.rcsss.clone(),
+            rcss: self.rcsss.control.clone().into(),
             status: self.status_now(),
             team_l: self.team_l.info(),
             team_r: self.team_r.info(),

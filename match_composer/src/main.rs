@@ -1,13 +1,14 @@
+mod args;
+mod model;
+mod config;
+mod player;
 mod policy;
 mod server;
-pub mod composer;
-pub mod team;
-
 mod metadata;
-mod player;
-mod model;
-mod args;
+
 pub mod info;
+pub mod team;
+pub mod composer;
 
 use std::env;
 use std::net::{Ipv4Addr, SocketAddr};
@@ -18,8 +19,7 @@ use clap::Parser;
 use allocator::declaration;
 
 use crate::metadata::MetaData;
-use crate::composer::MatchComposerConfig;
-use declaration::HostPort;
+use crate::config::{MatchComposerConfig, RcssServerConfig};
 
 #[tokio::main]
 async fn main() {
@@ -60,9 +60,11 @@ async fn main() {
 
     let addr = SocketAddr::new(args.host.into(), args.port);
     let composer_conf = MatchComposerConfig {
-        server: HostPort {
-            host: args.rcss_host,
-            port: args.rcss_port,
+        server: RcssServerConfig {
+            control: SocketAddr::new(args.rcss_host, args.rcss_port),
+            player: SocketAddr::new(args.rcss_host, args.rcss_player_port),
+            trainer: SocketAddr::new(args.rcss_host, args.rcss_trainer_port),
+            coach: SocketAddr::new(args.rcss_host, args.rcss_coach_port),
         },
         log_root: args.log_root,
         registry_path: args.hub_path,
