@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::IpAddr;
 
 use crate::declaration::{PlayerDeclaration, PlayerBaseDeclaration, HostPort, Unum};
 use crate::declaration::image::Image;
@@ -84,7 +84,7 @@ impl LabelDeserialize for PlayerLabel {
                 let host_str = parts[3];
                 let port_str = parts[4];
 
-                let host: Ipv4Addr = host_str.parse().map_err(|e| {
+                let host: IpAddr = host_str.parse().map_err(|e| {
                     LabelDeserializeError::InvalidField {
                         raw: raw.1.clone(),
                         field: "grpc.host",

@@ -1,13 +1,13 @@
 use crate::schema::Schema;
 use serde::{Deserialize, Serialize};
-use std::net::Ipv4Addr;
+use std::net::IpAddr;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 #[serde(tag = "agent", rename_all = "lowercase")]
 pub enum AgentV1 {
     SSP {
         image: String,
-        grpc_host: Ipv4Addr,
+        grpc_host: IpAddr,
         grpc_port: u16,
     },
 }
@@ -19,7 +19,7 @@ impl AgentV1 {
         }
     }
 
-    pub fn grpc_host(&self) -> Ipv4Addr {
+    pub fn grpc_host(&self) -> IpAddr {
         match self {
             AgentV1::SSP { grpc_host, .. } => *grpc_host,
         }

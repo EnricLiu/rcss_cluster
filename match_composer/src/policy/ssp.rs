@@ -8,12 +8,12 @@ impl Policy for PlayerPolicy<SspPlayerModel> {
         let mut cmd = self.image.cmd();
         let config = &self.player;
         cmd
-            .arg("-h").arg(config.server.host.to_string())
-            .arg("-p").arg(config.server.port.to_string())
+            .arg("-h").arg(config.server.ip().to_string())
+            .arg("-p").arg(config.server.port().to_string())
             .arg("-t").arg(&config.team)
             .arg("-u").arg(config.unum.to_string())
-            .arg("--g-ip").arg(config.grpc.host.to_string())
-            .arg("--g-port").arg(config.grpc.port.to_string());
+            .arg("--g-ip").arg(config.grpc.ip().to_string())
+            .arg("--g-port").arg(config.grpc.port().to_string());
 
         if let Some(image_log_root) = &config.log_root {
             cmd.arg("--debug")
