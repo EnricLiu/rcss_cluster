@@ -16,22 +16,22 @@ use opponents::OpponentsTeamV1;
 
 #[derive(Serialize, Clone, Debug)]
 pub struct TeamsV1 {
-    pub allies: TeamV1,
-    pub opponents: TeamV1,
+    pub left: TeamV1,
+    pub right: TeamV1,
 }
 
 impl Schema for TeamsV1 {
     fn verify(&self) -> Result<(), &'static str> {
-        if self.allies.side == self.opponents.side {
+        if self.left.side == self.right.side {
             return Err("Teams cannot be on the same side")
         }
 
-        if self.allies.name == self.opponents.name {
+        if self.left.name == self.right.name {
             return Err("Teams cannot share the same name")
         }
 
-        self.allies.verify()?;
-        self.opponents.verify()
+        self.left.verify()?;
+        self.right.verify()
     }
 }
 
@@ -47,41 +47,41 @@ impl<'de> Visitor<'de> for TeamsVisitor {
     type Value = TeamsV1;
 
     fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
-        formatter.write_str("a map with 'allies' and 'opponents' keys")
+        formatter.write_str("a map with 'left' and 'right' keys")
     }
 
     fn visit_map<V>(self, mut map: V) -> Result<TeamsV1, V::Error>
     where V: MapAccess<'de>,
     {
-        let mut allies: Option<AlliesTeamV1> = None;
-        let mut opponents: Option<OpponentsTeamV1> = None;
+        let mut left: Option<AlliesTeamV1> = None;
+        let mut right: Option<OpponentsTeamV1> = None;
 
         while let Some(key) = map.next_key::<String>()? {
             match key.as_str() {
-                "allies" => {
-                    if allies.is_some() {
-                        return Err(de::Error::duplicate_field("allies"));
+                "left" => {
+                    if left.is_some() {
+                        return Err(de::Error::duplicate_field("left"));
                     }
-                    allies = Some(map.next_value()?);
+                    left = Some(map.next_value()?);
                 }
-                "opponents" => {
-                    if opponents.is_some() {
-                        return Err(de::Error::duplicate_field("opponents"));
+                "right" => {
+                    if right.is_some() {
+                        return Err(de::Error::duplicate_field("right"));
                     }
-                    opponents = Some(map.next_value()?);
+                    right = Some(map.next_value()?);
                 }
                 _ => {
-                    return Err(de::Error::unknown_field(&key, &["allies", "opponents"]));
+                    return Err(de::Error::unknown_field(&key, &["left", "right"]));
                 }
             }
         }
 
-        let allies = allies.ok_or_else(|| de::Error::missing_field("allies"))?;
-        let opponents = opponents.ok_or_else(|| de::Error::missing_field("opponents"))?;
+        let left = left.ok_or_else(|| de::Error::missing_field("left"))?;
+        let right = right.ok_or_else(|| de::Error::missing_field("right"))?;
 
         Ok(TeamsV1 {
-            allies: allies.into(),
-            opponents: opponents.into(),
+            left: left.into(),
+            right: right.into(),
         })
     }
 }
