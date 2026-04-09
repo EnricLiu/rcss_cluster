@@ -26,6 +26,12 @@ impl TryFrom<ObjectMeta> for MetaData {
     }
 }
 
+impl From<AllocatorMetadata> for MetaData {
+    fn from(meta: AllocatorMetadata) -> Self {
+        Self { meta }
+    }
+}
+
 impl Deref for MetaData {
     type Target = AllocatorMetadata;
 

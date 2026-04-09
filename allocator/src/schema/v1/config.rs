@@ -12,7 +12,8 @@ pub struct ConfigV1 {
     pub host: Ipv4Addr,
     #[serde(default = "default_port")]
     pub port: u16,
-    
+    #[serde(default)]
+    pub log: bool,
     pub teams: TeamsV1,
     #[serde(default)]
     pub referee: RefereeV1,

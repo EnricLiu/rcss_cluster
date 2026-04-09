@@ -1,36 +1,24 @@
-name: Build & Push rcss_cluster Image
+name: Build & Push mc-hub Base Image
 
 on:
   push:
     branches: [main]
     tags: ["v*"]
     paths:
-      - "Dockerfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "common/**"
-      - "client/**"
-      - "process/**"
-      - "server/**"
-      - "service/**"
-      - ".github/workflows/docker-rcss-cluster.yml"
+      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub/**"
+      - ".github/workflows/docker-mc-hub.yml"
   pull_request:
     branches: [main]
     paths:
-      - "Dockerfile"
-      - "Cargo.toml"
-      - "Cargo.lock"
-      - "common/**"
-      - "client/**"
-      - "process/**"
-      - "server/**"
-      - "service/**"
-      - ".github/workflows/docker-rcss-cluster.yml"
+      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub/**"
+      - ".github/workflows/docker-mc-hub.yml"
   workflow_dispatch:
 
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
-  IMAGE_NAME: nexus-prime/rcss-cluster
+  IMAGE_NAME: nexus-prime/rcss-mc-base
 
 jobs:
   build-and-push:
@@ -63,6 +51,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
@@ -72,7 +61,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./Dockerfile
+          file: ./match_composer/Dockerfile.hub
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

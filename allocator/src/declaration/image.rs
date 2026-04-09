@@ -1,11 +1,12 @@
 use std::fmt;
+use std::fmt::Debug;
 use std::ops::Range;
 use std::str::FromStr;
 use serde::{de, Deserialize, Deserializer, Serialize};
 use serde::de::Visitor;
 use common::errors::{BuilderError, BuilderResult};
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Clone)]
 #[serde(transparent)]
 pub struct Image {
     #[serde(rename = "image")]
@@ -15,6 +16,14 @@ pub struct Image {
     provider: Range<usize>,
     #[serde(skip)]
     model: Range<usize>,
+}
+
+impl Debug for Image {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("Image")
+            .field(&self.raw)
+            .finish()
+    }
 }
 
 impl Image {

@@ -41,10 +41,15 @@ async fn main() {
         let meta = gs.object_meta.unwrap();
         MetaData::try_from(meta).unwrap()
     } else {
-        serde_json::from_str::<MetaData>(
+        let config_v1 = serde_json::from_str::<allocator::schema::v1::ConfigV1>(
             &std::fs::read_to_string(args.file.unwrap())
                 .expect("Failed to read config file")
-        ).expect("Failed to parse AgonesMetaData from config file")
+        ).expect("Failed to parse ConfigV1 from config file");
+        
+        MetaData::from(
+            allocator::MetaData::try_from(config_v1)
+                .expect("Failed to convert ConfigV1 to MetaData")
+        )
     };
 
     // let config = MatchComposerConfig::try_from(meta)

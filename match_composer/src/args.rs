@@ -22,7 +22,7 @@ pub struct Args {
     pub rcss_port: u16,
 
     /// Path to the hub/registry directory containing agent images
-    #[arg(long, env = "MC_HUB_PATH", default_value = "sidecars/match_composer/hub", help = "Path to the hub/registry directory containing agent images")]
+    #[arg(long, env = "MC_HUB_PATH", default_value = "./hub", help = "Path to the hub/registry directory containing agent images")]
     pub hub_path: PathBuf,
 
     /// Root directory for match logs
