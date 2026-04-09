@@ -2,7 +2,7 @@ name: Build & Push rcss_cluster Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, nightly]
     tags: ["v*"]
     paths:
       - "Dockerfile"
@@ -15,7 +15,7 @@ on:
       - "service/**"
       - ".github/workflows/docker-rcss-cluster.yml"
   pull_request:
-    branches: [main]
+    branches: [main, nightly]
     paths:
       - "Dockerfile"
       - "Cargo.toml"
@@ -67,6 +67,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
+            type=sha,prefix=nightly-,enable=${{ github.ref == 'refs/heads/nightly' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6

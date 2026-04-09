@@ -2,14 +2,14 @@ name: Build & Push mc-hub Base Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, nightly]
     tags: ["v*"]
     paths:
       - "match_composer/Dockerfile.hub"
       - "match_composer/hub/**"
       - ".github/workflows/docker-mc-hub.yml"
   pull_request:
-    branches: [main]
+    branches: [main, nightly]
     paths:
       - "match_composer/Dockerfile.hub"
       - "match_composer/hub/**"
@@ -56,6 +56,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
+            type=sha,prefix=nightly-,enable=${{ github.ref == 'refs/heads/nightly' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6

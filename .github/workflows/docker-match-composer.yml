@@ -2,7 +2,7 @@ name: Build & Push match_composer Image
 
 on:
   push:
-    branches: [main]
+    branches: [main, nightly]
     tags: ["v*"]
     paths:
       - "match_composer/src/**"
@@ -13,7 +13,7 @@ on:
       - "Cargo.lock"
       - ".github/workflows/docker-match-composer.yml"
   pull_request:
-    branches: [main]
+    branches: [main, nightly]
     paths:
       - "match_composer/src/**"
       - "match_composer/Cargo.toml"
@@ -26,7 +26,7 @@ on:
   workflow_run:
     workflows: ["Build & Push mc-hub Base Image"]
     types: [completed]
-    branches: [main]
+    branches: [main, nightly]
   workflow_dispatch:
 
 env:
@@ -73,6 +73,7 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=sha
+            type=sha,prefix=nightly-,enable=${{ github.ref == 'refs/heads/nightly' }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
