@@ -21,6 +21,18 @@ pub struct Args {
     #[arg(long, env = "SERVER_PORT", default_value = "6666", help = "RCSS wrapped server port for player communication")]
     pub rcss_port: u16,
 
+    /// RCSS server UDP port for player communication
+    #[arg(long, env = "SERVER_UDP_PORT_PLAYER", default_value = "6657", help = "RCSS server UDP port for player communication")]
+    pub rcss_player_port: u16,
+    
+    /// RCSS server UDP port for trainer communication
+    #[arg(long, env = "SERVER_UDP_PORT_TRAINER", default_value = "6658", help = "RCSS server UDP port for trainer communication")]
+    pub rcss_trainer_port: u16,
+
+    /// RCSS server UDP port for coach communication
+    #[arg(long, env = "SERVER_UDP_PORT_COACH", default_value = "6659", help = "RCSS server UDP port for coach communication")]
+    pub rcss_coach_port: u16,
+    
     /// Path to the hub/registry directory containing agent images
     #[arg(long, env = "MC_HUB_PATH", default_value = "./hub", help = "Path to the hub/registry directory containing agent images")]
     pub hub_path: PathBuf,
