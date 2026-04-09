@@ -22,7 +22,7 @@ spec:
             claimName: oss-nexus-prime-env-allocator-dev
       containers:
         - name: rcss-env-allocator
-          image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-allocator:latest
+          image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-allocator:nightly
           imagePullPolicy: IfNotPresent
           ports:
             - name: http
