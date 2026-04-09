@@ -11,11 +11,14 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use common::types::Side;
+
 pub use error::{Error, Result};
-use crate::metadata::MetaData;
-use crate::composer::{Match, MatchComposer, MatchComposerConfig};
+
 use crate::info::{GameInfo, TeamInfo};
 use crate::team::{TeamStatus};
+use crate::config::MatchComposerConfig;
+use crate::composer::{Match, MatchComposer};
+use crate::metadata::MetaData;
 
 enum ComposerState {
     Idle,

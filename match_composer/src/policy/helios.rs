@@ -10,9 +10,9 @@ impl Policy for PlayerPolicy<HeliosPlayerModel> {
 
         let mut cmd = self.image.cmd();
         cmd.arg("-h")
-            .arg(config.server.host.to_string())
+            .arg(config.server.ip().to_string())
             .arg("-p")
-            .arg(config.server.port.to_string())
+            .arg(config.server.port().to_string())
             .arg("-t")
             .arg(&config.team)
             .arg("-u")

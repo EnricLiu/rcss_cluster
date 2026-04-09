@@ -1,3 +1,4 @@
+use std::net::IpAddr;
 use serde::{Deserialize, Serialize};
 use crate::schema::Schema;
 use crate::schema::v1::AgentV1;
@@ -24,7 +25,7 @@ impl PolicyV1 {
         }
     }
 
-    pub fn ssp(image: String, grpc_host: std::net::Ipv4Addr, grpc_port: u16) -> PolicyV1 {
+    pub fn ssp(image: String, grpc_host: IpAddr, grpc_port: u16) -> PolicyV1 {
         PolicyV1::Agent(AgentV1::SSP {
             image,
             grpc_host,
