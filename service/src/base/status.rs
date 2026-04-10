@@ -1,4 +1,7 @@
-#[derive(Copy, Clone, Debug)]
+use serde::Serialize;
+
+#[derive(Serialize, Copy, Clone, Debug)]
+#[serde(rename_all = "snake_case")]
 #[repr(u8)]
 pub enum ServerStatus {
     Uninitialized,

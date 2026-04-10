@@ -2,24 +2,16 @@ use axum::extract::State;
 use axum::{Router, routing};
 use serde::Serialize;
 
-use service::metrics::ServiceStatusInfo;
 
 use super::{AppState, Response};
 
 #[derive(Serialize, Debug)]
 pub struct GetResponse {
-    pub service: ServiceStatusInfo,
-    pub conn_count: usize,
+    
 }
 
 async fn get(State(state): State<AppState>) -> Response {
-    let conn = state.conn_info().await;
-    let service = state.service.status_info().await;
-
-    Response::success(Some(GetResponse {
-        service,
-        conn_count: conn.len(),
-    }))
+    todo!()
 }
 
 pub fn route(path: &str) -> Router<AppState> {

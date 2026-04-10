@@ -255,4 +255,8 @@ impl AgonesService {
     fn health_check_interval(&self) -> Duration {
         self.cfg.health_check_interval
     }
+
+    pub fn agones_config(&self) -> &AgonesConfig {
+        &self.cfg
+    }
 }

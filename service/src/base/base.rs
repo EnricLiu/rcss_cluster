@@ -1,12 +1,16 @@
-use tokio::sync::{watch, RwLock};
 use log::{debug, info, warn};
+use tokio::sync::{watch, RwLock};
 use tokio::task::JoinHandle;
+use chrono::{DateTime, Utc};
+
 use common::command::{trainer, Command, CommandResult};
 use common::command::trainer::TrainerCommand;
 use process::{CoachedProcessSpawner, CommandCaller, ProcessConfig, ProcessStatus};
 
 use crate::{Error, Result};
 use super::{AddonProcess, BaseArgs, BaseConfig, ServerStatus};
+
+pub const MAX_TIMESTEP: u16 = 6000;
 
 #[derive(Debug)]
 pub enum OptionedProcess {
@@ -40,6 +44,10 @@ impl OptionedProcess {
 
     pub fn is_running(&self) -> bool {
         matches!(self, OptionedProcess::Running(_))
+    }
+
+    pub fn started_at(&self) -> Option<DateTime<Utc>> {
+        self.process().map(|p| p.started_at())
     }
 }
 
@@ -215,11 +223,11 @@ impl BaseService {
                     let next_status = match (get_status(&status_rx), timestep) {
                         (ServerStatus::Uninitialized, Some(0)) => ServerStatus::Idle,
                         (ServerStatus::Uninitialized, Some(_)) => ServerStatus::Simulating,
-                        (ServerStatus::Idle, Some(t)) if t > 0 && t < 6000 => {
+                        (ServerStatus::Idle, Some(t)) if t > 0 && t < MAX_TIMESTEP => {
                             ServerStatus::Simulating
                         }
-                        (ServerStatus::Idle, Some(t)) if t >= 6000 => ServerStatus::Finished,
-                        (ServerStatus::Simulating, Some(t)) if t >= 6000 => ServerStatus::Finished,
+                        (ServerStatus::Idle, Some(t)) if t >= MAX_TIMESTEP => ServerStatus::Finished,
+                        (ServerStatus::Simulating, Some(t)) if t >= MAX_TIMESTEP => ServerStatus::Finished,
                         _ => continue,
                     };
 
@@ -257,7 +265,7 @@ impl BaseService {
     ) {
         let mut cancel_rx = cancel_tx.subscribe();
 
-        assert!(half_time > 0 && half_time < 6000,
+        assert!(half_time > 0 && half_time < MAX_TIMESTEP,
             "[BaseService] kick_off_half_time_task: half_time must be between 1 and 5999");
 
         loop {
@@ -346,7 +354,15 @@ impl BaseService {
         self.process.read().await.process().map(|p| p.time_watch())
     }
 
+    pub async fn started_at(&self) -> Option<DateTime<Utc>> {
+        self.process.read().await.started_at()
+    }
+
     pub fn config(&self) -> &ProcessConfig {
         &self.spawner.process.config
+    }
+
+    pub fn base_config(&self) -> &BaseConfig {
+        &self.config
     }
 }

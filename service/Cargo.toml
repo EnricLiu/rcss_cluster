@@ -6,7 +6,7 @@ edition = "2024"
 [features]
 default = []
 standalone = []
-agones = ["dep:agones", "dep:reqwest", "dep:serde", "dep:serde_json"]
+agones = ["dep:agones", "dep:reqwest", "dep:serde_json"]
 
 [dependencies]
 common = { path = "../common" }
@@ -14,7 +14,7 @@ process = { path = "../process" }
 
 agones = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
-serde = { workspace = true, optional = true }
+serde.workspace = true
 serde_json = { workspace = true, optional = true }
 clap.workspace = true
 tokio-util = "0.7"
@@ -23,3 +23,5 @@ thiserror = "2"
 futures.workspace = true
 tokio.workspace = true
 log.workspace = true
+
+chrono.workspace = true
