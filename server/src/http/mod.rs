@@ -1,7 +1,7 @@
 mod command;
 mod control;
 mod gateway;
-mod health;
+mod metrics;
 
 use crate::AppState;
 use crate::error::Error;
@@ -20,6 +20,7 @@ pub fn route(path: &str, app_state: AppState) -> Router {
         .merge(command::route("/"))
         .merge(control::route("/control"))
         .merge(gateway::route("/gateway"))
+        .merge(metrics::route("/metrics"))
         .fallback(fallback_404)
         .with_state(app_state);
 

@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, Weak};
 
@@ -5,7 +6,7 @@ use dashmap::DashMap;
 use log::{debug, info};
 use uuid::Uuid;
 
-use common::client::{Client, Config as ClientConfig};
+use common::client::{Client, Info as ClientInfo, Config as ClientConfig};
 
 #[derive(Clone, Default)]
 pub struct SessionManager {
@@ -53,5 +54,37 @@ impl SessionManager {
         if self.sessions.remove(id).is_some() {
             debug!("[SessionManager] Removed session reference for {}", id);
         }
+    }
+
+    pub fn upgrade(&self, id: &Uuid) -> Option<Arc<Client>> {
+        let mut ret = None;
+        if let Some(entry) = self.sessions.get(id) {
+            ret = entry.upgrade()
+        }
+        
+        if ret.is_none() {
+            self.sessions.remove(id);
+        }
+        
+        ret
+    }
+
+    fn upgrade_all_iter(&self) -> impl Iterator<Item = (Uuid, Arc<Client>)> + '_ {
+        // essential collect here to prevent locking
+        let entries: Vec<_> = self.sessions.iter().map(|en| en.key().clone()).collect();
+
+        entries.into_iter()
+            .filter_map(|uuid| self.upgrade(&uuid).map(|client| (uuid, client)))
+    }
+    
+    pub fn upgrade_all(&self) -> HashMap<Uuid, Arc<Client>> {
+        self.upgrade_all_iter().collect()
+    }
+    
+    pub async fn conn_info(&self) -> HashMap<Uuid, ClientInfo> {
+        let clients = self.upgrade_all_iter()
+            .map(|(uuid, client)| async move { (uuid, client.info().await) });
+        
+        futures::future::join_all(clients).await.into_iter().collect()
     }
 }

@@ -1,10 +1,13 @@
 use std::sync::Arc;
+use std::collections::HashMap;
 
 use log::{debug, error, info, warn};
+use uuid::Uuid;
 use tokio::sync::{oneshot, watch};
 use chrono::{Utc, Duration};
-
+use common::client::Info as ClientInfo;
 use service::Service;
+
 use crate::proxy::manager::SessionManager;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,5 +106,11 @@ impl AppState {
         }
 
         status_tx.send(AppStateStatus::Stopped).ok();
+    }
+}
+
+impl AppState {
+    pub async fn conn_info(&self) -> HashMap<Uuid, ClientInfo> {
+        self.session.conn_info().await
     }
 }
