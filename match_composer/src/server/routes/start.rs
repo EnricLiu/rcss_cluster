@@ -1,6 +1,7 @@
 use axum::extract::State;
 use axum::{Json, Router, routing};
 use serde::{Deserialize, Serialize};
+use common::axum::response::Response;
 use crate::metadata::MetaData;
 use super::{AppState, Error};
 
@@ -18,10 +19,14 @@ pub struct PostResponse {
 async fn post(
     State(state): State<AppState>,
     req: Option<Json<PostRequest>>,
-) -> Result<Json<PostResponse>, Error> {
+) -> Response  {
     let config = req.and_then(|Json(r)| r.config);
-    state.start(config).await?;
-    Ok(Json(PostResponse {
+    let _res = match state.start(config).await {
+        Err(e) => return e.into(),
+        Ok(res) => res,
+    };
+
+    Response::success(Some(PostResponse {
 
     }))
 }

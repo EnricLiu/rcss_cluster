@@ -1,11 +1,11 @@
-use axum::{routing, Json, Router};
+use axum::{routing, Router};
 use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
-
+use common::axum::response::Response;
 use common::types::Side;
 
 use crate::info::TeamInfo;
-use super::{AppState, Result, Error};
+use super::{AppState, Error};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetRequest {
@@ -22,14 +22,14 @@ pub struct GetResponse {
 async fn get(
     State(state): State<AppState>,
     Query(req): Query<GetRequest>,
-) -> Result<Json<GetResponse>> {
+) -> Response {
     let side = req.side;
     let info = state.team_info(side).await;
     
     match info {
-        Some(info) => Ok(GetResponse { info }.into()),
-        None => Err(Error::BadRequest("not running".to_string())),
-        _ => Err(Error::Internal("wtf".to_string())),
+        Some(info) => Response::success(Some(GetResponse { info })),
+        None => Error::BadRequest("not running".to_string()).into(),
+        _ => Error::Internal("wtf".to_string()).into(),
     }
 }
 

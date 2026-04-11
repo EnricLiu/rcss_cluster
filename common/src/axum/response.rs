@@ -64,6 +64,18 @@ impl Response {
             ..self
         }
     }
+
+    pub fn is_success(&self) -> bool {
+        self.success
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn payload(&self) -> Option<&Value> {
+        self.payload.as_ref()
+    }
 }
 
 impl IntoResponse for Response {
