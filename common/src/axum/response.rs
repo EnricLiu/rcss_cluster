@@ -88,6 +88,37 @@ impl Response {
     pub fn payload(&self) -> &Value {
         &self.payload
     }
+    
+    pub fn into_payload(self) -> Value {
+        self.payload
+    }
+}
+
+pub struct GenericResponse<P: Serialize + for<'de> Deserialize<'de>> {
+    pub id: u32,
+    pub success: bool,
+    pub payload: P,
+    pub created_at: DateTime<Utc>,
+}
+
+impl<P: Serialize + for<'de> Deserialize<'de>> GenericResponse<P> {
+    pub fn try_from(resp: Response) -> serde_json::Result<Self> {
+        let payload = serde_json::from_value(resp.payload)?;
+        Ok(Self {
+            id: resp.id,
+            success: resp.success,
+            payload,
+            created_at: resp.created_at,
+        })
+    }
+}
+
+impl Response {
+    pub fn try_into_generic<P>(self) -> serde_json::Result<GenericResponse<P>>
+    where P: Serialize + for<'de> Deserialize<'de>
+    {
+        GenericResponse::try_from(self)
+    }
 }
 
 impl IntoResponse for Response {

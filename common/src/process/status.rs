@@ -167,24 +167,8 @@ impl ProcessStatusKind {
     }
 }
 
-impl Serialize for ProcessStatusKind {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut ser = serializer.serialize_map(None)?;
-        
-        ser.serialize_entry("status", self.name())?;
-        if let Some(error) = self.as_err() {
-            ser.serialize_entry("error", &error)?;
-        }
-
-        ser.end()
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ProcessStatusKindSerDes {
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub enum ProcessStatusKindSerdes {
     Init,
     Booting,
     Running,
@@ -192,45 +176,44 @@ pub enum ProcessStatusKindSerDes {
     Dead { reason: String },
 }
 
-impl From<ProcessStatusKind> for ProcessStatusKindSerDes {
+impl From<ProcessStatusKind> for ProcessStatusKindSerdes {
     fn from(kind: ProcessStatusKind) -> Self {
         match kind {
-            ProcessStatusKind::Init => ProcessStatusKindSerDes::Init,
-            ProcessStatusKind::Booting => ProcessStatusKindSerDes::Booting,
-            ProcessStatusKind::Running => ProcessStatusKindSerDes::Running,
-            ProcessStatusKind::Returned(status) => ProcessStatusKindSerDes::Returned { 
-                code: status.code().unwrap_or(-1), 
+            ProcessStatusKind::Init => ProcessStatusKindSerdes::Init,
+            ProcessStatusKind::Booting => ProcessStatusKindSerdes::Booting,
+            ProcessStatusKind::Running => ProcessStatusKindSerdes::Running,
+            ProcessStatusKind::Returned(status) => ProcessStatusKindSerdes::Returned {
+                code: status.code().unwrap_or(-1),
                 success: status.success(),
             },
-            ProcessStatusKind::Dead(reason) => ProcessStatusKindSerDes::Dead { reason },
+            ProcessStatusKind::Dead(reason) => ProcessStatusKindSerdes::Dead { reason },
         }
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProcessStatusSerDes {
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ProcessStatusSerdes {
     #[serde(flatten)]
-    pub kind: ProcessStatusKindSerDes,
+    pub kind: ProcessStatusKindSerdes,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct ProcessStatusSerDesVerbose {
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct ProcessStatusSerdesVerbose {
     #[serde(flatten)]
-    pub status: ProcessStatusSerDes,
+    pub status: ProcessStatusSerdes,
     pub stdout: Vec<String>,
     pub stderr: Vec<String>,
 }
 
-
 impl<const OUT: usize, const ERR: usize> ProcessStatus<OUT, ERR> {
-    pub fn serialize(&self) -> ProcessStatusSerDes {
-        ProcessStatusSerDes {
+    pub fn serialize(&self) -> ProcessStatusSerdes {
+        ProcessStatusSerdes {
             kind: self.kind.clone().into(),
         }
     }
 
-    pub async fn serialize_verbose(&self) -> ProcessStatusSerDesVerbose {
-        ProcessStatusSerDesVerbose {
+    pub async fn serialize_verbose(&self) -> ProcessStatusSerdesVerbose {
+        ProcessStatusSerdesVerbose {
             status: self.serialize(),
             stdout: self.stdout_logs().await,
             stderr: self.stderr_logs().await,

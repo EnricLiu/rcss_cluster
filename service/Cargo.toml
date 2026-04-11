@@ -9,8 +9,9 @@ standalone = []
 agones = ["dep:agones", "dep:reqwest", "dep:serde", "dep:serde_json"]
 
 [dependencies]
-common = { path = "../common" }
+common = { path = "../common", features = ["axum"] }
 process = { path = "../process" }
+match_composer = { path = "../match_composer" }
 
 agones = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }

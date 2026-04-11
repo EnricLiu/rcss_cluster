@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use common::axum::response::Response;
 use super::super::{AppState, Error};
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PostRequest {
+
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PostResponse {
