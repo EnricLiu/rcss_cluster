@@ -19,9 +19,9 @@ async fn get(State(state): State<AppState>) -> Response {
         Some(game) => (true, Some(game.info())),
         None => (false, None),
     };
-    Response::success(Some(GetResponse {
+    Response::success(GetResponse {
         in_match, info
-    }))
+    })
 }
 
 pub fn route(path: &str) -> Router<AppState> {

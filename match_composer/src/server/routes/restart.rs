@@ -27,9 +27,7 @@ async fn post(
         Ok(res) => res,
     };
 
-    Response::success(Some(PostResponse {
-
-    }))
+    Response::success(PostResponse {})
 }
 
 pub fn route(path: &str) -> Router<AppState> {

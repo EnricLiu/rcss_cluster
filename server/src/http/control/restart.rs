@@ -12,7 +12,7 @@ pub struct PostRequest {
 async fn post(State(state): State<AppState>, Json(req): Json<PostRequest>) -> Response {
     let res = state.service.restart(req.force).await;
     match res {
-        Ok(_) => Response::success::<()>(None),
+        Ok(_) => Response::ok(),
         Err(e) => Response::error("Restart Failed", &e.to_string()),
     }
 }

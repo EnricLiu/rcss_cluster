@@ -22,7 +22,7 @@ async fn post(
 ) -> Response {
     let res = state.k8s.create_fleet(req.name, req.conf, req.version).await;
     match res {
-        Ok(_) => Response::success::<()>(None),
+        Ok(_) => Response::success(PostResponse {}),
         Err(err) => Response::error("TODO", &err.to_string()),
     }
 }

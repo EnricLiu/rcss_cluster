@@ -27,7 +27,7 @@ async fn get(
     let info = state.team_info(side).await;
     
     match info {
-        Some(info) => Response::success(Some(GetResponse { info })),
+        Some(info) => Response::success(GetResponse { info }),
         None => Error::BadRequest("not running".to_string()).into(),
         _ => Error::Internal("wtf".to_string()).into(),
     }

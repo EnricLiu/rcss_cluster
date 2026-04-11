@@ -20,12 +20,12 @@ pub struct Response {
 
     id: u32,
     success: bool,
-    payload: Option<Value>,
+    payload: Value,
     created_at: DateTime<Utc>,
 }
 
 impl Response {
-    pub fn new(id: u32, success: bool, status_code: StatusCode, payload: Option<Value>) -> Self {
+    pub fn new(id: u32, success: bool, status_code: StatusCode, payload: Value) -> Self {
         Self {
             status_code,
 
@@ -35,23 +35,35 @@ impl Response {
             created_at: Utc::now(),
         }
     }
+    
+    pub fn ok() -> Self {
+        Self::new(get_id(), true, StatusCode::OK, Value::Null)
+    }
 
-    pub fn success<T: Serialize>(payload: Option<T>) -> Self {
-        let payload = payload.map(|v| json!(v));
-        Self::new(get_id(), true, StatusCode::OK, payload)
+    pub fn success<T: Serialize>(payload: T) -> Self {
+        Self::new(
+            get_id(),
+            true,
+            StatusCode::OK,
+            serde_json::to_value(payload).expect("Failed to serialize payload")
+        )
     }
 
     pub fn code(status_code: StatusCode) -> Self {
-        Self::new(get_id(), status_code == StatusCode::OK, status_code, None)
+        Self::new(get_id(), status_code == StatusCode::OK, status_code, Value::Null)
     }
 
     pub fn code_u16(status_code: u16) -> Self {
         Self::code(StatusCode::from_u16(status_code).unwrap())
     }
 
-    pub fn fail<T: Serialize>(status_code: StatusCode, payload: Option<T>) -> Self {
-        let payload = payload.map(|v| json!(v));
-        Self::new(get_id(), false, status_code, payload)
+    pub fn fail<T: Serialize>(status_code: StatusCode, payload: T) -> Self {
+        Self::new(
+            get_id(),
+            false,
+            status_code,
+            serde_json::to_value(payload).expect("Failed to serialize payload")
+        )
     }
 
     pub fn error(err: &str, desc: &str) -> Self {
@@ -73,8 +85,8 @@ impl Response {
         self.created_at
     }
 
-    pub fn payload(&self) -> Option<&Value> {
-        self.payload.as_ref()
+    pub fn payload(&self) -> &Value {
+        &self.payload
     }
 }
 
@@ -94,7 +106,7 @@ where
 {
     fn from(value: Result<T, E>) -> Self {
         match value {
-            Ok(v) => Response::success(Some(json!(v))),
+            Ok(v) => Response::success(serde_json::to_value(v).expect("Failed to serialize payload")),
             Err(e) => e.into(),
         }
     }
