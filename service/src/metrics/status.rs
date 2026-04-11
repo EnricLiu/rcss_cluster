@@ -11,6 +11,11 @@ pub struct ServiceStatusInfo {
     pub started_at: Option<DateTime<Utc>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uptime_ms: Option<i64>,
+    /// Live PID of the rcssserver process; `None` if not running or already exited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_pid: Option<u32>,
+    /// rcssserver process lifecycle status (init / booting / running / returned / dead / uninitialized).
+    pub process_status: &'static str,
 }
 
 impl crate::Service {
@@ -26,6 +31,8 @@ impl crate::Service {
             timestep,
             started_at,
             uptime_ms,
+            process_pid: self.process_pid().await,
+            process_status: self.process_status_name().await,
         }
     }
 }

@@ -17,7 +17,7 @@ impl ServerStatus {
     }
     
     pub fn is_healthy(&self) -> bool {
-        matches!(self, ServerStatus::Simulating | ServerStatus::Idle)
+        matches!(self, ServerStatus::Simulating | ServerStatus::Idle | ServerStatus::Finished)
     }
 
     pub fn is_idle(&self) -> bool {

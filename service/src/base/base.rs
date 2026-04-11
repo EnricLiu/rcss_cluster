@@ -49,6 +49,16 @@ impl OptionedProcess {
     pub fn started_at(&self) -> Option<DateTime<Utc>> {
         self.process().map(|p| p.started_at())
     }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.process().and_then(|p| p.pid())
+    }
+
+    pub fn process_status_name(&self) -> &'static str {
+        self.process()
+            .map(|p| p.process_status_name())
+            .unwrap_or("uninitialized")
+    }
 }
 
 
@@ -364,5 +374,13 @@ impl BaseService {
 
     pub fn base_config(&self) -> &BaseConfig {
         &self.config
+    }
+
+    pub async fn process_pid(&self) -> Option<u32> {
+        self.process.read().await.pid()
+    }
+
+    pub async fn process_status_name(&self) -> &'static str {
+        self.process.read().await.process_status_name()
     }
 }

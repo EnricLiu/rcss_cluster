@@ -75,4 +75,12 @@ impl AddonProcess {
     pub fn started_at(&self) -> DateTime<Utc> {
         self.started_at
     }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.process.process().pid()
+    }
+
+    pub fn process_status_name(&self) -> &'static str {
+        self.process.process().status_now().kind.name()
+    }
 }

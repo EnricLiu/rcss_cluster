@@ -1,5 +1,6 @@
 use axum::extract::State;
 use axum::{Json, Router, routing};
+use log::debug;
 use common::command::Command;
 use common::command::trainer::*;
 use serde::{Deserialize, Serialize};
@@ -30,7 +31,6 @@ pub async fn post<C: Command<Kind = TrainerCommand>>(
 
     let result: CommandResponse<C> = result.expect("WTF").into();
     let resp = PostResponse(result);
-    println!("{:?}", serde_json::to_string(&resp));
     Json(Response::success(Some(resp)))
 }
 

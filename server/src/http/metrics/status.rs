@@ -10,6 +10,8 @@ use super::{AppState, Response};
 pub struct GetResponse {
     pub service: ServiceStatusInfo,
     pub conn_count: usize,
+    #[cfg(feature = "agones")]
+    pub agones: service::metrics::AgonesRuntimeInfo,
 }
 
 async fn get(State(state): State<AppState>) -> Response {
@@ -19,6 +21,8 @@ async fn get(State(state): State<AppState>) -> Response {
     Response::success(Some(GetResponse {
         service,
         conn_count: conn.len(),
+        #[cfg(feature = "agones")]
+        agones: state.service.agones_runtime_info().await,
     }))
 }
 
