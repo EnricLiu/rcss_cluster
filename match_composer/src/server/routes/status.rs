@@ -1,11 +1,11 @@
 use axum::extract::State;
 use axum::{Json, Router, routing};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use crate::info::GameInfo;
 use super::super::AppState;
 
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetResponse {
     pub in_match: bool,
     #[serde(flatten)]

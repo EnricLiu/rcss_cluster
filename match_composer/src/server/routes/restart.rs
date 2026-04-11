@@ -4,23 +4,23 @@ use serde::{Deserialize, Serialize};
 use crate::metadata::MetaData;
 use super::{AppState, Error};
 
-#[derive(Deserialize)]
-pub struct RestartRequest {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PostRequest {
     #[serde(flatten)]
     pub config: Option<MetaData>,
 }
 
-#[derive(Serialize)]
-pub struct RestartResponse {
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PostResponse {
     
 }
 
 async fn post(
     State(state): State<AppState>,
-    Json(req): Json<RestartRequest>,
-) -> Result<Json<RestartResponse>, Error> {
+    Json(req): Json<PostRequest>,
+) -> Result<Json<PostResponse>, Error> {
     state.restart(req.config).await?;
-    Ok(Json(RestartResponse {
+    Ok(Json(PostResponse {
         
     }))
 }

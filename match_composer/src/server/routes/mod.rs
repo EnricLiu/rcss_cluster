@@ -1,8 +1,8 @@
-mod restart;
-mod start;
-mod status;
-mod stop;
-mod team;
+pub mod stop;
+pub mod start;
+pub mod status;
+pub mod restart;
+pub mod team;
 
 use axum::Router;
 use super::{AppState, Result, Error};

@@ -7,13 +7,13 @@ use common::types::Side;
 use crate::info::TeamInfo;
 use super::{AppState, Result, Error};
 
-#[derive(Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetRequest {
     side: Side,
 }
 
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetResponse {
     #[serde(flatten)]
     info: TeamInfo
