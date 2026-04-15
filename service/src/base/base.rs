@@ -7,10 +7,10 @@ use common::command::{trainer, Command, CommandResult};
 use common::command::trainer::TrainerCommand;
 use process::{CoachedProcessSpawner, CommandCaller, ProcessConfig, ProcessStatus};
 
+use crate::GAME_END_TIMESTEP;
 use crate::{Error, Result};
 use super::{AddonProcess, BaseArgs, BaseConfig, ServerStatus};
 
-pub const MAX_TIMESTEP: u16 = 6000;
 
 #[derive(Debug)]
 pub enum OptionedProcess {
@@ -233,11 +233,11 @@ impl BaseService {
                     let next_status = match (get_status(&status_rx), timestep) {
                         (ServerStatus::Uninitialized, Some(0)) => ServerStatus::Idle,
                         (ServerStatus::Uninitialized, Some(_)) => ServerStatus::Simulating,
-                        (ServerStatus::Idle, Some(t)) if t > 0 && t < MAX_TIMESTEP => {
+                        (ServerStatus::Idle, Some(t)) if t > 0 && t < GAME_END_TIMESTEP => {
                             ServerStatus::Simulating
                         }
-                        (ServerStatus::Idle, Some(t)) if t >= MAX_TIMESTEP => ServerStatus::Finished,
-                        (ServerStatus::Simulating, Some(t)) if t >= MAX_TIMESTEP => ServerStatus::Finished,
+                        (ServerStatus::Idle, Some(t)) if t >= GAME_END_TIMESTEP => ServerStatus::Finished,
+                        (ServerStatus::Simulating, Some(t)) if t >= GAME_END_TIMESTEP => ServerStatus::Finished,
                         _ => continue,
                     };
 
@@ -275,7 +275,7 @@ impl BaseService {
     ) {
         let mut cancel_rx = cancel_tx.subscribe();
 
-        assert!(half_time > 0 && half_time < MAX_TIMESTEP,
+        assert!(half_time > 0 && half_time < GAME_END_TIMESTEP,
             "[BaseService] kick_off_half_time_task: half_time must be between 1 and 5999");
 
         loop {

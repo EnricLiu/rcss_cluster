@@ -1,5 +1,5 @@
 use serde::Serialize;
-use crate::base::MAX_TIMESTEP;
+use crate::GAME_END_TIMESTEP;
 
 #[derive(Serialize, Debug, Clone)]
 pub struct RcssConfigInfo {
@@ -38,7 +38,7 @@ impl crate::Service {
             keepaway_log_dir: cfg.server.keepaway_log_dir,
             half_time_auto_start_timestep: base_cfg.half_time_auto_start,
             always_log_stdout: base_cfg.always_log_stdout,
-            service_finish_timestep: MAX_TIMESTEP,
+            service_finish_timestep: GAME_END_TIMESTEP,
         }
     }
 }
