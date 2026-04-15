@@ -21,7 +21,7 @@ async fn post(State(state): State<AppState>, req: Option<Json<PostRequest>>) -> 
     
     let res = state.service.shutdown().await;
     match res {
-        Ok(_) => Response::success::<()>(None),
+        Ok(_) => Response::ok(),
         Err(e) => Response::error("Restart Failed", &e.to_string()),
     }
 }
