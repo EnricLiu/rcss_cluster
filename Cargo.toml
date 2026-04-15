@@ -1,7 +1,6 @@
 [workspace]
 members = [
     "common",
-    "client",
     "process",
     "server",
     "service",
