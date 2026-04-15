@@ -49,6 +49,10 @@ impl Response {
         )
     }
 
+    fn success_value(payload: Value) -> Self {
+        Self::new(get_id(), true, StatusCode::OK, payload)
+    }
+
     pub fn code(status_code: StatusCode) -> Self {
         Self::new(get_id(), status_code == StatusCode::OK, status_code, Value::Null)
     }
@@ -137,7 +141,7 @@ where
 {
     fn from(value: Result<T, E>) -> Self {
         match value {
-            Ok(v) => Response::success(serde_json::to_value(v).expect("Failed to serialize payload")),
+            Ok(v) => Response::success_value(serde_json::to_value(v).expect("Failed to serialize payload")),
             Err(e) => e.into(),
         }
     }
