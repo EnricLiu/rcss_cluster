@@ -1,13 +1,13 @@
 use std::ops::Deref;
 use std::net::SocketAddr;
 use std::path::PathBuf;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use common::errors::{BuilderError, BuilderResult};
 use common::types::Side;
 use allocator::declaration::player::PlayerKind as PlayerKindDeclaration;
 
 use crate::config::RcssServerConfig;
-use crate::declaration::{HostPort, ImageDeclaration, PlayerDeclaration, Unum};
+use crate::declaration::{ImageDeclaration, PlayerDeclaration, Unum};
 
 #[derive(Debug, Clone)]
 pub enum PlayerModel {
@@ -26,7 +26,7 @@ impl Deref for PlayerModel {
     }
 }
 
-#[derive(Serialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum PlayerKind {
     Helios,
     Ssp,

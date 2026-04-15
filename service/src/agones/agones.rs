@@ -1,15 +1,32 @@
 use std::fmt::Display;
 use std::pin::Pin;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 use log::{debug, info, warn};
 use tokio::sync::{mpsc, watch, RwLock};
-use tokio_util::sync::CancellationToken;
+use chrono::{DateTime, Utc};
 use agones::Sdk as AgonesSdk;
+use tokio_util::sync::CancellationToken;
 use crate::{Error, Result, ServerStatus};
-use crate::agones::config::{AgonesAutoShutdownConfig};
+use crate::agones::config::AgonesAutoShutdownConfig;
 use super::{AgonesConfig, AgonesArgs, BaseService};
 use super::match_composer::MatchComposerClient;
+
+#[derive(Debug, Default)]
+pub struct RuntimeCounters {
+    pub health_ping_sent: AtomicU64,
+    pub health_ping_skipped: AtomicU64,
+    pub mc_poll_success: AtomicU64,
+    pub mc_poll_failure: AtomicU64,
+}
+
+#[derive(Debug, Clone)]
+pub struct McLastPoll {
+    pub in_match: bool,
+    pub error: Option<String>,
+    pub polled_at: DateTime<Utc>,
+}
 
 pub struct AgonesService {
     sdk:    Arc<RwLock<AgonesSdk>>,
@@ -21,6 +38,9 @@ pub struct AgonesService {
 
     shutdown_tx: watch::Sender<Option<()>>,
     shutdown_rx: watch::Receiver<Option<()>>,
+
+    pub counters: Arc<RuntimeCounters>,
+    pub mc_last_poll: Arc<RwLock<Option<McLastPoll>>>,
 }
 
 impl std::ops::Deref for AgonesService {
@@ -76,11 +96,13 @@ impl AgonesService {
         let cancel_token = CancellationToken::new();
         let (shutdown_tx, shutdown_rx) = watch::channel(None);
 
-        Self { sdk, service, cfg: config, mc_client, cancel_token, shutdown_tx, shutdown_rx }
+        Self { sdk, service, cfg: config, mc_client, cancel_token, shutdown_tx, shutdown_rx,
+            counters: Arc::new(RuntimeCounters::default()),
+            mc_last_poll: Arc::new(RwLock::new(None)),
+        }
     }
 
     pub async fn spawn(&self) -> Result<()> {
-        // >- sdk WRITE lock -<
         let mut sdk_guard = self.sdk.write().await;
 
         self.service.spawn(false).await?;
@@ -91,7 +113,8 @@ impl AgonesService {
             Self::run_health_check(
                 status_rx, health_tx,
                 self.health_check_interval(),
-                self.cancel_token.clone()
+                self.cancel_token.clone(),
+                self.counters.clone(),
             )
         );
 
@@ -123,6 +146,8 @@ impl AgonesService {
                 mc.clone(),
                 self.cancel_token.clone(),
                 poll_interval,
+                self.counters.clone(),
+                self.mc_last_poll.clone(),
             ));
         }
 
@@ -138,6 +163,7 @@ impl AgonesService {
         health_tx: mpsc::Sender<()>,
         duration: Duration,
         cancel_token: CancellationToken,
+        counters: Arc<RuntimeCounters>,
     ) -> () {
         let mut ticker = tokio::time::interval(duration);
 
@@ -152,7 +178,8 @@ impl AgonesService {
                     {
                         let status = status_rx.borrow();
                         if !status.is_healthy() {
-                            debug!("[AgonesService] Skipping health ping: Server unhealthy [{status:?}]");
+                            counters.health_ping_skipped.fetch_add(1, Ordering::Relaxed);
+                            info!("[AgonesService] Skipping health ping: Server unhealthy [{status:?}]");
                             continue;
                         }
                     }
@@ -162,6 +189,7 @@ impl AgonesService {
                         warn!("[AgonesService] Health check task ending: Health channel closed");
                         break;
                     }
+                    counters.health_ping_sent.fetch_add(1, Ordering::Relaxed);
                 }
             } => {}
         }
@@ -228,6 +256,8 @@ impl AgonesService {
         client: MatchComposerClient,
         cancel_token: CancellationToken,
         interval: Duration,
+        counters: Arc<RuntimeCounters>,
+        mc_last_poll: Arc<RwLock<Option<McLastPoll>>>,
     ) {
         let mut ticker = tokio::time::interval(interval);
         info!("[AgonesService] MatchComposer status polling started (interval: {}ms)", interval.as_millis());
@@ -239,12 +269,26 @@ impl AgonesService {
                     break;
                 }
                 _ = ticker.tick() => {
+                    let now = Utc::now();
                     match client.status().await {
                         Ok(status) => {
+                            counters.mc_poll_success.fetch_add(1, Ordering::Relaxed);
+                            *mc_last_poll.write().await = Some(McLastPoll {
+                                in_match: status.in_match,
+                                polled_at: now,
+                                error: None,
+                            });
                             debug!("[AgonesService] MatchComposer status: in_match={}", status.in_match);
                         }
                         Err(e) => {
-                            warn!("[AgonesService] MatchComposer status poll failed: {e}");
+                            counters.mc_poll_failure.fetch_add(1, Ordering::Relaxed);
+                            let err_msg = e.to_string();
+                            *mc_last_poll.write().await = Some(McLastPoll {
+                                in_match: false,
+                                polled_at: now,
+                                error: Some(err_msg.clone()),
+                            });
+                            warn!("[AgonesService] MatchComposer status poll failed: {err_msg}");
                         }
                     }
                 }
@@ -254,5 +298,19 @@ impl AgonesService {
 
     fn health_check_interval(&self) -> Duration {
         self.cfg.health_check_interval
+    }
+
+    pub fn agones_config(&self) -> &AgonesConfig {
+        &self.cfg
+    }
+
+    /// Whether the cancellation token has been triggered (entering shutdown path).
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel_token.is_cancelled()
+    }
+
+    /// Whether the auto-shutdown signal has fired (e.g. game finished).
+    pub fn is_shutdown_signalled(&self) -> bool {
+        self.shutdown_rx.borrow().is_some()
     }
 }

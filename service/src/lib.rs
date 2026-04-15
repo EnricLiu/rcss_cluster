@@ -8,6 +8,7 @@ compile_error!("Either feature 'agones' or 'standalone' must be enabled.");
 mod addons;
 mod base;
 pub mod error;
+pub mod metrics;
 #[cfg(feature = "standalone")]
 mod standalone;
 #[cfg(feature = "agones")]

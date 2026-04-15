@@ -1,5 +1,5 @@
-mod error;
-mod routes;
+pub mod error;
+pub mod routes;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -13,6 +13,7 @@ use tokio::task::JoinHandle;
 use common::types::Side;
 
 pub use error::{Error, Result};
+pub use routes as api;
 
 use crate::info::{GameInfo, TeamInfo};
 use crate::team::{TeamStatus};

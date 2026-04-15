@@ -1,18 +1,18 @@
-#[cfg(feature = "standalone")]
-mod restart;
-mod shutdown;
+mod status;
+mod conn;
+mod config;
 
 use super::{AppState, Response};
 use axum::Router;
 
 pub fn route(path: &str) -> Router<AppState> {
     let inner = Router::new();
-
-    #[cfg(feature = "standalone")]
-    let inner = inner.merge(restart::route("/restart"));
     
     let inner = inner
-        .merge(shutdown::route("/shutdown"));
+        .merge(status::route("/health"))
+        .merge(status::route("/status"))
+        .merge(config::route("/config"))
+        .merge(conn::route("/conn"));
 
     if path == "/" {
         inner

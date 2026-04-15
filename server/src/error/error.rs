@@ -42,7 +42,7 @@ impl From<Error> for Response {
         match e {
             Error::Genetic { value } => Response::fail(StatusCode::OK, value),
             Error::Service { source } => ServiceError(&source).into(),
-            _ => Response::fail::<()>(e.status_code(), None),
+            _ => Response::fail(e.status_code(), Value::Null),
         }
     }
 }

@@ -49,7 +49,7 @@ async fn get(
         }
     };
 
-    Response::success(Some(res))
+    Response::success(res)
 }
 
 pub fn route(path: &str) -> Router<AppState> {

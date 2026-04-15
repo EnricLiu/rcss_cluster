@@ -5,7 +5,7 @@ edition = "2024"
 
 [features]
 default = []
-axum = ["dep:axum", "chrono"]
+axum = ["dep:axum"]
 
 [dependencies]
 strum_macros = "0.27"
@@ -20,9 +20,9 @@ uuid.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 env_logger.workspace = true
+chrono.workspace = true
 thiserror.workspace = true
 
 axum = { workspace = true, optional = true }
-chrono = { workspace = true, optional = true }
 
 nix = { version = "0.30.1", features = ["process", "signal"] }

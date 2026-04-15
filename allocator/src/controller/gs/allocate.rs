@@ -34,13 +34,13 @@ pub async fn post(
         schema.clone(),
     ).await.expect("TODO");
 
-    Response::success(Some(
+    Response::success(
         PostResponse {
             name: res.name,
             host: res.host,
             ports: res.ports,
         }
-    ))
+    )
 }
 
 pub fn route(path: &str) -> Router<AppState> {

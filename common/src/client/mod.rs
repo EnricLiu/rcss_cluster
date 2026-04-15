@@ -4,8 +4,10 @@ mod error;
 mod kind;
 mod signal;
 mod status;
+mod info;
 
 pub use client::Client;
+pub use info::ClientInfo as Info;
 pub use client::ClientBuilder as Builder;
 pub use client::ClientRxData as RxData;
 pub use client::ClientTxData as TxData;
