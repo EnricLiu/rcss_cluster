@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use serde::ser::{SerializeMap, SerializeStruct};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 use common::types::Side;
 
@@ -9,12 +9,41 @@ use crate::declaration::Unum;
 use crate::team::{Error as TeamError, Result as TeamResult};
 use super::player::PlayerInfo;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TeamInfo {
     pub name: String,
     pub side: Side,
-    pub status: TeamStatusInfo,
+    pub status: TeamStatusInfoSerDes,
     pub players: HashMap<Unum, PlayerInfo>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[serde(tag = "status", rename_all = "snake_case")]
+pub enum TeamStatusInfoSerDes {
+    Idle,
+    Starting,
+    Running,
+    ShuttingDown,
+    Aborting {
+        reason: String,
+    },
+    Error {
+        reason: String,
+    },
+}
+
+impl From<TeamStatusInfo> for TeamStatusInfoSerDes {
+    fn from(info: TeamStatusInfo) -> Self {
+        use TeamStatusInfo::*;
+        match info {
+            Idle => TeamStatusInfoSerDes::Idle,
+            Starting => TeamStatusInfoSerDes::Starting,
+            Running => TeamStatusInfoSerDes::Running,
+            ShuttingDown => TeamStatusInfoSerDes::ShuttingDown,
+            Aborting(reason) => TeamStatusInfoSerDes::Aborting { reason: reason.to_string() },
+            Error(reason) => TeamStatusInfoSerDes::Error { reason: reason.to_string() },
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -25,28 +54,6 @@ pub enum TeamStatusInfo {
     ShuttingDown,
     Aborting(TeamError),
     Error(TeamError),
-}
-
-impl Serialize for TeamStatusInfo {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use TeamStatusInfo::*;
-        let status = self.kind();
-
-        let mut state = serializer.serialize_map(None)?;
-        state.serialize_entry("status", status)?;
-
-        match self {
-            Aborting(reason) | Error(reason) => {
-                state.serialize_entry("reason", &reason.to_string())?;
-            },
-            _ => {}
-        }
-        
-        state.end()
-    }
 }
 
 impl TeamStatusInfo {

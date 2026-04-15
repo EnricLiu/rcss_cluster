@@ -282,7 +282,7 @@ impl Team {
         TeamInfo {
             name: self.config.name().to_string(),
             side: self.config.side(),
-            status: self.status_now(),
+            status: self.status_now().into(),
             players: self.players.iter().map(|entry| (*entry.key(), entry.info())).collect(),
         }
     }

@@ -20,12 +20,12 @@ pub struct Response {
 
     id: u32,
     success: bool,
-    payload: Option<Value>,
+    payload: Value,
     created_at: DateTime<Utc>,
 }
 
 impl Response {
-    pub fn new(id: u32, success: bool, status_code: StatusCode, payload: Option<Value>) -> Self {
+    pub fn new(id: u32, success: bool, status_code: StatusCode, payload: Value) -> Self {
         Self {
             status_code,
 
@@ -35,23 +35,35 @@ impl Response {
             created_at: Utc::now(),
         }
     }
+    
+    pub fn ok() -> Self {
+        Self::new(get_id(), true, StatusCode::OK, Value::Null)
+    }
 
-    pub fn success<T: Serialize>(payload: Option<T>) -> Self {
-        let payload = payload.map(|v| json!(v));
-        Self::new(get_id(), true, StatusCode::OK, payload)
+    pub fn success<T: Serialize>(payload: T) -> Self {
+        Self::new(
+            get_id(),
+            true,
+            StatusCode::OK,
+            serde_json::to_value(payload).expect("Failed to serialize payload")
+        )
     }
 
     pub fn code(status_code: StatusCode) -> Self {
-        Self::new(get_id(), status_code == StatusCode::OK, status_code, None)
+        Self::new(get_id(), status_code == StatusCode::OK, status_code, Value::Null)
     }
 
     pub fn code_u16(status_code: u16) -> Self {
         Self::code(StatusCode::from_u16(status_code).unwrap())
     }
 
-    pub fn fail<T: Serialize>(status_code: StatusCode, payload: Option<T>) -> Self {
-        let payload = payload.map(|v| json!(v));
-        Self::new(get_id(), false, status_code, payload)
+    pub fn fail<T: Serialize>(status_code: StatusCode, payload: T) -> Self {
+        Self::new(
+            get_id(),
+            false,
+            status_code,
+            serde_json::to_value(payload).expect("Failed to serialize payload")
+        )
     }
 
     pub fn error(err: &str, desc: &str) -> Self {
@@ -63,6 +75,49 @@ impl Response {
             status_code,
             ..self
         }
+    }
+
+    pub fn is_success(&self) -> bool {
+        self.success
+    }
+
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    pub fn payload(&self) -> &Value {
+        &self.payload
+    }
+    
+    pub fn into_payload(self) -> Value {
+        self.payload
+    }
+}
+
+pub struct GenericResponse<P: Serialize + for<'de> Deserialize<'de>> {
+    pub id: u32,
+    pub success: bool,
+    pub payload: P,
+    pub created_at: DateTime<Utc>,
+}
+
+impl<P: Serialize + for<'de> Deserialize<'de>> GenericResponse<P> {
+    pub fn try_from(resp: Response) -> serde_json::Result<Self> {
+        let payload = serde_json::from_value(resp.payload)?;
+        Ok(Self {
+            id: resp.id,
+            success: resp.success,
+            payload,
+            created_at: resp.created_at,
+        })
+    }
+}
+
+impl Response {
+    pub fn try_into_generic<P>(self) -> serde_json::Result<GenericResponse<P>>
+    where P: Serialize + for<'de> Deserialize<'de>
+    {
+        GenericResponse::try_from(self)
     }
 }
 
@@ -82,7 +137,7 @@ where
 {
     fn from(value: Result<T, E>) -> Self {
         match value {
-            Ok(v) => Response::success(Some(json!(v))),
+            Ok(v) => Response::success(serde_json::to_value(v).expect("Failed to serialize payload")),
             Err(e) => e.into(),
         }
     }

@@ -11,7 +11,7 @@ pub struct PostResponse<'a> {
 
 async fn get() -> Response {
     let template = crate::k8s::fleet_template_version();
-    Response::success(Some(PostResponse { version: template }))
+    Response::success(PostResponse { version: template })
 }
 
 pub fn route(path: &str) -> Router<AppState> {

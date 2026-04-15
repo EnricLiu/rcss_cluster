@@ -1,11 +1,16 @@
+use std::fmt::Debug;
 use std::net::SocketAddr;
 use std::sync::OnceLock;
 use std::time::Duration;
+
 use log::{debug, info, warn};
-use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use reqwest::{Client, RequestBuilder};
+
+use match_composer::api;
 
 use super::error::Error;
-use super::response::StatusResponse;
+
 
 #[derive(Clone, Debug)]
 pub struct MatchComposerClientConfig {
@@ -33,7 +38,7 @@ impl Default for MatchComposerClientConfig {
 pub struct MatchComposerClient {
     client: Client,
     config: MatchComposerClientConfig,
-    
+
     base_url: OnceLock<String>,
     start_url: OnceLock<String>,
     stop_url: OnceLock<String>,
@@ -58,39 +63,163 @@ impl MatchComposerClient {
             status_url: Default::default(),
         }
     }
-    
+
     pub fn base_url(&self) -> &str {
         self.base_url.get_or_init(|| format!("http://{}", self.config.addr))
     }
-    
+
     pub fn start_url(&self) -> &str {
         self.start_url.get_or_init(|| format!("{}/start", self.base_url()))
     }
-    
+
     pub fn stop_url(&self) -> &str {
         self.stop_url.get_or_init(|| format!("{}/stop", self.base_url()))
     }
-    
+
     pub fn restart_url(&self) -> &str {
         self.restart_url.get_or_init(|| format!("{}/restart", self.base_url()))
     }
-    
+
     pub fn status_url(&self) -> &str {
         self.status_url.get_or_init(|| format!("{}/status", self.base_url()))
     }
 
-    /// POST /start with built-in retry logic for sidecar startup race.
-    pub async fn start(&self) -> Result<(), Error> {
+    pub async fn start(&self) -> Result<api::start::PostResponse, Error> {
+        Self::retry(
+            "start",
+            || self.post_start(),
+            self.config.start_max_retries,
+            self.config.start_retry_base,
+        ).await
+    }
+
+    pub async fn post_start(&self) -> Result<api::start::PostResponse, Error> {
         let url = self.start_url();
-        
-        let n_retry = self.config.start_max_retries;
-        
+
+        let body = api::start::PostRequest {
+            config: None,
+        };
+        let resp = self.client
+            .post(url)
+            .json(&body);
+
+        Self::resolve(resp).await
+    }
+
+    pub async fn stop(&self) -> Result<api::stop::PostResponse, Error> {
+        Self::retry(
+            "stop",
+            || self.post_stop(),
+            self.config.start_max_retries,
+            self.config.start_retry_base,
+        ).await
+    }
+
+    pub async fn post_stop(&self) -> Result<api::stop::PostResponse, Error> {
+        let url = self.stop_url();
+
+        let body = api::stop::PostRequest {};
+        let resp = self.client
+            .post(url)
+            .json(&body);
+
+        Self::resolve(resp).await
+    }
+
+    pub async fn restart(&self) -> Result<api::restart::PostResponse, Error> {
+        Self::retry(
+            "restart",
+            || self.post_restart(),
+            self.config.start_max_retries,
+            self.config.start_retry_base,
+        ).await
+    }
+
+    pub async fn post_restart(&self) -> Result<api::restart::PostResponse, Error> {
+        let url = self.restart_url();
+
+        let body = api::restart::PostRequest {
+            config: None,
+        };
+        let resp = self.client.post(url).json(&body);
+
+        Self::resolve(resp).await
+    }
+
+    pub async fn status(&self) -> Result<api::status::GetResponse, Error> {
+        Self::retry(
+            "status",
+            || self.get_status(),
+            self.config.start_max_retries,
+            self.config.start_retry_base,
+        ).await
+    }
+
+    pub async fn get_status(&self) -> Result<api::status::GetResponse, Error> {
+        let url = self.status_url();
+
+        let resp = self.client.get(url);
+
+        Self::resolve(resp).await
+    }
+
+    async fn resolve<T>(req: RequestBuilder) -> Result<T, Error>
+    where T: Serialize + for<'de> Deserialize<'de>
+    {
+        let resp = req.send().await.map_err(Error::Connection)?;
+        Self::resolve_response(resp).await
+    }
+
+    async fn resolve_response<T>(resp: reqwest::Response) -> Result<T, Error>
+    where T: Serialize + for<'de> Deserialize<'de>
+    {
+        use common::axum::response::Response as ServerResponse;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let body = resp.text().await.unwrap_or_default();
+            return Err(Error::RequestFailed {
+                status: status.as_u16(),
+                body,
+            })
+        };
+
+        let resp = match resp.json::<ServerResponse>().await {
+            Ok(res) => res,
+            Err(e) => {
+                return Err(Error::ReqwestDesFailed {
+                    source: e,
+                    model: "CommonResponse",
+                })
+            },
+        };
+
+        let resp = resp.try_into_generic()
+            .map_err(|e| Error::SerdeDesFailed {
+                source: e,
+                model: "GenericResponse",
+            })?;
+
+        Ok(resp.payload)
+    }
+
+    async fn retry<F, Fut, T>(
+        tag: &str,
+        func: F,
+        n_retry: u32,
+        base_delay: Duration,
+    ) -> Result<T, Error>
+    where
+        F: Fn() -> Fut,
+        Fut: Future<Output = Result<T, Error>>,
+    {
         let mut last_err = None;
+
         for attempt in 0..n_retry {
             if attempt > 0 {
-                let backoff = self.config.start_retry_base * 2u32.pow(attempt - 1);
+                let backoff = base_delay * 2u32.pow(attempt - 1);
                 info!(
-                    "[MatchComposerClient] start retry {}/{} after {}ms",
+                    "[MatchComposerClient] '{tag}' retry {}/{} after {}ms",
                     attempt + 1,
                     n_retry,
                     backoff.as_millis()
@@ -98,20 +227,13 @@ impl MatchComposerClient {
                 tokio::time::sleep(backoff).await;
             }
 
-            match self.client.post(url).header("content-type", "application/json").body("{}").send().await {
-                Ok(resp) => {
-                    return check_response(resp).await.map(|_| ());
+            let fut = func();
+            match fut.await {
+                Ok(resp) => return Ok(resp),
+                Err(e) => {
+                    warn!("[MatchComposerClient] '{tag}' attempt {}/{} failed: {e:?}", attempt + 1, n_retry);
+                    last_err = Some(e);
                 }
-                Err(e) if e.is_connect() => {
-                    warn!(
-                        "[MatchComposerClient] start attempt {}/{} connection failed: {e}",
-                        attempt + 1,
-                        n_retry
-                    );
-                    last_err = Some(Error::Connection(e));
-                    continue;
-                }
-                Err(e) => return Err(Error::Connection(e)),
             }
         }
 
@@ -121,48 +243,5 @@ impl MatchComposerClient {
                 body: "max retries exceeded".into(),
             }
         }))
-    }
-
-    /// POST /stop
-    pub async fn stop(&self) -> Result<(), Error> {
-        let url = self.stop_url();
-        let resp = self.client.post(url).send().await.map_err(Error::Connection)?;
-        check_response(resp).await.map(|_| ())
-    }
-
-    /// POST /restart (reserved for future use)
-    pub async fn restart(&self) -> Result<(), Error> {
-        let url = self.restart_url();
-        let resp = self
-            .client
-            .post(url)
-            .header("content-type", "application/json")
-            .body("{}")
-            .send()
-            .await
-            .map_err(Error::Connection)?;
-        check_response(resp).await.map(|_| ())
-    }
-
-    /// GET /status
-    pub async fn status(&self) -> Result<StatusResponse, Error> {
-        let url = self.status_url();
-        let resp = self.client.get(url).send().await.map_err(Error::Connection)?;
-        let resp = check_response(resp).await?;
-        resp.json::<StatusResponse>().await.map_err(Error::DeserializeFailed)
-    }
-}
-
-async fn check_response(resp: reqwest::Response) -> Result<reqwest::Response, Error> {
-    let status = resp.status();
-    if status.is_success() {
-        debug!("[MatchComposerClient] Response OK ({status})");
-        Ok(resp)
-    } else {
-        let body = resp.text().await.unwrap_or_default();
-        Err(Error::RequestFailed {
-            status: status.as_u16(),
-            body,
-        })
     }
 }
