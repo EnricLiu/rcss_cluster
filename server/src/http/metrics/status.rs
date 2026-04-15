@@ -18,12 +18,12 @@ async fn get(State(state): State<AppState>) -> Response {
     let conn = state.conn_info().await;
     let service = state.service.status_info().await;
 
-    Response::success(Some(GetResponse {
+    Response::success(GetResponse {
         service,
         conn_count: conn.len(),
         #[cfg(feature = "agones")]
         agones: state.service.agones_runtime_info().await,
-    }))
+    })
 }
 
 pub fn route(path: &str) -> Router<AppState> {

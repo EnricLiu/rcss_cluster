@@ -13,7 +13,7 @@ pub struct GetResponse {
 
 async fn get(State(state): State<AppState>) -> Response {
     let status = state.conn_info().await;
-    Response::success(Some(GetResponse { status }))
+    Response::success(GetResponse { status })
 }
 
 pub fn route(path: &str) -> Router<AppState> {
