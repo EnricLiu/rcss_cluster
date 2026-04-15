@@ -168,6 +168,7 @@ impl ProcessStatusKind {
 }
 
 #[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "snake_case", tag = "kind")]
 pub enum ProcessStatusKindSerDes {
     Init,
     Booting,
