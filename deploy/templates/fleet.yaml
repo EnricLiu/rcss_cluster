@@ -81,6 +81,11 @@ spec:
           containerPort: 6002
           protocol: UDP
 
+        - name: mc
+          portPolicy: Dynamic
+          containerPort: 7777
+          protocol: TCP
+
       health:
         disabled: false
         initialDelaySeconds: 30
