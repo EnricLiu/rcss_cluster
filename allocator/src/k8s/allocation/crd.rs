@@ -47,8 +47,16 @@ pub struct AllocationMetadata {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum AllocationState {
+    Unallocated,
+    Allocated,
+    Contention,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerAllocationStatus {
-    pub state: String,
+    pub state: AllocationState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

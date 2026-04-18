@@ -1,3 +1,4 @@
+use std::time::Duration;
 use kube::Client;
 use arcstr::ArcStr;
 
@@ -8,7 +9,12 @@ pub mod error;
 
 pub use error::{Error, Result};
 
-pub use allocation::GsAllocation;
+pub use allocation::{
+    GsAllocation,
+    AllocationError,
+    AllocationResult
+};
+
 pub use fleet::{
     init_fleet_template,
     fleet_template,
@@ -25,20 +31,35 @@ pub mod crd {
 pub struct K8sClient {
     agones_ns: ArcStr,
     client: Client,
+    
+    n_retry: usize,
+    retry_duration: Duration,
 }
 
 impl K8sClient {
-    pub async fn new(agones_ns: ArcStr) -> Result<Self> {
+    pub async fn new(agones_ns: ArcStr, n_retry: usize, retry_duration: Duration) -> Result<Self> {
         let client = Client::try_default().await
             .map_err(Error::CreateClient)?;
         
         Ok(Self {
             agones_ns,
             client,
+            n_retry,
+            retry_duration,
         })
     }
 
     fn client(&self) -> &Client {
         &self.client
+    }
+    
+    #[inline]
+    pub fn n_retry_human(&self) -> usize {
+        self.n_retry + 1
+    }
+
+    #[inline]
+    pub fn retry_duration(&self) -> Duration {
+        self.retry_duration
     }
 }

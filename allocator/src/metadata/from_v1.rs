@@ -42,7 +42,7 @@ impl TryFrom<ConfigV1> for MetaData {
         let (team_r, players_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
 
         Ok(MetaData {
-            labels: Labels { left: players_l, right: players_r },
+            labels: Labels::new(players_l, players_r),
             annotations: Annotations {
                 team_l,
                 team_r,

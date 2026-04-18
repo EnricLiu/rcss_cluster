@@ -30,6 +30,7 @@ impl FleetBuilder {
         self
     }
 
+    /// labels to the GameServer template, double write to the fleet's label as well
     pub fn with_labels(&mut self, labels: HashMap<String, String>) -> &mut Self {
         self.labels = Some(labels);
         self
@@ -61,8 +62,16 @@ impl FleetBuilder {
 
             if let Some(builder_labels) = self.labels {
                 let labels = gs_meta.labels.get_or_insert_with(BTreeMap::new);
-                for (k, v) in builder_labels {
+                for (k, v) in builder_labels.clone() {
                     labels.insert(k, v);
+                }
+
+                // double write labels to fleet's metadata, so that easier/faster query
+                // can be applied when we are trying to figure out whether an UnAllocated-
+                // returned GSA is caused by miss matching of labels or just busy fleet
+                let fleet_labels = fleet.metadata.labels.get_or_insert_with(BTreeMap::new);
+                for (k, v) in builder_labels {
+                    fleet_labels.insert(k, v);
                 }
             }
 
