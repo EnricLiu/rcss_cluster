@@ -21,14 +21,6 @@ pub struct ConfigV1 {
     pub env:    Option<HashMap<String, String>>
 }
 
-const fn default_host() -> Ipv4Addr {
-    Ipv4Addr::new(127, 0, 0, 1)
-}
-
-const fn default_port() -> u16 {
-    6000
-}
-
 impl Schema for ConfigV1 {
     fn verify(&self) -> Result<(), &'static str> {
         self.teams.verify()?;
