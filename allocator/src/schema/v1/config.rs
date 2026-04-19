@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::net::Ipv4Addr;
 use serde::{Deserialize, Serialize};
 
 use crate::schema::v1::utils::pos_in_court;

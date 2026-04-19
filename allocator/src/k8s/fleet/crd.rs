@@ -18,7 +18,7 @@ pub struct Fleet {
 
 impl Fleet {
     pub fn name(&self) -> &str {
-        &self.metadata.name.as_deref().unwrap_or("Anonymous Fleet")
+        self.metadata.name.as_deref().unwrap_or("Anonymous Fleet")
     }
 }
 

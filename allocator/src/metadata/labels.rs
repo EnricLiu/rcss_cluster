@@ -1,6 +1,5 @@
-use std::collections::{BTreeMap, HashMap};
-use std::fmt::Write;
 use std::sync::OnceLock;
+use std::collections::{BTreeMap, HashMap};
 
 use sha2::{Digest, Sha256};
 use serde::{Deserialize, Serialize};
