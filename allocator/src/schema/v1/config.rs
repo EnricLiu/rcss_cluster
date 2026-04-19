@@ -8,10 +8,6 @@ use super::{Schema, TeamsV1, Position};
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
 pub struct ConfigV1 {
-    #[serde(default = "default_host")]
-    pub host: Ipv4Addr,
-    #[serde(default = "default_port")]
-    pub port: u16,
     #[serde(default)]
     pub log: bool,
     pub teams: TeamsV1,
@@ -23,14 +19,6 @@ pub struct ConfigV1 {
     pub init_state: GlobalInitStateV1,
     #[serde(default)]
     pub env:    Option<HashMap<String, String>>
-}
-
-const fn default_host() -> Ipv4Addr {
-    Ipv4Addr::new(127, 0, 0, 1)
-}
-
-const fn default_port() -> u16 {
-    6000
 }
 
 impl Schema for ConfigV1 {

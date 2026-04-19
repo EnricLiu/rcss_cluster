@@ -6,9 +6,9 @@ use super::{AppState, Response};
 
 #[derive(Deserialize, Debug)]
 pub struct PostRequest {
-    name: String,
     version: u8,
     conf: Value,
+    timeout_ms: Option<u64>,
 }
 
 #[derive(Serialize, Debug)]
@@ -20,7 +20,9 @@ async fn post(
     State(state): State<AppState>,
     Json(req): Json<PostRequest>
 ) -> Response {
-    let res = state.k8s.create_fleet(req.name, req.conf, req.version).await;
+    let timeout = req.timeout_ms.map(std::time::Duration::from_millis);
+
+    let res = state.k8s.get_or_create_fleet(req.conf, req.version, timeout).await;
     match res {
         Ok(_) => Response::success(PostResponse {}),
         Err(err) => Response::error("TODO", &err.to_string()),
