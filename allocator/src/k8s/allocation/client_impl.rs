@@ -8,7 +8,6 @@ use common::errors::BuilderError;
 use crate::MetaData;
 use crate::args::Scheduling;
 use crate::k8s::crd::AllocationState;
-use crate::k8s::crd::AllocationState::{Allocated, Contention, Unallocated};
 use super::crd::{
     AllocationMetadata, GameServerAllocation,
     GameServerAllocationSpec, GameServerSelector,

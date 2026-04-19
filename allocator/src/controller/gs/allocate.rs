@@ -1,6 +1,6 @@
 use std::net::IpAddr;
 use std::collections::HashMap;
-use log::{error, info, warn};
+use log::{debug, error, info, warn};
 use axum::{extract::State, routing, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -71,6 +71,7 @@ impl TryFrom<PostRequest> for ParsedPostRequest {
     }
 }
 
+/// could be in really long time
 pub async fn post(
     State(state): State<AppState>,
     Json(req): Json<PostRequest>,
@@ -94,62 +95,28 @@ pub async fn post(
         Response::error(e.desc(), &e.to_string())
     };
 
-    // retry within the k8s allocation
-    let alloc_res = state.k8s.gs_allocate(
-        state.config.scheduling.clone(),
-        req.meta.clone(),
-    ).await;
-
-    match alloc_res {
-        Ok(res) => {
-            info!("Allocation successful: {:?}", res);
-            return success(res)
-        },
-        Err(AllocationError::UnAllocated) => {
-            info!("Allocation failed due to no available GameServer, request meta: {:?}", req.meta);
+    match state.k8s.get_or_create_fleet_by_meta(req.meta.clone(), None).await {
+        Ok(fleet) => {
+            debug!("Fleet[{}] is ready for allocation", fleet.name());
         },
         Err(e) => {
-            warn!("Allocation failed: {:?}", e);
-            return error(&(e.into()))
+            warn!("Failed to get or create fleet, error: {:?}", e);
+            return error(&e.into())
         }
-    };
-
-    // UnAllocated here, check the cause
-    let has_fleet = match state.k8s.fleet_exists_by_labels(&req.meta.labels).await {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("Failed to check fleet existence: {:?}", e);
-            return error(&(e.into()))
-        }
-    };
-
-    if has_fleet {
-        info!("Fleet exists but no available GameServer, request meta: {:?}", req.meta);
-        return error(&AllocationError::Busy.into())
     }
 
-    // no supporting fleet here
-    if let Err(e) = state.k8s.create_fleet_by_meta(
-        format!("fleet-{}", uuid::Uuid::new_v4()),
-        req.meta.clone(),
-    ).await {
-        error!("Failed to create fleet: {:?}", e);
-        return error(&(e.into()))
-    };
-
-    // reallocate the GS
     let alloc_res = state.k8s.gs_allocate(
         state.config.scheduling.clone(),
-        req.meta.clone(),
+        req.meta,
     ).await;
 
     match alloc_res {
         Ok(res) => {
-            info!("Allocation successful after fleet creation: {:?}", res);
+            info!("Allocation successful: {res:?}");
             success(res)
         },
         Err(e) => {
-            warn!("Allocation failed even fleet had been created: {:?}", e);
+            warn!("Allocation failed: {e:?}");
             error(&(e.into()))
         }
     }

@@ -1,5 +1,6 @@
+use std::sync::Arc;
 use std::time::Duration;
-use kube::Client;
+use kube::{Api, Client};
 use arcstr::ArcStr;
 use tokio::time::Interval;
 
@@ -32,6 +33,9 @@ pub mod crd {
 pub struct K8sClient {
     agones_ns: ArcStr,
     client: Client,
+
+    fleet_client: Arc<Api<crd::Fleet>>,
+    alloc_client: Arc<Api<crd::GameServerAllocation>>,
     
     n_retry: usize,
     retry_duration: Duration,
@@ -41,13 +45,26 @@ impl K8sClient {
     pub async fn new(agones_ns: ArcStr, n_retry: usize, retry_duration: Duration) -> Result<Self> {
         let client = Client::try_default().await
             .map_err(Error::CreateClient)?;
-        
+
+        let fleet_client = Api::<crd::Fleet>::namespaced(client.clone(), &agones_ns);
+        let alloc_client = Api::<crd::GameServerAllocation>::namespaced(client.clone(), &agones_ns);
+
         Ok(Self {
             agones_ns,
             client,
             n_retry,
             retry_duration,
+            fleet_client: Arc::new(fleet_client),
+            alloc_client: Arc::new(alloc_client),
         })
+    }
+
+    pub fn fleet_client(&self) -> &Api<crd::Fleet> {
+        &self.fleet_client
+    }
+
+    pub fn alloc_client(&self) -> &Api<crd::GameServerAllocation> {
+        &self.alloc_client
     }
 
     fn client(&self) -> &Client {

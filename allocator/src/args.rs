@@ -42,10 +42,10 @@ pub struct Args {
     #[arg(long, env = "AGONES_GSA_SCHEDULE_STRATEGY", default_value = "packed")]
     pub scheduling: Scheduling,
     
-    #[arg(long, env = "K8S_N_RETRY", default_value_t = 3, help = "Number of retries for Kubernetes API calls")]
+    #[arg(long, env = "K8S_N_RETRY", default_value_t = 10, help = "Number of retries for Kubernetes API calls")]
     pub k8s_n_retry: usize,
     
-    #[arg(long, env = "K8S_RETRY_INTERVAL_MS", default_value_t = 500, help = "Interval in milliseconds between Kubernetes API retries")]
+    #[arg(long, env = "K8S_RETRY_INTERVAL_MS", default_value_t = 300, help = "Interval in milliseconds between Kubernetes API retries")]
     pub k8s_retry_interval_ms: u64,
 }
 
