@@ -154,7 +154,7 @@ impl K8sClient {
         let true_labels = labels.try_as_ordered_map()
             .map_err(|e| Error::InvalidMetaData(format!("{e:?}")))?;
 
-        if true_labels.eq(matched_labels) {
+        if !true_labels.eq(matched_labels) {
             error!("FATAL: [FleetByLabels] Fleet hash collision!");
             return Err(Error::FleetNotMatch {
                 fleet: fleet_name,
