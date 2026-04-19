@@ -1,12 +1,12 @@
 use std::net::IpAddr;
 use std::collections::HashMap;
-
 use log::{error, info, warn};
 use axum::{extract::State, routing, Json, Router};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use common::errors::BuilderError;
 
-use crate::schema::v1;
+use crate::schema::{v1, Schema};
 use crate::k8s::{AllocationError, Error, GsAllocation};
 
 use super::{AppState, Response};
@@ -14,7 +14,8 @@ use super::{AppState, Response};
 
 #[derive(Deserialize, Debug)]
 pub struct PostRequest {
-    pub schema_v1: Option<v1::ConfigV1>,
+    pub version: u8,
+    pub conf: Value,
 }
 
 #[derive(Serialize, Debug)]
@@ -30,19 +31,43 @@ struct ParsedPostRequest {
 }
 
 impl TryFrom<PostRequest> for ParsedPostRequest {
-    type Error = BuilderError;
+    type Error = Error;
 
     fn try_from(req: PostRequest) -> Result<Self, Self::Error> {
-        let meta = match (req.schema_v1) {
-            None => return Err(BuilderError::MissingField { field: "schema_v*" }),
-            Some(schema) => schema.try_into()?,
+        fn err<E: std::fmt::Debug>(e: &E) -> Error {
+            Error::InvalidMetaData(format!("Failed to parse request conf into metadata, error: {:?}", e))
+        }
+
+        let meta = match (req.version) {
+            1 => {
+                let conf: v1::ConfigV1 = serde_json::from_value(req.conf)
+                    .map_err(|e| err(&BuilderError::InvalidValue {
+                        field: "conf",
+                        value: e.to_string(),
+                        expected: "a valid ConfigV1".to_string(),
+                    }))?;
+
+                conf.verify().map_err(|e| err(&BuilderError::InvalidValue {
+                    field: "conf",
+                    value: e.to_string(),
+                    expected: "a valid ConfigV1".to_string(),
+                }))?;
+
+                conf.try_into().map_err(|e| err(&e))?
+            },
+
+            _ => return Err(err(&BuilderError::InvalidValue {
+                field: "version",
+                value: req.version.to_string(),
+                expected: "supported version, currently only 1".to_string(),
+            })),
         };
 
-        let ret = Self {
-            meta
-        };
-
-        Ok(ret)
+        Ok(
+            Self {
+                meta
+            }
+        )
     }
 }
 
