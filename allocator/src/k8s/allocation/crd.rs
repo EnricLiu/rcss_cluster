@@ -49,8 +49,11 @@ pub struct AllocationMetadata {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum AllocationState {
+    #[serde(rename = "UnAllocated")]
     Unallocated,
+    #[serde(rename = "Allocated")]
     Allocated,
+    #[serde(rename = "Contention")]
     Contention,
 }
 

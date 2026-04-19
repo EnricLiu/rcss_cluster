@@ -1,6 +1,7 @@
 use std::time::Duration;
 use kube::Client;
 use arcstr::ArcStr;
+use tokio::time::Interval;
 
 mod fleet;
 mod allocation;
@@ -61,5 +62,9 @@ impl K8sClient {
     #[inline]
     pub fn retry_duration(&self) -> Duration {
         self.retry_duration
+    }
+
+    pub fn retry_interval(&self) -> Interval {
+        tokio::time::interval(self.retry_duration())
     }
 }

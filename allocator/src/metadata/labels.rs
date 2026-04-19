@@ -17,7 +17,10 @@ pub struct PlayerLabel {
 pub struct Labels {
     pub left: HashMap<Unum, PlayerLabel>, // p.l.1, p.l.2 = str
     pub right: HashMap<Unum, PlayerLabel>, // p.r.1, p.r.2 = str
+
+    #[serde(skip)]
     pub left_num: u8, // p.l.n = u8
+    #[serde(skip)]
     pub right_num: u8, // p.r.n = u8
     
     #[serde(skip)]
@@ -31,7 +34,7 @@ impl Labels {
         Self { left, right, left_num, right_num, buf_map: OnceLock::new() }
     }
     
-    pub fn from_map(mut map: HashMap<String, String>) -> BuilderResult<Self> {
+    pub fn from_map(map: HashMap<String, String>) -> BuilderResult<Self> {
         let mut left = HashMap::new();
         let mut right = HashMap::new();
 

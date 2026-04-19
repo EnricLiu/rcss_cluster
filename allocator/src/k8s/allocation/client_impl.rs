@@ -61,15 +61,16 @@ impl K8sClient {
         }; // TODO builder
 
         let api: Api<GameServerAllocation> = Api::namespaced(self.client.clone(), &self.agones_ns);
+        let mut retry_interval = self.retry_interval();
         for _ in 1..=self.n_retry_human() {
             match make_allocation(&api, &allocation).await {
                 Ok(res) => return Ok(res),
                 Err(AllocationError::Busy) => {
                     info!("Allocation request failed due to contention, retrying...");
-                    continue;
                 }
                 Err(e) => return Err(e),
             }
+            retry_interval.tick().await;
         };
 
         Err(AllocationError::Busy)
@@ -115,7 +116,7 @@ async fn make_allocation(
 
 #[derive(thiserror::Error, Debug)]
 pub enum AllocationError {
-    #[error("Agones API busy, pls retry later")]
+    #[error("Agones API busy to allocate, pls retry later")]
     Busy,
     #[error("No GS available for the allocation")]
     UnAllocated,
