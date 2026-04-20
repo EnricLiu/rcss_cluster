@@ -22,10 +22,13 @@ pub struct MatchComposerArgs {
     pub mc_client_connect_timeout: u64,
     #[arg(long, env = "MATCH_COMPOSER_CLIENT_REQUEST_TIMEOUT_MS", default_value_t = 60000, requires = "match_composer_group", help = "Match Composer client request timeout, default at 60s")]
     pub mc_client_request_timeout: u64,
-    #[arg(long, env = "MATCH_COMPOSER_CLIENT_START_MAX_RETRIES", default_value_t = 3, requires = "match_composer_group", help = "Match Composer client start request max retries, default at 3")]
-    pub mc_client_start_max_retries: u32,
-    #[arg(long, env = "MATCH_COMPOSER_CLIENT_START_RETRY_DELAY_MS", default_value_t = 1000, requires = "match_composer_group", help = "Match Composer client start request retry base in milliseconds, default at 1000ms")]
-    pub mc_client_start_retry_base: u64,
+    
+    #[arg(long, env = "MATCH_COMPOSER_CLIENT_RETRY_BACKOFF_EN", default_value_t = false, requires = "match_composer_group", help = "Enable Match Composer client start request retry backoff with jitter, default at false")]
+    pub mc_client_retry_backoff_en: bool,
+    #[arg(long, env = "MATCH_COMPOSER_CLIENT_MAX_RETRIES", default_value_t = 30, requires = "match_composer_group", help = "Match Composer client start request max retries")]
+    pub mc_client_max_retries: u32,
+    #[arg(long, env = "MATCH_COMPOSER_CLIENT_RETRY_DELAY_MS", default_value_t = 2000, requires = "match_composer_group", help = "Match Composer client start request retry base in milliseconds")]
+    pub mc_client_retry_base: u64,
 }
 
 impl MatchComposerArgs {
@@ -39,8 +42,9 @@ impl MatchComposerArgs {
             addr: SocketAddr::new(self.mc_host, self.mc_port),
             connect_timeout: Duration::from_millis(self.mc_client_connect_timeout),
             request_timeout: Duration::from_millis(self.mc_client_request_timeout),
-            start_retry_base: Duration::from_millis(self.mc_client_start_retry_base),
-            start_max_retries: self.mc_client_start_max_retries,
+            retry_base: Duration::from_millis(self.mc_client_retry_base),
+            max_retries: self.mc_client_max_retries,
+            retry_backoff: self.mc_client_retry_backoff_en,
         };
 
         let config = MatchComposerConfig {

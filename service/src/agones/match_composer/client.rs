@@ -17,8 +17,9 @@ pub struct MatchComposerClientConfig {
     pub addr: SocketAddr,
     pub connect_timeout: Duration,
     pub request_timeout: Duration,
-    pub start_max_retries: u32,
-    pub start_retry_base: Duration,
+    pub max_retries: u32,
+    pub retry_base: Duration,
+    pub retry_backoff: bool,
 }
 
 impl Default for MatchComposerClientConfig {
@@ -27,8 +28,9 @@ impl Default for MatchComposerClientConfig {
             addr: SocketAddr::from(([127, 0, 0, 1], 6657)),
             connect_timeout: Duration::from_secs(5),
             request_timeout: Duration::from_secs(60),
-            start_max_retries: 3,
-            start_retry_base: Duration::from_secs(1),
+            max_retries: 30,
+            retry_base: Duration::from_secs(2),
+            retry_backoff: false,
         }
     }
 }
@@ -88,8 +90,9 @@ impl MatchComposerClient {
         Self::retry(
             "start",
             || self.post_start(),
-            self.config.start_max_retries,
-            self.config.start_retry_base,
+            self.config.max_retries,
+            self.config.retry_base,
+            self.config.retry_backoff,
         ).await
     }
 
@@ -110,8 +113,9 @@ impl MatchComposerClient {
         Self::retry(
             "stop",
             || self.post_stop(),
-            self.config.start_max_retries,
-            self.config.start_retry_base,
+            self.config.max_retries,
+            self.config.retry_base,
+            self.config.retry_backoff,
         ).await
     }
 
@@ -130,8 +134,9 @@ impl MatchComposerClient {
         Self::retry(
             "restart",
             || self.post_restart(),
-            self.config.start_max_retries,
-            self.config.start_retry_base,
+            self.config.max_retries,
+            self.config.retry_base,
+            self.config.retry_backoff,
         ).await
     }
 
@@ -150,8 +155,9 @@ impl MatchComposerClient {
         Self::retry(
             "status",
             || self.get_status(),
-            self.config.start_max_retries,
-            self.config.start_retry_base,
+            self.config.max_retries,
+            self.config.retry_base,
+            self.config.retry_backoff,
         ).await
     }
 
@@ -203,11 +209,13 @@ impl MatchComposerClient {
         Ok(resp.payload)
     }
 
+    /// no backoff for now, just fixed delay
     async fn retry<F, Fut, T>(
         tag: &str,
         func: F,
         n_retry: u32,
         base_delay: Duration,
+        back_off: bool,
     ) -> Result<T, Error>
     where
         F: Fn() -> Fut,
@@ -217,14 +225,19 @@ impl MatchComposerClient {
 
         for attempt in 0..n_retry {
             if attempt > 0 {
-                let backoff = base_delay * 2u32.pow(attempt - 1);
+                let delay = if back_off {
+                    base_delay * 2u32.pow(attempt - 1)
+                } else {
+                    base_delay
+                };
+                
                 info!(
                     "[MatchComposerClient] '{tag}' retry {}/{} after {}ms",
                     attempt + 1,
                     n_retry,
-                    backoff.as_millis()
+                    delay.as_millis()
                 );
-                tokio::time::sleep(backoff).await;
+                tokio::time::sleep(delay).await;
             }
 
             let fut = func();

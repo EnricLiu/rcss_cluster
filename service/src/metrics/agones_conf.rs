@@ -39,8 +39,8 @@ impl crate::Service {
 			status_poll_interval_ms: duration_ms(mc.status_poll_interval),
 			connect_timeout_ms: duration_ms(mc.client_cfg.connect_timeout),
 			request_timeout_ms: duration_ms(mc.client_cfg.request_timeout),
-			start_max_retries: mc.client_cfg.start_max_retries,
-			start_retry_base_ms: duration_ms(mc.client_cfg.start_retry_base),
+			start_max_retries: mc.client_cfg.max_retries,
+			start_retry_base_ms: duration_ms(mc.client_cfg.retry_base),
 		});
 
 		AgonesConfigInfo {
