@@ -1,5 +1,5 @@
-mod error;
-mod routes;
+pub mod error;
+pub mod routes;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -11,11 +11,15 @@ use tokio::signal::unix::{signal, SignalKind};
 use tokio::sync::{oneshot, RwLock};
 use tokio::task::JoinHandle;
 use common::types::Side;
+
 pub use error::{Error, Result};
-use crate::metadata::MetaData;
-use crate::composer::{Match, MatchComposer, MatchComposerConfig};
+pub use routes as api;
+
 use crate::info::{GameInfo, TeamInfo};
 use crate::team::{TeamStatus};
+use crate::config::MatchComposerConfig;
+use crate::composer::{Match, MatchComposer};
+use crate::metadata::MetaData;
 
 enum ComposerState {
     Idle,

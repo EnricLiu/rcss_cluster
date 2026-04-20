@@ -8,7 +8,18 @@ pub enum Error {
     #[error("HTTP request failed with status {status}: {body}")]
     RequestFailed { status: u16, body: String },
 
-    /// Failed to deserialize the response body
-    #[error("Failed to deserialize response: {0}")]
-    DeserializeFailed(#[source] reqwest::Error),
+    /// Failed to deserialize the response body into common response model from reqwest
+    #[error("Failed to deserialize response text into common::Response: {source}")]
+    ReqwestDesFailed {
+        #[source]
+        source: reqwest::Error,
+        model: &'static str,
+    },
+
+    #[error("Failed to deserialize response value into {model}: {source}")]
+    SerdeDesFailed {
+        #[source]
+        source: serde_json::Error,
+        model: &'static str,
+    },
 }

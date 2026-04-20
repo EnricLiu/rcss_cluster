@@ -38,33 +38,17 @@ impl TryFrom<ConfigV1> for MetaData {
             ..
         } = value;
 
-        let mut players_l = HashMap::new();
-        let mut players_r = HashMap::new();
-        let mut team_name_l = None;
-        let mut team_name_r = None;
-
-        insert_team(
-            teams.allies,
-            &mut players_l,
-            &mut players_r,
-            &mut team_name_l,
-            &mut team_name_r,
-            log,
-        )?;
-        insert_team(
-            teams.opponents,
-            &mut players_l,
-            &mut players_r,
-            &mut team_name_l,
-            &mut team_name_r,
-            log,
-        )?;
+        let (team_l, players_l) = parse_team(TeamSideV1::Left, teams.left, log)?;
+        let (team_r, players_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
+        
+        let labels = Labels::new(players_l, players_r);
+        labels.validate()?;
 
         Ok(MetaData {
-            labels: Labels { left: players_l, right: players_r },
+            labels,
             annotations: Annotations {
-                team_l: team_name_l.ok_or(BuilderError::MissingField { field: "team.l" })?,
-                team_r: team_name_r.ok_or(BuilderError::MissingField { field: "team.r" })?,
+                team_l,
+                team_r,
                 referee: RefereeDeclaration {
                     enabled: referee.enable,
                 },
@@ -82,31 +66,24 @@ impl TryFrom<ConfigV1> for MetaData {
     }
 }
 
-fn insert_team(
-    team: TeamV1,
-    player_l: &mut HashMap<Unum, PlayerLabel>,
-    player_r: &mut HashMap<Unum, PlayerLabel>,
-    team_name_l: &mut Option<String>,
-    team_name_r: &mut Option<String>,
-    log: bool,
-) -> Result<(), BuilderError> {
+fn parse_team(
+    side: TeamSideV1, team: TeamV1, log: bool
+) -> Result<(String, HashMap<Unum, PlayerLabel>), BuilderError> {
     let TeamV1 {
         name,
-        side,
+        side: team_side,
         players,
     } = team;
 
-    let (labels, team_name) = match side {
-        TeamSideV1::Left => (player_l, team_name_l),
-        TeamSideV1::Right => (player_r, team_name_r),
-    };
-
-    if team_name.replace(name.clone()).is_some() {
-        return Err(BuilderError::InvalidField {
-            field: "teams.side",
-            message: format!("multiple teams are assigned to side {side:?}"),
-        });
+    if side != team_side {
+        return Err(BuilderError::InvalidValue {
+            field: "team side",
+            value: team_side.to_string(),
+            expected: side.to_string(),
+        })
     }
+
+    let mut labels = HashMap::new();
 
     for player in players {
         let (unum, label) = convert_player(player, log)?;
@@ -118,7 +95,7 @@ fn insert_team(
         }
     }
 
-    Ok(())
+    Ok((name, labels))
 }
 
 fn convert_player(player: PlayerV1, log: bool) -> Result<(Unum, PlayerLabel), BuilderError> {

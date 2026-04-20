@@ -1,16 +1,20 @@
 use log::info;
-use tokio::sync::{watch};
-use crate::addons;
-use crate::{Error, Result};
+use tokio::sync::watch;
+use chrono::{DateTime, Utc};
 
 use common::command::trainer::TrainerCommand;
 use common::command::{Command, CommandResult};
 use process::{CoachedProcess, CoachedProcessSpawner, CommandCaller, ProcessStatus};
 
+use crate::addons;
+use crate::{Error, Result};
+
+
 #[derive(Debug)]
 pub struct AddonProcess {
     process: CoachedProcess,
     time_rx: watch::Receiver<Option<u16>>,
+    started_at: DateTime<Utc>,
 }
 
 impl AddonProcess {
@@ -28,12 +32,14 @@ impl AddonProcess {
     }
 
     pub fn from_coached_process(process: CoachedProcess) -> Self {
+        let started_at = Utc::now();
+
         let time_rx = process
             .coach()
             .add_caller_addon::<addons::TimeStatusAddon>("time");
         info!("[AddonProcess] Time status addon registered");
 
-        Self { process, time_rx }
+        Self { process, time_rx, started_at }
     }
 
     pub async fn send_trainer_command<C: Command<Kind = TrainerCommand>>(
@@ -64,5 +70,17 @@ impl AddonProcess {
     
     pub fn process_status_watch(&self) -> watch::Receiver<ProcessStatus> {
         self.process.process().status_watch()
+    }
+
+    pub fn started_at(&self) -> DateTime<Utc> {
+        self.started_at
+    }
+
+    pub fn pid(&self) -> Option<u32> {
+        self.process.process().pid()
+    }
+
+    pub fn process_status_name(&self) -> &'static str {
+        self.process.process().status_now().kind.name()
     }
 }

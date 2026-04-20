@@ -114,7 +114,7 @@ mod tests {
             player: PlayerDeclaration::Ssp {
                 base,
                 grpc: HostPort {
-                    host: Ipv4Addr::new(127, 0, 0, 1),
+                    host: Ipv4Addr::new(127, 0, 0, 1).into(),
                     port: 6657,
                 },
             },

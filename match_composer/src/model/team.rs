@@ -4,21 +4,21 @@ use dashmap::DashMap;
 
 use common::errors::{BuilderError, BuilderResult};
 use common::types::Side;
-
+use crate::config::RcssServerConfig;
 use crate::model::player::PlayerModel;
-use crate::declaration::{HostPort, TeamDeclaration, Unum};
+use crate::declaration::{TeamDeclaration, Unum};
 
 
 #[derive(Debug, Clone)]
 pub struct TeamModel {
     pub declaration: TeamDeclaration,
-    pub server: HostPort,
+    pub server: RcssServerConfig,
     pub log_root: Option<PathBuf>,
     pub players: OnceLock<DashMap<Unum, PlayerModel>>
 }
 
 impl TeamModel {
-    fn from(declaration: TeamDeclaration, server: HostPort, log_root: Option<PathBuf>) -> Self {
+    fn from(declaration: TeamDeclaration, server: RcssServerConfig, log_root: Option<PathBuf>) -> Self {
         Self { declaration, server, log_root, players: OnceLock::new() }
     }
     
@@ -37,7 +37,7 @@ impl TeamModel {
     }
 
     #[inline]
-    pub fn server(&self) -> &HostPort {
+    pub fn server(&self) -> &RcssServerConfig {
         &self.server
     }
 
@@ -53,7 +53,7 @@ impl TeamModel {
                     .with_declaration(p)
                     .with_team_side(self.side())
                     .with_team_name(self.name().to_string())
-                    .with_server(self.server().clone())
+                    .with_server(self.server().player.clone())
                     .with_log_root(self.log_root.clone());
 
                 builder.build_into().expect("Failed to build PlayerModel")
@@ -68,7 +68,7 @@ impl TeamModel {
 #[derive(Debug, Clone)]
 pub struct TeamModelBuilder {
     declaration: Option<TeamDeclaration>,
-    server: Option<HostPort>,
+    server: Option<RcssServerConfig>,
     log_root: Option<PathBuf>,
 }
 
@@ -82,7 +82,7 @@ impl TeamModelBuilder {
         self
     }
 
-    pub fn with_server(&mut self, server: HostPort) -> &mut Self {
+    pub fn with_server(&mut self, server: RcssServerConfig) -> &mut Self {
         self.server = Some(server);
         self
     }

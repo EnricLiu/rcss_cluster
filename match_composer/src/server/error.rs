@@ -1,6 +1,8 @@
 use axum::Json;
 use axum::http::StatusCode;
-use axum::response::{IntoResponse, Response};
+use axum::response::{IntoResponse, Response as AxumResponse};
+use serde_json::json;
+use common::axum::response::Response;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -35,10 +37,16 @@ impl Error {
 }
 
 impl IntoResponse for Error {
-    fn into_response(self) -> Response {
+    fn into_response(self) -> AxumResponse {
         let status = self.status_code();
-        let body = Json(serde_json::json!({ "error": self.to_string() }));
+        let body = Json(json!({ "error": self.to_string() }));
         (status, body).into_response()
+    }
+}
+
+impl From<Error> for Response {
+    fn from(err: Error) -> Response {
+        Response::fail(err.status_code(), Some(json!({ "error": err.to_string() })))
     }
 }
 

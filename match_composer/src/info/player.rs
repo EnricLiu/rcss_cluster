@@ -1,11 +1,11 @@
-use serde::Serialize;
-use common::process::ProcessStatusSerializable;
+use serde::{Deserialize, Serialize};
+use common::process::ProcessStatusSerDes;
 
 use crate::model::{PlayerKind};
 use crate::declaration::{ImageDeclaration, Unum};
 
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PlayerInfo {
     pub unum: Unum,
     pub kind: PlayerKind,
@@ -13,10 +13,10 @@ pub struct PlayerInfo {
     pub image: ImageDeclaration,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum PlayerStatusInfo {
     Unknown,
     #[serde(untagged)]
-    Some(ProcessStatusSerializable),
+    Some(ProcessStatusSerDes),
 }

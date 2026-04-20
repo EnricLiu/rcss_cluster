@@ -10,7 +10,7 @@ spec:
     requests:
       storage: 180Gi
   storageClassName: oss
-  volumeName: oss.nexus-prime.env-dev
+  volumeName: oss.nexus-prime.env.dev
 
 ---
 apiVersion: v1

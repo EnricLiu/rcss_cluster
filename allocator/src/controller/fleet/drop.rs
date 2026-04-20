@@ -19,7 +19,7 @@ async fn delete(
 ) -> Response {
     let res = state.k8s.drop_fleet(&req.name).await;
     match res {
-        Ok(_) => Response::success::<()>(None),
+        Ok(_) => Response::success(DeleteResponse {}),
         Err(err) => Response::error("TODO", &err.to_string()),
     }
 }

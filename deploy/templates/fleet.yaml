@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260408002
+  name: rcss-env-fleet-template-v260409001
 spec:
   replicas: 2
   scheduling: Packed
@@ -81,6 +81,11 @@ spec:
           containerPort: 6002
           protocol: UDP
 
+        - name: mc
+          portPolicy: Dynamic
+          containerPort: 7777
+          protocol: TCP
+
       health:
         disabled: false
         initialDelaySeconds: 30
@@ -109,7 +114,7 @@ spec:
                 claimName: oss-nexus-prime-env-dev
           containers:
             - name: rcss-cluster
-              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:latest
+              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:nightly
               volumeMounts:
                 - name: oss-env-dev
                   mountPath: /mnt/logs
@@ -182,7 +187,7 @@ spec:
                   value: "1000"
 
             - name: match-composer
-              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-match-composer:latest
+              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-match-composer:nightly
               volumeMounts:
                 - name: oss-env-dev
                   mountPath: /mnt/hub

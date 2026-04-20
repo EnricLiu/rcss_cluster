@@ -1,7 +1,8 @@
 use std::sync::atomic::{AtomicU8, Ordering};
+use serde::Serialize;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[derive(Default)]
+#[derive(Serialize, Default, Debug, Clone, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
 pub enum ClientStatusKind {
     Idle = 0,
     WaitingRedirection = 1,

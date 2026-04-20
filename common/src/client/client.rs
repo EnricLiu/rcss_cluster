@@ -1,18 +1,19 @@
 use std::net::SocketAddr;
 use std::sync::{Arc, OnceLock};
+use std::sync::atomic::{AtomicI64, Ordering};
 use std::time::Duration;
 
+use log::{debug, info, trace, warn};
+use uuid::Uuid;
+use tokio::sync::mpsc;
+use tokio::task::JoinHandle;
+use arcstr::ArcStr;
+use chrono::{DateTime, Utc};
+use dashmap::DashMap;
+use crate::udp::UdpConnection;
 use super::error::*;
 use super::{AtomicStatus, Config, Signal, StatusKind};
 use super::{BUFFER_SIZE, CHANNEL_CAPACITY, INIT_MSG_TIMEOUT_MS};
-use arcstr::ArcStr;
-use dashmap::DashMap;
-use log::{debug, info, trace, warn};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
-use uuid::Uuid;
-
-use crate::udp::UdpConnection;
 
 pub type ClientBuilder = super::config::ClientConfigBuilder;
 pub type ClientTxSignal = Signal;
@@ -20,6 +21,9 @@ pub type ClientRxData = ArcStr;
 pub type ClientTxData = ArcStr;
 
 type ConsumersDashMap = DashMap<Uuid, mpsc::Sender<ClientRxData>>;
+
+const TOUCH_INTERVAL: Duration = Duration::from_secs(1);
+
 #[derive(Default, Debug)]
 pub struct Client {
     config: Config,
@@ -28,6 +32,7 @@ pub struct Client {
     data_tx: OnceLock<mpsc::Sender<ClientTxData>>,     // dedicated data path
     status: Arc<AtomicStatus>,
 
+    touched_at: Arc<AtomicI64>,
     consumers: Arc<ConsumersDashMap>,
 }
 
@@ -69,7 +74,8 @@ impl Client {
         let consumers = self.consumers.clone();
         let context = Context {
             cfg: self.config.clone(),
-            status: self.status.clone(), // todo!(Arc inside the status might confusing, refactor later)
+            status: self.status.clone(),
+            touched_at: self.touched_at.clone(),
         };
 
         if self.handle.get().is_some() {
@@ -223,12 +229,25 @@ impl Client {
     pub fn status(&self) -> StatusKind {
         self.status.kind()
     }
+
+    pub fn touched_at(&self) -> DateTime<Utc> {
+        let timestamp = self.touched_at.load(Ordering::SeqCst);
+        DateTime::<Utc>::from_timestamp_millis(timestamp).unwrap_or_default()
+    }
 }
 
 #[derive(Clone)]
 struct Context {
     cfg: Config,
     status: Arc<AtomicStatus>,
+    touched_at: Arc<AtomicI64>,
+}
+
+impl Context {
+    pub fn touch(&self) {
+        let now = Utc::now().timestamp_millis();
+        self.touched_at.store(now, Ordering::SeqCst);
+    }
 }
 
 async fn run_debug(
@@ -299,7 +318,7 @@ async fn wait_init_msg_from_channels(
     data_rx: &mut mpsc::Receiver<ClientTxData>,
     signal_rx: &mut mpsc::Receiver<ClientTxSignal>,
     context: &Context,
-) -> Result<ClientRxData> {
+) -> Result<ClientTxData> {
     let timeout = tokio::time::sleep(Duration::from_millis(INIT_MSG_TIMEOUT_MS));
     tokio::pin!(timeout);
 
@@ -335,7 +354,7 @@ async fn wait_init_msg_from_channels(
 }
 
 async fn wait_init_resp_recv(
-    init_msg: &str,
+    init_msg: &ClientTxData,
     udp_conn: &mut UdpConnection,
     peer_addr: SocketAddr,
     context: &Context,
@@ -359,6 +378,7 @@ async fn wait_init_resp_recv(
                 "Client[{}]: received init response from server: {}",
                 context.cfg.name, resp
             );
+            context.touch();
             Ok(resp)
         }
         Ok(Err(e)) => {
@@ -367,6 +387,7 @@ async fn wait_init_resp_recv(
                 "Client[{}]: Failed to receive init response from server: {}",
                 context.cfg.name, e
             );
+            context.touch();
             Err(Error::Udp {
                 client_name: context.cfg.name.clone(),
                 source: e,
@@ -413,7 +434,7 @@ async fn sync_messages(
     let deleted = res.into_iter().flatten();
     for id in deleted {
         success_cnt -= 1;
-        if let None = consumers.remove(&id) {
+        if consumers.remove(&id).is_none() {
             warn!(
                 "Client[{}]: Consumer[{}] was removed from the list, but it was not found in the list.",
                 context.cfg.name, id
@@ -436,8 +457,15 @@ async fn listen_and_transmit(
     let udp_ = Arc::clone(&udp);
     let context_ = Arc::clone(&context);
     let mut udp_send_task = tokio::spawn(async move {
+        let mut touched = false;
+        let mut touch_interval = tokio::time::interval(TOUCH_INTERVAL);
         loop {
             tokio::select! {
+                _ = touch_interval.tick() => {
+                    if !touched { continue }
+                    context_.touch();
+                    touched = false;
+                },
                 signal = signal_rx.recv() => match signal {
                     Some(Signal::Shutdown) => break,
                     Some(_) => trace!("Client[{}]: Ignoring non-shutdown signal in send loop", context_.cfg.name),
@@ -447,6 +475,7 @@ async fn listen_and_transmit(
                     Some(msg) => {
                         udp_.send(msg.as_bytes()).await
                             .map_err(|e| Error::Udp { client_name: context_.cfg.name.clone(), source: e })?;
+                        touched = true;
                     },
                     None => break,
                 },
@@ -458,23 +487,37 @@ async fn listen_and_transmit(
     let context_ = Arc::clone(&context);
     let mut udp_recv_task = tokio::spawn(async move {
         let mut buf = [0u8; BUFFER_SIZE];
+        
+        let mut touched = false;
+        let mut touch_interval = tokio::time::interval(TOUCH_INTERVAL);
         loop {
-            let len = udp.recv(&mut buf).await.map_err(|e| Error::Udp {
-                client_name: context_.cfg.name.clone(),
-                source: e,
-            })?;
-
-            let msg = String::from_utf8_lossy(&buf[..len])
-                .to_string()
-                .into_boxed_str()
-                .into();
-
-            let cnt = sync_messages(&msg, &consumers, &context_).await?;
-            if cnt == 0 {
-                warn!(
-                    "Client[{}]: No consumers to receive UDP message.",
-                    context_.cfg.name
-                );
+            tokio::select! {
+                _ = touch_interval.tick() => {
+                    if !touched { continue }
+                    context_.touch();
+                    touched = false;
+                },
+                res = udp.recv(&mut buf) => {
+                    let len = res.map_err(|e| Error::Udp {
+                        client_name: context_.cfg.name.clone(),
+                        source: e,
+                    })?;
+                    
+                    touched = true;
+                    
+                    let msg = String::from_utf8_lossy(&buf[..len])
+                        .to_string()
+                        .into_boxed_str()
+                        .into();
+        
+                    let cnt = sync_messages(&msg, &consumers, &context_).await?;
+                    if cnt == 0 {
+                        warn!(
+                            "Client[{}]: No consumers to receive UDP message.",
+                            context_.cfg.name
+                        );
+                    }
+                }
             }
         }
 

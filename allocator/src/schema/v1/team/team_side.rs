@@ -1,3 +1,4 @@
+use std::fmt::{Display, Formatter};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Eq, PartialEq, Clone, Debug)]
@@ -13,5 +14,15 @@ impl TeamSideV1 {
     }
     pub fn opponents() -> TeamSideV1 {
         TeamSideV1::Right
+    }
+}
+
+impl Display for TeamSideV1 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let res = match self {
+            TeamSideV1::Left => "TeamSide(Left)",
+            TeamSideV1::Right => "TeamSide(Right)",
+        };
+        write!(f, "{res}")
     }
 }

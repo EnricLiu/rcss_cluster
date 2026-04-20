@@ -1,10 +1,10 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use chrono::{DateTime, Utc};
 
 use crate::declaration::HostPort;
 use super::team::TeamInfo;
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GameInfo {
     pub rcss: HostPort,
     pub status: GameStatusInfo,
@@ -12,7 +12,7 @@ pub struct GameInfo {
     pub team_r: TeamInfo,
 }
 
-#[derive(Serialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum GameStatusInfo {
     Idle,
     Running {

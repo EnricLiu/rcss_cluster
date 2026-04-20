@@ -8,6 +8,7 @@ mod declaration;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use arcstr::ArcStr;
 use clap::Parser;
 
@@ -35,7 +36,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);
-    let k8s = K8sClient::new(namespace).await?;
+    let k8s = K8sClient::new(
+        namespace,
+        args.k8s_n_retry,
+        Duration::from_millis(args.k8s_retry_interval_ms)
+    ).await?;
 
     let state = AppState {
         config: Arc::new(args.clone()),

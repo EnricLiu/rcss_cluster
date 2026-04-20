@@ -15,7 +15,7 @@
   },
   "log": true,
   "teams": {
-    "allies": {
+    "left": {
       "name": "HB1",
       "players": [
         {
@@ -44,7 +44,7 @@
         }
       ]
     },
-    "opponents": {
+    "right": {
       "name": "HB2",
       "players": [
         {

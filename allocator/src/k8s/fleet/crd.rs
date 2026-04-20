@@ -13,6 +13,30 @@ pub struct Fleet {
     pub kind: String,
     pub metadata: ObjectMeta,
     pub spec: FleetSpec,
+    pub status: Option<FleetStatus>,
+}
+
+impl Fleet {
+    pub fn name(&self) -> &str {
+        self.metadata.name.as_deref().unwrap_or("Anonymous Fleet")
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct FleetStatus {
+    pub replicas: usize,
+    #[serde(rename = "allocatedReplicas")]
+    pub allocated_replicas: usize,
+    #[serde(rename = "readyReplicas")]
+    pub ready_replicas: usize,
+    #[serde(rename = "reservedReplicas")]
+    pub reserved_replicas: usize,
+}
+
+impl FleetStatus {
+    pub fn has_ready(&self) -> bool {
+        self.ready_replicas > 0
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

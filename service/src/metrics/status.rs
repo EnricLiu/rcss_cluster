@@ -1,0 +1,38 @@
+use serde::Serialize;
+use chrono::{DateTime, Utc};
+use crate::ServerStatus;
+
+#[derive(Serialize, Debug, Clone)]
+pub struct ServiceStatusInfo {
+    pub status: ServerStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub timestep: Option<u16>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<DateTime<Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub uptime_ms: Option<i64>,
+    /// Live PID of the rcssserver process; `None` if not running or already exited.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub process_pid: Option<u32>,
+    /// rcssserver process lifecycle status (init / booting / running / returned / dead / uninitialized).
+    pub process_status: &'static str,
+}
+
+impl crate::Service {
+    pub async fn status_info(&self) -> ServiceStatusInfo {
+        let status = self.status_now();
+        let timestep = self.time_now().await;
+        let started_at = self.started_at().await;
+        let uptime_ms = started_at
+            .map(|started_at| (Utc::now() - started_at).num_milliseconds());
+
+        ServiceStatusInfo {
+            status,
+            timestep,
+            started_at,
+            uptime_ms,
+            process_pid: self.process_pid().await,
+            process_status: self.process_status_name().await,
+        }
+    }
+}

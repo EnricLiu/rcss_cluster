@@ -1,10 +1,13 @@
 use std::ops::Deref;
+use std::net::SocketAddr;
 use std::path::PathBuf;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use common::errors::{BuilderError, BuilderResult};
 use common::types::Side;
 use allocator::declaration::player::PlayerKind as PlayerKindDeclaration;
-use crate::declaration::{HostPort, ImageDeclaration, PlayerDeclaration, Unum};
+
+use crate::config::RcssServerConfig;
+use crate::declaration::{ImageDeclaration, PlayerDeclaration, Unum};
 
 #[derive(Debug, Clone)]
 pub enum PlayerModel {
@@ -23,7 +26,7 @@ impl Deref for PlayerModel {
     }
 }
 
-#[derive(Serialize, Copy, Clone, Debug)]
+#[derive(Serialize, Deserialize, Copy, Clone, Debug)]
 pub enum PlayerKind {
     Helios,
     Ssp,
@@ -68,7 +71,7 @@ pub struct PlayerBaseModel {
     pub team: String,
     pub kind: PlayerKind,
     pub goalie: bool,
-    pub server: HostPort,
+    pub server: SocketAddr,
     pub image: ImageDeclaration,
     pub log_root: Option<PathBuf>,
 }
@@ -80,7 +83,7 @@ impl PlayerBaseModel {
         team: String,
         kind: PlayerKind,
         goalie: bool,
-        server: HostPort,
+        server: SocketAddr,
         image: ImageDeclaration,
         log_root: Option<PathBuf>,
     ) -> Self {
@@ -120,7 +123,7 @@ impl AsRef<PlayerBaseModel> for HeliosPlayerModel {
 #[derive(Debug, Clone)]
 pub struct SspPlayerModel {
     base: PlayerBaseModel,
-    pub grpc: HostPort,
+    pub grpc: SocketAddr,
 }
 
 impl Deref for SspPlayerModel {
@@ -144,13 +147,13 @@ pub struct PlayerModelBuilder {
     pub team: Option<String>,
     pub kind: Option<PlayerKind>,
     pub goalie: Option<bool>,
-    pub server: Option<HostPort>,
+    pub server: Option<SocketAddr>,
     pub image: Option<ImageDeclaration>,
     pub log_root: Option<PathBuf>,
 
     pub enable_log: bool,
 
-    grpc: Option<HostPort>,
+    grpc: Option<SocketAddr>,
 }
 
 impl PlayerModelBuilder {
@@ -158,7 +161,7 @@ impl PlayerModelBuilder {
         Self::default()
     }
 
-    pub fn with_grpc(&mut self, grpc: HostPort) -> BuilderResult<&mut Self> {
+    pub fn with_grpc(&mut self, grpc: SocketAddr) -> BuilderResult<&mut Self> {
         if  let Some(kind) = &self.kind &&
             !matches!(kind, PlayerKind::Ssp) {
             return Err(BuilderError::InvalidField {
@@ -180,7 +183,7 @@ impl PlayerModelBuilder {
 
         let base = match declaration {
             PlayerDeclaration::Ssp { grpc, base } => {
-                self.with_grpc(grpc).expect("Failed to set gRPC configuration for SSP player");
+                self.with_grpc(grpc.into()).expect("Failed to set gRPC configuration for SSP player");
                 base
             },
             PlayerDeclaration::Helios { base } => base,
@@ -238,7 +241,7 @@ impl PlayerModelBuilder {
         self
     }
 
-    pub fn with_server(&mut self, server: HostPort) -> &mut Self {
+    pub fn with_server(&mut self, server: SocketAddr) -> &mut Self {
         self.server = Some(server);
         self
     }
