@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260420001
+  name: rcss-env-fleet-template-v260420002
 spec:
   replicas: 2
   scheduling: Packed
@@ -115,6 +115,7 @@ spec:
           containers:
             - name: rcss-cluster
               image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:nightly
+              imagePullPolicy: Always
               volumeMounts:
                 - name: oss-env-dev
                   mountPath: /mnt/logs
@@ -190,6 +191,7 @@ spec:
 
             - name: match-composer
               image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-match-composer:nightly
+              imagePullPolicy: Always
               volumeMounts:
                 - name: oss-env-dev
                   mountPath: /mnt/hub
