@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260409001
+  name: rcss-env-fleet-template-v260420001
 spec:
   replicas: 2
   scheduling: Packed
@@ -181,10 +181,12 @@ spec:
                   value: "5000"
                 - name: MATCH_COMPOSER_CLIENT_REQUEST_TIMEOUT_MS
                   value: "60000"
-                - name: MATCH_COMPOSER_CLIENT_START_MAX_RETRIES
-                  value: "3"
-                - name: MATCH_COMPOSER_CLIENT_START_RETRY_DELAY_MS
-                  value: "1000"
+#                - name: MATCH_COMPOSER_CLIENT_RETRY_BACKOFF_EN
+#                  value: "true"
+                - name: MATCH_COMPOSER_CLIENT_MAX_RETRIES
+                  value: "30"
+                - name: MATCH_COMPOSER_CLIENT_RETRY_DELAY_MS
+                  value: "2000"
 
             - name: match-composer
               image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-match-composer:nightly
