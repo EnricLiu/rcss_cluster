@@ -105,6 +105,7 @@ async fn make_allocation(
         let mut builder = GsAllocationBuilder::new();
         builder
             .parse_host(status.address.as_ref()).map_err(AllocationError::BadResponse)?
+            .set_pod_ip(status.get_pod_ip())
             .parse_ports(status.ports.unwrap_or_default())
             .set_name(status.game_server_name.clone());
         builder.build_into().map_err(AllocationError::BadResponse)?

@@ -21,6 +21,7 @@ pub struct PostRequest {
 #[derive(Serialize, Debug)]
 pub struct PostResponse {
     pub name: String,
+    pub pod: IpAddr,
     pub host: IpAddr,
     pub ports: HashMap<String, u16>,
 }
@@ -85,6 +86,7 @@ pub async fn post(
         Response::success(
             PostResponse {
                 name: res.name,
+                pod: res.pod,
                 host: res.host,
                 ports: res.ports,
             }

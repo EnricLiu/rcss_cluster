@@ -1,6 +1,6 @@
+use std::net::IpAddr;
 use std::borrow::Cow;
 use std::collections::HashMap;
-
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use serde::{Deserialize, Serialize};
 
@@ -61,10 +61,40 @@ pub struct GameServerAllocationStatus {
     pub state: AllocationState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+    pub addresses: Vec<GameServerAllocationStatusAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ports: Option<Vec<GameServerPort>>,
     #[serde(rename = "gameServerName", skip_serializing_if = "Option::is_none")]
     pub game_server_name: Option<String>,
+}
+
+impl GameServerAllocationStatus {
+    pub fn get_pod_ip(&self) -> Option<IpAddr> {
+        for addr in &self.addresses {
+            let maybe_pod_ip = addr.as_pod_ip();
+            if let Some(pod_ip) = maybe_pod_ip {
+                return Some(*pod_ip);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "address")]
+pub enum GameServerAllocationStatusAddress {
+    InternalIP(IpAddr),
+    Hostname(String),
+    PodIP(IpAddr),
+}
+
+impl GameServerAllocationStatusAddress {
+    pub fn as_pod_ip(&self) -> Option<&IpAddr> {
+        match self {
+            GameServerAllocationStatusAddress::PodIP(ip) => Some(ip),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

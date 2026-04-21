@@ -1,5 +1,6 @@
 use axum::extract::State;
 use axum::{Json, Router, routing};
+use log::{error, warn};
 use serde::{Deserialize, Serialize};
 use common::axum::response::Response;
 use crate::metadata::MetaData;
@@ -22,7 +23,10 @@ async fn post(
 ) -> Response  {
     let config = req.and_then(|Json(r)| r.config);
     let _res = match state.start(config).await {
-        Err(e) => return e.into(),
+        Err(e) => {
+            warn!("Failed to start match, error: {:?}", e);
+            return e.into()
+        },
         Ok(res) => res,
     };
 
