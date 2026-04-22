@@ -15,7 +15,7 @@ struct SerializeCommandResponseHelper<'a, C: Command> {
     ok: bool,
     #[serde(flatten, skip_serializing_if = "Option::is_none")]
     ok_content: Option<&'a C::Ok>,
-    #[serde(flatten, skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     err: Option<&'a String>,
 }
 
