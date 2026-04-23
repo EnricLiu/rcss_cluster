@@ -10,7 +10,7 @@ impl<'a> ServiceError<'a> {
             Error::ServerNotRunning { status: _ } => StatusCode::OK,
             Error::ServerStillRunningToSpawn => StatusCode::OK,
             Error::Timeout { op: _ } => StatusCode::REQUEST_TIMEOUT,
-            Error::ProcessFailedToShutdown => StatusCode::INTERNAL_SERVER_ERROR,
+            Error::ProcessFailedToShutdown(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::ProcessSpawnFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::TrainerCommandFailed(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Error::StatusChannelClosed => StatusCode::INTERNAL_SERVER_ERROR,
@@ -40,7 +40,7 @@ impl<'a> From<ServiceError<'a>> for Response {
             Error::Timeout { op: _ } => {
                 Response::error("Timeout", &value.0.to_string())
             },
-            Error::ProcessFailedToShutdown => {
+            Error::ProcessFailedToShutdown(_) => {
                 Response::error(
                     "ProcessFailedToShutdown",
                     "Failed to shutdown process due to internal error."
