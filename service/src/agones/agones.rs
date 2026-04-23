@@ -217,6 +217,11 @@ impl AgonesService {
             signals.push(Box::pin(Self::shutdown_on_finish(status_rx.clone())));
         }
 
+        if signals.is_empty() {
+            info!("[AgonesService] 'run_shutdown_signal': No auto-shutdown conditions configured; task exiting.");
+            return;
+        }
+
         tokio::select! {
             _ = futures::future::select_all(signals) => {
                 info!("[AgonesService] 'run_shutdown_signal': One of the shutdown conditions met.");
