@@ -49,7 +49,7 @@ impl Receiver<PlayerCommand, RxData> {
         let tasks_ = Arc::clone(&tasks);
         let recv_task = tokio::spawn(async move {
             while let Some(raw_msg) = receiver.recv().await {
-                let msg = raw_msg.trim().trim_end_matches('\0');
+                let msg = raw_msg.trim().trim_end_matches(&['\0', '\n', '\r']);
                 if msg.is_empty() || !msg.starts_with('(') || !msg.ends_with(')') {
                     debug!("{:?}", msg.chars().take(msg.len() - 1));
                     debug!("ignoring peer ret, not matching '(.+)': '{msg}'.");
@@ -179,7 +179,7 @@ impl Receiver<TrainerCommand, RxData> {
         let tasks_ = Arc::clone(&tasks);
         let recv_task = tokio::spawn(async move {
             while let Some(raw_msg) = receiver.recv().await {
-                let msg = raw_msg.trim().trim_end_matches('\0');
+                let msg = raw_msg.trim().trim_end_matches(&['\0', '\n', '\r']);
                 if msg.is_empty() || !msg.starts_with('(') || !msg.ends_with(')') {
                     debug!("{:?}", msg.chars().take(msg.len() - 1));
                     debug!("ignoring peer ret, not matching '(.+)': '{msg}'.");
