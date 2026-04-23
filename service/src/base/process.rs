@@ -64,7 +64,7 @@ impl AddonProcess {
 
     pub async fn shutdown(&mut self) -> Result<()> {
         self.process.shutdown().await
-            .map_err(|e| Error::ProcessFailedToShutdown)?;
+            .map_err(Error::ProcessFailedToShutdown)?;
         Ok(())
     }
     

@@ -195,7 +195,7 @@ impl BaseService {
             debug!("[BaseService] Shutting down existing process...");
             if let Err(e) = process.shutdown().await {
                 warn!("[BaseService] Failed to shutdown existing process: {:?}.", e);
-                return Err(Error::ProcessFailedToShutdown);
+                return Err(e);
             }
 
             if self.set_status(ServerStatus::Shutdown).is_none() {
