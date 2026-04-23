@@ -9,7 +9,7 @@ pub enum Error {
     #[error("Operation '{op}' timed out.")]
     Timeout { op: &'static str, },
 
-    #[error("Failed to shutdown the process.")]
+    #[error("Failed to shutdown the process: {0}")]
     ProcessFailedToShutdown(#[source] process::Error),
 
     #[error("Failed to spawn process: {0}")]
