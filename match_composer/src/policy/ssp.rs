@@ -20,6 +20,10 @@ impl Policy for PlayerPolicy<SspPlayerModel> {
                 .arg("--log-dir")
                 .arg(image_log_root);
         }
+
+        if config.goalie {
+            cmd.arg("-g");
+        }
         
         cmd
     }
