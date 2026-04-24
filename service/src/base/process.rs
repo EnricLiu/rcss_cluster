@@ -1,5 +1,5 @@
 use log::info;
-use tokio::sync::watch;
+use tokio::sync::{broadcast, watch};
 use chrono::{DateTime, Utc};
 
 use common::command::trainer::TrainerCommand;
@@ -70,6 +70,14 @@ impl AddonProcess {
     
     pub fn process_status_watch(&self) -> watch::Receiver<ProcessStatus> {
         self.process.process().status_watch()
+    }
+
+    pub fn subscribe_stdout(&self) -> broadcast::Receiver<String> {
+        self.process.process().subscribe_stdout()
+    }
+
+    pub fn subscribe_stderr(&self) -> broadcast::Receiver<String> {
+        self.process.process().subscribe_stderr()
     }
 
     pub fn started_at(&self) -> DateTime<Utc> {
