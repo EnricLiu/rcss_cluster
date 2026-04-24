@@ -162,10 +162,10 @@ impl Client {
             .take()
             .expect("WTF? Client handle OnceLock get failed");
 
-        if let Err(_e) = self.send_signal(Signal::Shutdown).await {
+        if let Err(e) = self.send_signal(Signal::Shutdown).await {
             // channel closed here, maybe already closed
             info!(
-                "Client[{}]: channel closed while trying to send ClientTxMessage::Shutdown",
+                "Client[{}]: channel closed while trying to send ClientTxMessage::Shutdown, {e}",
                 self.name()
             );
         }
@@ -202,7 +202,13 @@ impl Client {
             }
             Ok(Ok(res)) => {
                 self.status.set(StatusKind::Disconnected);
-                res
+                if let Err(err) = res {
+                    warn!(
+                        "Client[{}]: Connection task ended with error: {}",
+                        self.name(), err
+                    );
+                }
+                Ok(())
             }
         }
     }
