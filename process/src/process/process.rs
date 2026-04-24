@@ -1,11 +1,9 @@
-use std::process::ExitStatus;
-use std::sync::Arc;
 use std::time::Duration;
-use common::process::{Process, ProcessError, ProcessStatus as Status, ProcessStatusKind};
-use common::utils::ringbuf::OverwriteRB;
-use tokio::process::Child;
-use tokio::sync::{watch, RwLock};
+use std::process::ExitStatus;
 use log::{warn, error};
+use tokio::process::Child;
+use tokio::sync::{watch};
+use common::process::{Process, ProcessError, ProcessStatus as Status, ProcessStatusKind};
 
 use super::builder::ServerProcessSpawner;
 use super::error::{Error, Result};
@@ -26,7 +24,7 @@ impl ServerProcess {
     }
 
     pub(crate) async fn try_from(child: Child) -> Result<ServerProcess> {
-        let inner = Process::new(child)?;
+        let inner = Process::new(child, Some(Self::is_ready))?;
 
         let (status_tx, status_rx) = watch::channel(Status::init());
         let stdout_rb = status_rx.borrow().stdout.clone();
@@ -49,9 +47,6 @@ impl ServerProcess {
             loop {
                 tokio::select! {
                     Ok(line) = stdout_rx.recv() => {
-                        if line == READY_LINE {
-                            status_tx.send_modify(|s| s.as_running())
-                        }
                         stdout_buf.push(line);
                         if stdout_buf.len() >= STDOUT_BUF_CAPACITY {
                             stdout_rb.write().await.push_many(stdout_buf.drain(..));
@@ -66,12 +61,10 @@ impl ServerProcess {
 
                     _ = inner_status_rx.changed() => {
                         let inner = inner_status_rx.borrow().clone();
-                        if inner.is_finished() {
-                            status_tx.send_modify(|s| {
-                                s.kind = inner.kind.clone();
-                            });
-                            break
-                        }
+                        status_tx.send_modify(|s| {
+                            s.kind = inner.kind.clone();
+                        });
+                        if inner.is_finished() { break }
                     },
                 }
             }
@@ -90,6 +83,10 @@ impl ServerProcess {
         })
     }
 
+    fn is_ready(line: &str) -> bool {
+        line == READY_LINE
+    }
+    
     pub fn status_now(&self) -> Status {
         self.status_rx.borrow().clone()
     }

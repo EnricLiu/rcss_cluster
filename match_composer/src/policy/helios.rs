@@ -31,6 +31,10 @@ impl Policy for PlayerPolicy<HeliosPlayerModel> {
         cmd
     }
 
+    fn parse_ready_fn(&self) -> fn(&str) -> bool {
+        |line: &str| line.contains("init ok.")
+    }
+
     fn info(&self) -> &PlayerBaseModel {
         &self.player
     }
