@@ -1,11 +1,9 @@
-use std::process::ExitStatus;
-use std::sync::Arc;
 use std::time::Duration;
-use common::process::{Process, ProcessError, ProcessStatus as Status, ProcessStatusKind};
-use common::utils::ringbuf::OverwriteRB;
-use tokio::process::Child;
-use tokio::sync::{watch, RwLock};
+use std::process::ExitStatus;
 use log::{warn, error};
+use tokio::process::Child;
+use tokio::sync::{watch};
+use common::process::{Process, ProcessError, ProcessStatus as Status, ProcessStatusKind};
 
 use super::builder::ServerProcessSpawner;
 use super::error::{Error, Result};
@@ -63,12 +61,10 @@ impl ServerProcess {
 
                     _ = inner_status_rx.changed() => {
                         let inner = inner_status_rx.borrow().clone();
-                        if inner.is_finished() {
-                            status_tx.send_modify(|s| {
-                                s.kind = inner.kind.clone();
-                            });
-                            break
-                        }
+                        status_tx.send_modify(|s| {
+                            s.kind = inner.kind.clone();
+                        });
+                        if inner.is_finished() { break }
                     },
                 }
             }

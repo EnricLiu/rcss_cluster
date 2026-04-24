@@ -74,9 +74,11 @@ impl Process {
                 BufReader::new(stderr).lines()
             };
 
-            // Transition directly to Booting as requested
-            let mut is_boot_finished = false;
-            status_tx.send_modify(|s| s.as_booting());
+            let mut is_boot_finished = is_boot_ready_fn.is_none();
+            status_tx.send_modify(|s| {
+                if is_boot_finished { s.as_running() }
+                else { s.as_booting() }
+            });
 
             loop {
                 tokio::select! {
