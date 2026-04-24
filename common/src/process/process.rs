@@ -30,7 +30,7 @@ pub struct Process {
 }
 
 impl Process {
-    pub fn new(mut child: Child) -> Result<Self> {
+    pub fn new(mut child: Child, is_boot_ready_fn: Option<impl Fn(&str) -> bool + Send + 'static>,) -> Result<Self> {
         match child.try_wait() {
             Ok(None) => {},
             Ok(Some(status)) => return Err(ProcessError::ChildAlreadyCompleted(status)),
@@ -75,6 +75,7 @@ impl Process {
             };
 
             // Transition directly to Booting as requested
+            let mut is_boot_finished = false;
             status_tx.send_modify(|s| s.as_booting());
 
             loop {
@@ -102,6 +103,12 @@ impl Process {
                         match result {
                             Ok(Some(line)) => {
                                 trace!("stdout: {}", line);
+                                if !is_boot_finished &&
+                                    let Some(is_boot_ready_fn) = &is_boot_ready_fn &&
+                                    is_boot_ready_fn(&line) {
+                                    status_tx.send_modify(|s| s.as_running());
+                                    is_boot_finished = true;
+                                }
                                 // Broadcast line
                                 let _ = stdout_tx_.send(line);
                             }
@@ -117,6 +124,12 @@ impl Process {
                         match result {
                             Ok(Some(line)) => {
                                 trace!("stderr: {}", line);
+                                if !is_boot_finished &&
+                                    let Some(is_boot_ready_fn) = &is_boot_ready_fn &&
+                                    is_boot_ready_fn(&line) {
+                                    status_tx.send_modify(|s| s.as_running());
+                                    is_boot_finished = true;
+                                }
                                 // Broadcast line
                                 let _ = stderr_tx_.send(line);
                             }

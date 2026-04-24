@@ -3,7 +3,9 @@ use crate::model::player::PlayerBaseModel;
 use super::image::PolicyImage;
 
 pub trait Policy: Debug + Send + Sync + 'static {
+    
     fn command(&self) -> tokio::process::Command;
+    fn parse_ready_fn(&self) -> fn(&str) -> bool;
 
     fn info(&self) -> &PlayerBaseModel;
     
@@ -20,6 +22,9 @@ pub trait Policy: Debug + Send + Sync + 'static {
 impl Policy for Box<dyn Policy> {
     fn command(&self) -> tokio::process::Command {
         (**self).command()
+    }
+    fn parse_ready_fn(&self) -> fn(&str) -> bool {
+        (**self).parse_ready_fn()
     }
 
     fn info(&self) -> &PlayerBaseModel {

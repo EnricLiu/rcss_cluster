@@ -174,10 +174,10 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
         let mut command = self.config.command();
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
         debug!("[PolicyPlayer(unum={unum})] Spawn command: {:?}", command);
-
+        
         let process = self.process.get_or_try_init(|| async {
             let child = command.spawn().map_err(Error::ChildFailedSpawn)?;
-            <Result<_>>::Ok(Process::new(child)?)
+            <Result<_>>::Ok(Process::new(child, Some(self.config.parse_ready_fn()))?)
         }).await?;
         info!("[PolicyPlayer(unum={unum})] Player task spawned successfully");
         

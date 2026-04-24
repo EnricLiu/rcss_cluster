@@ -26,7 +26,7 @@ impl ServerProcess {
     }
 
     pub(crate) async fn try_from(child: Child) -> Result<ServerProcess> {
-        let inner = Process::new(child)?;
+        let inner = Process::new(child, Some(Self::is_ready))?;
 
         let (status_tx, status_rx) = watch::channel(Status::init());
         let stdout_rb = status_rx.borrow().stdout.clone();
@@ -49,9 +49,6 @@ impl ServerProcess {
             loop {
                 tokio::select! {
                     Ok(line) = stdout_rx.recv() => {
-                        if line == READY_LINE {
-                            status_tx.send_modify(|s| s.as_running())
-                        }
                         stdout_buf.push(line);
                         if stdout_buf.len() >= STDOUT_BUF_CAPACITY {
                             stdout_rb.write().await.push_many(stdout_buf.drain(..));
@@ -90,6 +87,10 @@ impl ServerProcess {
         })
     }
 
+    fn is_ready(line: &str) -> bool {
+        line == READY_LINE
+    }
+    
     pub fn status_now(&self) -> Status {
         self.status_rx.borrow().clone()
     }
