@@ -30,7 +30,9 @@ fn init_logging(
     level: &'static str,
     log_args: &LoggingArgs,
     stdio_suffix: Option<PathBuf>
-) -> std::io::Result<()> {
+) -> std::io::Result<Option<PathBuf>> {
+    let mut ret = None;
+
     match (log_args.try_resolve_log_root(), stdio_suffix) {
         (Ok(log_root), Some(stdio_suffix)) => {
             let log_file = log_root.join(stdio_suffix);
@@ -38,13 +40,14 @@ fn init_logging(
                 eprintln!("[FATAL] Failed to initialize logger at {}: {}", log_file.display(), e);
                 return Err(e);
             }
+            ret = Some(log_root);
         }
         (Ok(_), None) => {
-            error!("[FATAL] Stdio log path is required when log root is specified");
+            eprintln!("[FATAL] Stdio log path is required when log root is specified");
             std::process::exit(1);
         }
         (Err(e), Some(stdio_suffix)) => {
-            warn!("[Logging] Log root not specified, use relative path for stdio log: {}, Error: {e}", stdio_suffix.display());
+            eprintln!("[Logging] Log root not specified, use relative path for stdio log: {}, Error: {e}", stdio_suffix.display());
             if let Err(e) = init_dual_logger(&stdio_suffix, level) {
                 eprintln!("[FATAL] Failed to initialize logger at {}: {}", stdio_suffix.display(), e);
                 return Err(e);
@@ -52,7 +55,8 @@ fn init_logging(
         }
         _ => init_stdout_logger(level),
     };
-    Ok(())
+
+    Ok(ret)
 }
 
 #[derive(Parser, Debug)]
@@ -171,9 +175,9 @@ async fn main() {
     let listen_addr = args.listen_addr();
     let player_udp_listen_addr = args.player_udp_listen_addr();
 
-    init_logging("info", &args.log_args, args.stdio_log_path).unwrap();
-    
-    let log_root = args.log_args.try_resolve_log_root().ok().unwrap_or(env::current_dir().unwrap());
+    let log_root = init_logging("info", &args.log_args, args.stdio_log_path).unwrap()
+        .unwrap_or(env::current_dir().unwrap());
+
     let service = match Service::from_args(args.service_args, log_root).await {
         Ok(svc) => svc,
         Err(e) => {
