@@ -95,6 +95,7 @@ impl Team {
     pub async fn spawn(
         &mut self,
         registry: &PolicyRegistry,
+        delay: Duration,
     ) -> Result<()> {
         if !self.status_tx.borrow().is_finished() {
             return Err(Error::NotFinished);
@@ -107,7 +108,7 @@ impl Team {
 
         players.sort_by_key(|p| p.unum);
 
-        let mut interval = tokio::time::interval(SPAWN_DURATION);
+        let mut interval = tokio::time::interval(delay);
         for player in players {
             let unum = player.unum;
             let policy = registry.fetch(player).map_err(|player| {

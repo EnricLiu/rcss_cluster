@@ -1,4 +1,5 @@
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 use chrono::{DateTime, Utc};
 use log::info;
 
@@ -73,7 +74,20 @@ impl MatchComposer {
                 team_r,
             );
 
-            game.spawn(&self.registry).await?;
+            match self.config.concurrent_team_spawn {
+                true => game.spawn_concurrent(
+                    &self.registry,
+                    self.config.player_spawn_delay,
+                    self.config.team_spawn_delay,
+                ).await?,
+                
+                false => game.spawn(
+                    &self.registry,
+                    self.config.player_spawn_delay,
+                    self.config.team_spawn_delay,
+                ).await?,
+            }
+            
             game
         };
         
@@ -110,11 +124,43 @@ impl Match {
         }
     }
 
-    pub async fn spawn(&mut self, registry: &PolicyRegistry) -> Result<()> {
-        self.team_l.spawn(registry).await?;
+    pub async fn spawn(
+        &mut self,
+        registry: &PolicyRegistry,
+        player_delay: Duration,
+        team_delay: Duration
+    ) -> Result<()> {
+        self.team_l.spawn(registry, player_delay).await?;
         info!("Team L spawned successfully, {:?}", self.team_l.info());
-        self.team_r.spawn(registry).await?;
+        tokio::time::sleep(team_delay).await;
+        self.team_r.spawn(registry, player_delay).await?;
         info!("Team R spawned successfully, {:?}", self.team_r.info());
+        Ok(())
+    }
+
+    pub async fn spawn_concurrent(
+        &mut self,
+        registry: &PolicyRegistry,
+        player_delay: Duration,
+        team_delay: Duration
+    ) -> Result<()> {
+        let spawn_l = self.team_l.spawn(registry, player_delay);
+        let spawn_r = async {
+            tokio::time::sleep(team_delay).await;
+            self.team_r.spawn(registry, player_delay).await
+        };
+        
+        tokio::select! {
+            res = spawn_l => {
+                res?;
+                info!("Team L spawned successfully, {:?}", self.team_l.info());
+            }
+            res = spawn_r => {
+                res?;
+                info!("Team R spawned successfully, {:?}", self.team_r.info());
+            },
+        }
+        
         Ok(())
     }
 

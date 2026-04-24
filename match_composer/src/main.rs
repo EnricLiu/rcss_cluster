@@ -68,6 +68,9 @@ async fn main() {
         },
         log_root: args.log_root,
         registry_path: args.hub_path,
+        player_spawn_delay: Duration::from_millis(args.player_spawn_delay),
+        team_spawn_delay: Duration::from_millis(args.team_spawn_delay),
+        concurrent_team_spawn: args.team_spawn_concurrent_en,
     };
 
 

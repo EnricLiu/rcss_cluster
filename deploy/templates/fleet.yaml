@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260420002
+  name: rcss-env-fleet-template-v260424001
 spec:
   replicas: 2
   scheduling: Packed
@@ -220,9 +220,16 @@ spec:
                   value: "6666"
 
                 - name: MC_HUB_PATH
-                  value: "/mnt/hub"
+                  value: "./hub"
                 - name: MC_LOG_ROOT
                   value: "/mnt/logs"
+
+#                - name: MC_TEAM_SPAWN_CONCURRENT_EN
+#                  value: "true"
+                - name: MC_PLAYER_SPAWN_DELAY
+                  value: "500"
+                - name: MC_TEAM_SPAWN_DELAY
+                  value: "1000"
 
                 - name: MC_AGONES_EN
                   value: "true"

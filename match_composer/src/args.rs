@@ -13,6 +13,13 @@ pub struct Args {
     #[arg(long, env = "MC_PORT", default_value = "7777", help = "Server port to bind")]
     pub port: u16,
     
+    #[arg(long, env = "MC_PLAYER_SPAWN_DELAY", default_value = "500", help = "Delay in milliseconds between spawning individual players")]
+    pub player_spawn_delay: u64,
+    #[arg(long, env = "MC_TEAM_SPAWN_DELAY", default_value = "1000", help = "Delay in milliseconds between spawning teams")]
+    pub team_spawn_delay: u64,
+    #[arg(long, env = "MC_TEAM_SPAWN_CONCURRENT_EN", default_value = "false", help = "Whether to spawn teams concurrently")]
+    pub team_spawn_concurrent_en: bool,
+    
     /// RCSS server host for agent communication
     #[arg(long, env = "SERVER_HOST", default_value = "127.0.0.1", help = "RCSS wrapped server host for player communication")]
     pub rcss_host: IpAddr,
