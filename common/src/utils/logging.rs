@@ -7,7 +7,7 @@ use env_logger::{Builder, Env, Target};
 
 #[derive(Debug, Clone, Args)]
 pub struct LoggingArgs {
-    #[arg(long, env = "LOGGER_ROOT_FILE", help = "Resolved shared log root directory. If set, bypasses shared log root file discovery")]
+    #[arg(long, env = "LOGGER_ROOT_FILE", help = "Path to a file containing the resolved shared log root directory")]
     pub shared_log_root_file: Option<PathBuf>,
 }
 

@@ -74,7 +74,7 @@ struct Args {
     #[clap(long, default_value_t = 6659, env = "SERVER_UDP_PORT_COACH", help = "UDP Proxy port for coaches to bind")]
     coach_udp_port: u16,
 
-    #[clap(long, env = "SERVER_STDIO_PATH", default_value = "None", help = "Server service log file")]
+    #[clap(long, env = "SERVER_STDIO_PATH", help = "Server service log file")]
     stdio_log_path: Option<PathBuf>,
 
     #[clap(flatten)]
