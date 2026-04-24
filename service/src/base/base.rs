@@ -91,7 +91,7 @@ impl BaseService {
         let mut spawner = CoachedProcessSpawner::new().await;
         let rcss_game_log_dir = {
             let dir = config.log_root().join(args.rcss_game_log_dir);
-            dir.to_str().unwrap().to_string().leak() // STRING LEAK
+            dir.to_string_lossy().into_owned().leak() // STRING LEAK
         };
         spawner
             .with_ports(args.player_port, args.trainer_port, args.coach_port)
