@@ -179,11 +179,8 @@ impl AppState {
         &self,
         game: &mut Option<Match>,
     ) -> Result<()> {
-        let started_at = Utc::now();
-        let log_root = started_at.format("%Y%m%d_%H%M%S").to_string();
-        
         let new_game = self.composer
-            .make_match(log_root).await
+            .make_match().await
             .map_err(|e| Error::internal(format!("Failed to spawn players: {e}")))?;
 
         *game = Some(new_game);

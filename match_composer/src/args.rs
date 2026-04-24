@@ -1,6 +1,7 @@
 use std::net::IpAddr;
 use std::path::PathBuf;
 use clap::Parser;
+use common::utils::logging::LoggingArgs;
 
 #[derive(Debug, Clone, Parser)]
 #[command(name = "match_composer", about = "Match Composer HTTP server")]
@@ -45,8 +46,8 @@ pub struct Args {
     pub hub_path: PathBuf,
 
     /// Root directory for match logs
-    #[arg(long, env = "MC_LOG_ROOT", default_value = "./logs", help = "Root directory for agent logs")]
-    pub log_root: Option<PathBuf>,
+    #[arg(long, env = "MC_PLAYER_LOG_ROOT", default_value = "./players", help = "Root directory for player logs")]
+    pub player_log_root_dir: Option<PathBuf>,
 
 
     #[arg(short='f', long, env = "MC_CONFIG_FILE", help = "Path to the ConfigV1 JSON file, exclusive with -a or --agones")]
@@ -59,5 +60,11 @@ pub struct Args {
     pub agones_grpc_port: Option<u16>,
 
     #[arg(long, env = "AGONES_KEEP_ALIVE_S", default_value = "30", help = "Interval in seconds for sending keep-alive messages to Agones")]
-    pub agones_keep_alive: Option<u64>
+    pub agones_keep_alive: Option<u64>,
+
+    #[command(flatten)]
+    pub log_args: LoggingArgs,
+
+    #[arg(long, env = "MC_STDIO_LOG_PATH", help = "Path to the log file for standard output and error of the match composer, if not set, logs will be printed to console")]
+    pub stdio_log_path: Option<PathBuf>,
 }

@@ -1,4 +1,5 @@
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -64,13 +65,13 @@ impl Display for AgonesService {
 }
 
 impl AgonesService {
-    pub async fn from_args(args: AgonesArgs) -> Result<Self> {
+    pub async fn from_args(args: AgonesArgs, log_root: PathBuf) -> Result<Self> {
         let sdk = agones::Sdk::new(
             args.agones_port,
             args.agones_keep_alive.map(Duration::from_secs),
         ).await.map_err(Error::AgonesSdkFailToConnect)?;
 
-        let base = BaseService::from_args(args.base_args).await;
+        let base = BaseService::from_args(args.base_args, log_root).await;
 
         let mc_config = args.mc_args.into_config();
         let mc_client = mc_config.as_ref()

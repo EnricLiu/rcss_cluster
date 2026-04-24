@@ -1,6 +1,5 @@
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
-use chrono::{DateTime, Utc};
 use log::info;
 
 use tokio::sync::{watch, RwLock};
@@ -51,18 +50,18 @@ impl MatchComposer {
         *lock.write().await = meta;
     }
 
-    pub async fn make_match(&self, log_name: impl AsRef<str>) -> Result<Match> {
+    pub async fn make_match(&self) -> Result<Match> {
         if !self.is_init() {
             return Err(Error::Team(team::Error::NoMatchMetaData));
         }
 
         let server = self.config.server.clone();
-        let log = self.config.log_root.as_ref().map(|p| p.join(log_name.as_ref()));
+        let player_log_root = self.config.player_log_root.clone();
 
         let meta = self.match_data_unchecked().read().await.clone();
         let declared = meta.as_model();
         let (team_l, team_r) = {
-            let (team_l, team_r) = declared.teams(server.clone(), log);
+            let (team_l, team_r) = declared.teams(server.clone(), player_log_root);
             (Team::new(team_l), Team::new(team_r))
         };
 
@@ -149,7 +148,7 @@ impl Match {
             tokio::time::sleep(team_delay).await;
             self.team_r.spawn(registry, player_delay).await
         };
-        
+
         tokio::select! {
             res = spawn_l => {
                 res?;
@@ -160,7 +159,7 @@ impl Match {
                 info!("Team R spawned successfully, {:?}", self.team_r.info());
             },
         }
-        
+
         Ok(())
     }
 

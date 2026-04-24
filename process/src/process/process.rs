@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::process::ExitStatus;
 use log::{warn, error};
 use tokio::process::Child;
-use tokio::sync::{watch};
+use tokio::sync::{broadcast, watch};
 use common::process::{Process, ProcessError, ProcessStatus as Status, ProcessStatusKind};
 
 use super::builder::ServerProcessSpawner;
@@ -101,6 +101,14 @@ impl ServerProcess {
 
     pub fn status_watch(&self) -> watch::Receiver<Status> {
         self.status_rx.clone()
+    }
+
+    pub fn subscribe_stdout(&self) -> broadcast::Receiver<String> {
+        self.inner.subscribe_stdout()
+    }
+
+    pub fn subscribe_stderr(&self) -> broadcast::Receiver<String> {
+        self.inner.subscribe_stderr()
     }
 
     /// Wait until the rcssserver is ready and able to accept Udp connections.

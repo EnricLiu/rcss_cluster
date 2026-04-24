@@ -93,17 +93,17 @@ impl<'a> Declaration<'a, MetaData> {
 }
 
 impl<'a> Model<'a, MetaData> {
-    pub fn team(&self, side: Side, server: RcssServerConfig, log: Option<PathBuf>) -> TeamModel {
+    pub fn team(&self, side: Side, server: RcssServerConfig, player_log_root: Option<PathBuf>) -> TeamModel {
         let team_decl = self.as_declared().team(side);
         let mut team = TeamModel::builder();
         team.with_declaration(team_decl)
             .with_server(server)
-            .with_log_root(log);
+            .with_log_root(player_log_root);
 
         team.build().expect("Failed to build team model")
     }
 
-    pub fn teams(&self, server: RcssServerConfig, log: Option<PathBuf>) -> (TeamModel, TeamModel) {
-        (self.team(Side::LEFT, server.clone(), log.clone()), self.team(Side::RIGHT, server, log))
+    pub fn teams(&self, server: RcssServerConfig, player_log_root: Option<PathBuf>) -> (TeamModel, TeamModel) {
+        (self.team(Side::LEFT, server.clone(), player_log_root.clone()), self.team(Side::RIGHT, server, player_log_root))
     }
 }
