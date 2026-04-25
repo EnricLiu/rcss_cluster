@@ -10,6 +10,7 @@ pub mod info;
 pub mod team;
 pub mod composer;
 
+use std::env;
 use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
@@ -57,7 +58,8 @@ fn init_logging(
 #[tokio::main]
 async fn main() {
     let args = args::Args::parse();
-    init_logging("info", &args.log_args, args.stdio_log_path).unwrap();
+    let log_root = init_logging("info", &args.log_args, args.stdio_log_path).unwrap()
+        .unwrap_or(env::current_dir().unwrap());
 
     if args.agones ^ args.file.is_none() {
         log::error!("Exact one of --agones or --file should be specified");
@@ -98,7 +100,7 @@ async fn main() {
             trainer: SocketAddr::new(args.rcss_host, args.rcss_trainer_port),
             coach: SocketAddr::new(args.rcss_host, args.rcss_coach_port),
         },
-        player_log_root: args.player_log_root_dir,
+        player_log_root: args.player_log_root_dir.map(|p|log_root.join(p)),
         registry_path: args.hub_path,
         player_spawn_delay: Duration::from_millis(args.player_spawn_delay),
         team_spawn_delay: Duration::from_millis(args.team_spawn_delay),
