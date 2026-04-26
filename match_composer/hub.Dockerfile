@@ -125,26 +125,22 @@ RUN ldconfig
 # ---------- hub/Cyrus2D/SoccerSimulationProxy ----------
 COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh \
      /app/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh
+COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/player.conf \
+     /app/hub/Cyrus2D/SoccerSimulationProxy/player.conf
 
 COPY --from=ssp-builder /tmp/SoccerSimulationProxy/build/bin/sample_player \
      /app/hub/Cyrus2D/SoccerSimulationProxy/sample_player
-
-COPY --from=ssp-builder /tmp/SoccerSimulationProxy/build/bin/player.conf \
-     /app/hub/Cyrus2D/SoccerSimulationProxy/player.conf
-
 COPY --from=ssp-builder /tmp/SoccerSimulationProxy/build/bin/formations-dt \
      /app/hub/Cyrus2D/SoccerSimulationProxy/formations-dt
 
 # ---------- hub/HELIOS/helios-base ----------
 COPY match_composer/hub/HELIOS/helios-base/start_player.sh \
      /app/hub/HELIOS/helios-base/start_player.sh
+COPY match_composer/hub/HELIOS/helios-base/player.conf \
+     /app/hub/HELIOS/helios-base/player.conf
 
 COPY --from=helios-builder /tmp/helios-base/src/sample_player \
      /app/hub/HELIOS/helios-base/sample_player
-
-COPY --from=helios-builder /tmp/helios-base/src/player.conf \
-     /app/hub/HELIOS/helios-base/player.conf
-
 COPY --from=helios-builder /tmp/helios-base/src/formations-dt \
      /app/hub/HELIOS/helios-base/formations-dt
 

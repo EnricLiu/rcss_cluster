@@ -1,5 +1,5 @@
 use std::sync::{Arc, OnceLock};
-use chrono::{DateTime, Utc};
+use std::time::Duration;
 use log::info;
 
 use tokio::sync::{watch, RwLock};
@@ -50,18 +50,18 @@ impl MatchComposer {
         *lock.write().await = meta;
     }
 
-    pub async fn make_match(&self, log_name: impl AsRef<str>) -> Result<Match> {
+    pub async fn make_match(&self) -> Result<Match> {
         if !self.is_init() {
             return Err(Error::Team(team::Error::NoMatchMetaData));
         }
 
         let server = self.config.server.clone();
-        let log = self.config.log_root.as_ref().map(|p| p.join(log_name.as_ref()));
+        let player_log_root = self.config.player_log_root.clone();
 
         let meta = self.match_data_unchecked().read().await.clone();
         let declared = meta.as_model();
         let (team_l, team_r) = {
-            let (team_l, team_r) = declared.teams(server.clone(), log);
+            let (team_l, team_r) = declared.teams(server.clone(), player_log_root);
             (Team::new(team_l), Team::new(team_r))
         };
 
@@ -73,7 +73,20 @@ impl MatchComposer {
                 team_r,
             );
 
-            game.spawn(&self.registry).await?;
+            match self.config.concurrent_team_spawn {
+                true => game.spawn_concurrent(
+                    &self.registry,
+                    self.config.player_spawn_delay,
+                    self.config.team_spawn_delay,
+                ).await?,
+                
+                false => game.spawn(
+                    &self.registry,
+                    self.config.player_spawn_delay,
+                    self.config.team_spawn_delay,
+                ).await?,
+            }
+            
             game
         };
         
@@ -110,11 +123,43 @@ impl Match {
         }
     }
 
-    pub async fn spawn(&mut self, registry: &PolicyRegistry) -> Result<()> {
-        self.team_l.spawn(registry).await?;
+    pub async fn spawn(
+        &mut self,
+        registry: &PolicyRegistry,
+        player_delay: Duration,
+        team_delay: Duration
+    ) -> Result<()> {
+        self.team_l.spawn(registry, player_delay).await?;
         info!("Team L spawned successfully, {:?}", self.team_l.info());
-        self.team_r.spawn(registry).await?;
+        tokio::time::sleep(team_delay).await;
+        self.team_r.spawn(registry, player_delay).await?;
         info!("Team R spawned successfully, {:?}", self.team_r.info());
+        Ok(())
+    }
+
+    pub async fn spawn_concurrent(
+        &mut self,
+        registry: &PolicyRegistry,
+        player_delay: Duration,
+        team_delay: Duration
+    ) -> Result<()> {
+        let spawn_l = self.team_l.spawn(registry, player_delay);
+        let spawn_r = async {
+            tokio::time::sleep(team_delay).await;
+            self.team_r.spawn(registry, player_delay).await
+        };
+
+        tokio::select! {
+            res = spawn_l => {
+                res?;
+                info!("Team L spawned successfully, {:?}", self.team_l.info());
+            }
+            res = spawn_r => {
+                res?;
+                info!("Team R spawned successfully, {:?}", self.team_r.info());
+            },
+        }
+
         Ok(())
     }
 

@@ -8,6 +8,7 @@ use super::crd::GameServerPort;
 #[derive(Debug, Clone)]
 pub struct GsAllocation {
     pub name: String,
+    pub pod: IpAddr,
     pub host: IpAddr,
     pub ports: HashMap<String, u16>,
 }
@@ -21,6 +22,7 @@ impl GsAllocation {
 #[derive(Default, Debug, Clone)]
 pub struct GsAllocationBuilder {
     name: Option<String>,
+    pod: Option<IpAddr>,
     host: Option<IpAddr>,
     ports: HashMap<String, u16>,
 }
@@ -43,6 +45,11 @@ impl GsAllocationBuilder {
 
     pub fn with_host(&mut self, host: impl Into<IpAddr>) -> &mut Self {
         self.host = Some(host.into());
+        self
+    }
+    
+    pub fn set_pod_ip(&mut self, pod_ip: Option<IpAddr>) -> &mut Self {
+        self.pod = pod_ip;
         self
     }
 
@@ -70,12 +77,13 @@ impl GsAllocationBuilder {
 
     pub fn build_into(self) -> BuilderResult<GsAllocation> {
         let name = self.name.ok_or(BuilderError::MissingField { field: "name" })?;
+        let pod = self.pod.ok_or(BuilderError::MissingField { field: "pod" })?;
         let host = self.host.ok_or(BuilderError::MissingField { field: "host" })?;
         let ports = self.ports;
         if ports.is_empty() {
             return Err(BuilderError::MissingField { field: "ports" });
         }
 
-        Ok(GsAllocation { name, host, ports })
+        Ok(GsAllocation { name, pod, host, ports })
     }
 }

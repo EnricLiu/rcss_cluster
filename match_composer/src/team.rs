@@ -95,6 +95,7 @@ impl Team {
     pub async fn spawn(
         &mut self,
         registry: &PolicyRegistry,
+        delay: Duration,
     ) -> Result<()> {
         if !self.status_tx.borrow().is_finished() {
             return Err(Error::NotFinished);
@@ -102,12 +103,14 @@ impl Team {
         self.status_tx.send(TeamStatus::Starting)
             .map_err(|_| Error::ChannelClosed { ch_name: "TeamStatus" })?;
 
+        self.ensure_log_dir().await;
+
         let mut players = self.config.players().clone()
             .into_iter().map(|(_, p)| p).collect::<Vec<_>>();
 
         players.sort_by_key(|p| p.unum);
 
-        let mut interval = tokio::time::interval(SPAWN_DURATION);
+        let mut interval = tokio::time::interval(delay);
         for player in players {
             let unum = player.unum;
             let policy = registry.fetch(player).map_err(|player| {
@@ -168,6 +171,13 @@ impl Team {
             let _ = player.value_mut().shutdown().await;
         }
         self.players.clear();
+    }
+
+    async fn ensure_log_dir(&self) {
+        if let Some(log_root) = &self.config.log_root {
+            tokio::fs::create_dir_all(log_root).await
+                .expect(&format!("Failed to create log directory {:?}", log_root));
+        }
     }
 
     fn spawn_monitor_task(

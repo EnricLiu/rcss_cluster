@@ -15,17 +15,51 @@ use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 use std::time::Duration;
 use clap::Parser;
-
+use log::{error, warn};
 use allocator::declaration;
+use common::utils::logging::{LoggingArgs, init_dual_logger, init_stdout_logger};
 
 use crate::metadata::MetaData;
 use crate::config::{MatchComposerConfig, RcssServerConfig};
 
+fn init_logging(
+    level: &'static str,
+    log_args: &LoggingArgs,
+    stdio_suffix: Option<PathBuf>
+) -> std::io::Result<Option<PathBuf>> {
+    let mut ret = None;
+
+    match (log_args.try_resolve_log_root(), stdio_suffix) {
+        (Ok(log_root), Some(stdio_suffix)) => {
+            let log_file = log_root.join(stdio_suffix);
+            if let Err(e) = init_dual_logger(&log_file, level) {
+                eprintln!("[FATAL] Failed to initialize logger at {}: {}", log_file.display(), e);
+                return Err(e);
+            }
+            ret = Some(log_root);
+        }
+        (Ok(_), None) => {
+            eprintln!("[FATAL] Stdio log path is required when log root is specified");
+            std::process::exit(1);
+        }
+        (Err(e), Some(stdio_suffix)) => {
+            eprintln!("[Logging] Log root not specified, use relative path for stdio log: {}, Error: {e}", stdio_suffix.display());
+            if let Err(e) = init_dual_logger(&stdio_suffix, level) {
+                eprintln!("[FATAL] Failed to initialize logger at {}: {}", stdio_suffix.display(), e);
+                return Err(e);
+            }
+        }
+        _ => init_stdout_logger(level),
+    };
+
+    Ok(ret)
+}
+
 #[tokio::main]
 async fn main() {
-    unsafe { env::set_var("RUST_LOG", "debug") }
-    env_logger::init();
     let args = args::Args::parse();
+    let log_root = init_logging("info", &args.log_args, args.stdio_log_path).unwrap()
+        .unwrap_or(env::current_dir().unwrap());
 
     if args.agones ^ args.file.is_none() {
         log::error!("Exact one of --agones or --file should be specified");
@@ -56,7 +90,7 @@ async fn main() {
     //     .expect("Failed to parse MatchComposerConfig from GameServer metadata");
 
     log::info!("hub_path : {:?}", args.hub_path);
-    log::info!("log_root : {:?}", args.log_root);
+    log::info!("player_log_root_dir : {:?}", args.player_log_root_dir);
 
     let addr = SocketAddr::new(args.host.into(), args.port);
     let composer_conf = MatchComposerConfig {
@@ -66,8 +100,11 @@ async fn main() {
             trainer: SocketAddr::new(args.rcss_host, args.rcss_trainer_port),
             coach: SocketAddr::new(args.rcss_host, args.rcss_coach_port),
         },
-        log_root: args.log_root,
+        player_log_root: args.player_log_root_dir.map(|p|log_root.join(p)),
         registry_path: args.hub_path,
+        player_spawn_delay: Duration::from_millis(args.player_spawn_delay),
+        team_spawn_delay: Duration::from_millis(args.team_spawn_delay),
+        concurrent_team_spawn: args.team_spawn_concurrent_en,
     };
 
 

@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use log::{debug, info, warn};
 use tokio::sync::{watch, RwLock};
 use tokio::task::JoinHandle;
@@ -83,14 +84,19 @@ pub(crate) fn get_status(watch: &watch::Receiver<ServerStatus>) -> ServerStatus 
 }
 
 impl BaseService {
-    pub async fn from_args(args: BaseArgs) -> Self {
-        let config = (&args).into();
+    pub async fn from_args(args: BaseArgs, log_root: PathBuf) -> Self {
+        let config: BaseConfig = (&args).into();
+        config.set_log_root(log_root);
+        
         let mut spawner = CoachedProcessSpawner::new().await;
-        let rcss_log_dir = args.rcss_log_dir.leak(); // STRING LEAK
+        let rcss_game_log_dir = {
+            let dir = config.log_root().join(args.rcss_game_log_dir);
+            dir.to_string_lossy().into_owned().leak() // STRING LEAK
+        };
         spawner
             .with_ports(args.player_port, args.trainer_port, args.coach_port)
             .with_sync_mode(args.rcss_sync)
-            .with_log_dir(rcss_log_dir);
+            .with_log_dir(rcss_game_log_dir);
 
         BaseService::new(config, spawner).await
     }
@@ -195,7 +201,7 @@ impl BaseService {
             debug!("[BaseService] Shutting down existing process...");
             if let Err(e) = process.shutdown().await {
                 warn!("[BaseService] Failed to shutdown existing process: {:?}.", e);
-                return Err(Error::ProcessFailedToShutdown);
+                return Err(e);
             }
 
             if self.set_status(ServerStatus::Shutdown).is_none() {

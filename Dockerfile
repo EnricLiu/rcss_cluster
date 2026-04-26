@@ -15,6 +15,7 @@ RUN apk add --no-cache build-base automake autoconf libtool flex-dev bison boost
 RUN wget https://github.com/rcsoccersim/rcssserver/releases/download/rcssserver-19.0.0/rcssserver-19.0.0.tar.gz
 RUN tar -zvxf rcssserver-19.0.0.tar.gz && \
     cd rcssserver-19.0.0 && \
+    sed -i 's/const double max_msec_waited = 25 \* 50;/const double max_msec_waited = 86400;/' src/stadium.cpp && \
     ./configure --disable-rcssclient && make -j4 && make install
 
 # Build dependency crates

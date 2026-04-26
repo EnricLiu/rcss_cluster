@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use super::{BaseService, StandaloneArgs};
 use tokio::task::JoinHandle;
 
@@ -7,8 +8,8 @@ pub struct StandaloneService {
 }
 
 impl StandaloneService {
-    pub async fn from_args(args: StandaloneArgs) -> crate::Result<Self> {
-        let base = BaseService::from_args(args.base_args).await;
+    pub async fn from_args(args: StandaloneArgs, log_root: PathBuf) -> crate::Result<Self> {
+        let base = BaseService::from_args(args.base_args, log_root).await;
         Ok(Self::new(base))
     }
 

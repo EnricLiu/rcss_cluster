@@ -6,11 +6,12 @@ mod state;
 use std::env;
 use std::future::Future;
 use std::net::{IpAddr, SocketAddr};
+use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::Arc;
 use axum::Router;
 use clap::Parser;
-use log::{debug, error, info};
+use log::{debug, error, info, warn};
 use tokio::net::{TcpListener, ToSocketAddrs};
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -18,11 +19,45 @@ use tower_http::trace::TraceLayer;
 use service::Service;
 
 use common::axum::response;
+use common::utils::logging::{LoggingArgs, init_stdout_logger, init_dual_logger};
 
 use crate::proxy::udp::UdpProxy;
 use crate::state::AppState;
 
 pub const PEER_IP: IpAddr = IpAddr::V4(std::net::Ipv4Addr::LOCALHOST);
+
+fn init_logging(
+    level: &'static str,
+    log_args: &LoggingArgs,
+    stdio_suffix: Option<PathBuf>
+) -> std::io::Result<Option<PathBuf>> {
+    let mut ret = None;
+
+    match (log_args.try_resolve_log_root(), stdio_suffix) {
+        (Ok(log_root), Some(stdio_suffix)) => {
+            let log_file = log_root.join(stdio_suffix);
+            if let Err(e) = init_dual_logger(&log_file, level) {
+                eprintln!("[FATAL] Failed to initialize logger at {}: {}", log_file.display(), e);
+                return Err(e);
+            }
+            ret = Some(log_root);
+        }
+        (Ok(_), None) => {
+            eprintln!("[FATAL] Stdio log path is required when log root is specified");
+            std::process::exit(1);
+        }
+        (Err(e), Some(stdio_suffix)) => {
+            eprintln!("[Logging] Log root not specified, use relative path for stdio log: {}, Error: {e}", stdio_suffix.display());
+            if let Err(e) = init_dual_logger(&stdio_suffix, level) {
+                eprintln!("[FATAL] Failed to initialize logger at {}: {}", stdio_suffix.display(), e);
+                return Err(e);
+            }
+        }
+        _ => init_stdout_logger(level),
+    };
+
+    Ok(ret)
+}
 
 #[derive(Parser, Debug)]
 #[clap(author = "EnricLiu")]
@@ -38,6 +73,12 @@ struct Args {
     trainer_udp_port: u16,
     #[clap(long, default_value_t = 6659, env = "SERVER_UDP_PORT_COACH", help = "UDP Proxy port for coaches to bind")]
     coach_udp_port: u16,
+
+    #[clap(long, env = "SERVER_STDIO_PATH", help = "Server service log file")]
+    stdio_log_path: Option<PathBuf>,
+
+    #[clap(flatten)]
+    log_args: LoggingArgs,
 
     #[clap(flatten)]
     service_args: service::Args,
@@ -129,12 +170,15 @@ pub async fn listen(
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-
     let args = Args::parse();
+
     let listen_addr = args.listen_addr();
     let player_udp_listen_addr = args.player_udp_listen_addr();
-    let service = match Service::from_args(args.service_args).await {
+
+    let log_root = init_logging("info", &args.log_args, args.stdio_log_path).unwrap()
+        .unwrap_or(env::current_dir().unwrap());
+
+    let service = match Service::from_args(args.service_args, log_root).await {
         Ok(svc) => svc,
         Err(e) => {
             eprintln!("[FATAL] Failed to create service from args: {}", e);

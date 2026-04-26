@@ -5,13 +5,13 @@ on:
     branches: [main, nightly]
     tags: ["v*"]
     paths:
-      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub.Dockerfile"
       - "match_composer/hub/**"
       - ".github/workflows/docker-mc-hub.yml"
   pull_request:
     branches: [main, nightly]
     paths:
-      - "match_composer/Dockerfile.hub"
+      - "match_composer/hub.Dockerfile"
       - "match_composer/hub/**"
       - ".github/workflows/docker-mc-hub.yml"
   workflow_dispatch:
@@ -62,7 +62,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./match_composer/Dockerfile.hub
+          file: ./match_composer/hub.Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

@@ -22,9 +22,9 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260409001
+  name: rcss-env-fleet-template-v260426001
 spec:
-  replicas: 2
+  replicas: 1
   scheduling: Packed
   strategy:
     type: RollingUpdate
@@ -112,28 +112,62 @@ spec:
             - name: oss-env-dev
               persistentVolumeClaim:
                 claimName: oss-nexus-prime-env-dev
-          containers:
-            - name: rcss-cluster
-              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:nightly
+            - name: runtime-shared
+              emptyDir: {}
+          initContainers:
+            - name: init-log-root
+              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/busybox:1.36
+              imagePullPolicy: IfNotPresent
+              command:
+                - sh
+                - -ceu
+                - |
+                  ts="$(date +%Y%m%d-%H%M%S)"
+                  root="${LOG_ROOT}/${ts}-${POD_NAME}"
+                  mkdir -p "$root/players" "$(dirname "$RCSS_LOG_ROOT_FILE")"
+                  printf '%s\n' "$root" > "$RCSS_LOG_ROOT_FILE"
+              env:
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: LOG_ROOT
+                  value: "/mnt/logs"
+                - name: RCSS_LOG_ROOT_FILE
+                  value: "/var/run/rcss/log-root"
               volumeMounts:
                 - name: oss-env-dev
                   mountPath: /mnt/logs
-                  subPath: game_logs
+                - name: runtime-shared
+                  mountPath: /var/run/rcss
+          containers:
+            - name: rcss-cluster
+              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-cluster:nightly
+              imagePullPolicy: Always
+              volumeMounts:
+                - name: oss-env-dev
+                  mountPath: /mnt/logs
+                - name: runtime-shared
+                  mountPath: /var/run/rcss
               resources:
                 requests:
-                  memory: 192Mi
                   cpu: 200m
+                  memory: 64Mi
                 limits:
-                  memory: 256Mi
                   cpu: 500m
+                  memory: 128Mi
               env:
                 - name: RUST_LOG
                   value: "debug"
+                - name: LOGGER_ROOT_FILE
+                  value: "/var/run/rcss/log-root"
 
                 - name: SERVER_HOST
                   value: "0.0.0.0"
                 - name: SERVER_HTTP_PORT
                   value: "6666"
+                - name: SERVER_STDIO_PATH # rel to the path in LOGGER_ROOT_FILE
+                  value: "./server.log"
 
                 - name: SERVER_UDP_PORT_PLAYER
                   value: "6657"
@@ -159,13 +193,13 @@ spec:
                   value: "true"
                 - name: RCSSSERVER_MAX_TIMESTEP
                   value: "6000"
-                - name: RCSSSERVER_LOG_DIR
-                  value: "/mnt/logs"
+                - name: RCSSSERVER_LOG_DIR  # rel to the path in LOGGER_ROOT_FILE
+                  value: "./games"
 
                 - name: TRAINER_HALF_TIME_AUTO_START_EN
                   value: "true"
                 - name: CONTAINER_AUTO_SHUTDOWN_ON_FINISH_EN
-                  value: "true"
+                  value: "false"
 #                - name: LOGGER_STDOUT_ALWAYS_EN
 #                  value: "true"
 
@@ -181,30 +215,33 @@ spec:
                   value: "5000"
                 - name: MATCH_COMPOSER_CLIENT_REQUEST_TIMEOUT_MS
                   value: "60000"
-                - name: MATCH_COMPOSER_CLIENT_START_MAX_RETRIES
-                  value: "3"
-                - name: MATCH_COMPOSER_CLIENT_START_RETRY_DELAY_MS
-                  value: "1000"
+#                - name: MATCH_COMPOSER_CLIENT_RETRY_BACKOFF_EN
+#                  value: "true"
+                - name: MATCH_COMPOSER_CLIENT_MAX_RETRIES
+                  value: "30"
+                - name: MATCH_COMPOSER_CLIENT_RETRY_DELAY_MS
+                  value: "2000"
 
             - name: match-composer
               image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-match-composer:nightly
+              imagePullPolicy: Always
               volumeMounts:
                 - name: oss-env-dev
-                  mountPath: /mnt/hub
-                  subPath: mc/hub
-                - name: oss-env-dev
                   mountPath: /mnt/logs
-                  subPath: mc/agent_logs
+                - name: runtime-shared
+                  mountPath: /var/run/rcss
               resources:
                 requests:
-                  memory: 256Mi
-                  cpu: 300m
+                  cpu: 400m
+                  memory: 100Mi
                 limits:
-                  memory: 512Mi
                   cpu: 1000m
+                  memory: 256Mi
               env:
                 - name: RUST_LOG
                   value: "debug"
+                - name: LOGGER_ROOT_FILE
+                  value: "/var/run/rcss/log-root"
 
                 - name: MC_HOST
                   value: "0.0.0.0"
@@ -215,10 +252,26 @@ spec:
                 - name: SERVER_PORT
                   value: "6666"
 
+                - name: SERVER_UDP_PORT_PLAYER
+                  value: "6657"
+                - name: SERVER_UDP_PORT_TRAINER
+                  value: "6658"
+                - name: SERVER_UDP_PORT_COACH
+                  value: "6659"
+
                 - name: MC_HUB_PATH
-                  value: "/mnt/hub"
-                - name: MC_LOG_ROOT
-                  value: "/mnt/logs"
+                  value: "./hub"
+                - name: MC_PLAYER_LOG_ROOT # rel to the path in LOGGER_ROOT_FILE
+                  value: "./players"
+                - name: MC_STDIO_LOG_PATH # rel to the path in LOGGER_ROOT_FILE
+                  value: "./mc.log"
+
+#                - name: MC_TEAM_SPAWN_CONCURRENT_EN
+#                  value: "true"
+                - name: MC_PLAYER_SPAWN_DELAY
+                  value: "2000"
+                - name: MC_TEAM_SPAWN_DELAY
+                  value: "1000"
 
                 - name: MC_AGONES_EN
                   value: "true"

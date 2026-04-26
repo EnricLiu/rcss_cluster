@@ -20,8 +20,16 @@ impl Policy for PlayerPolicy<SspPlayerModel> {
                 .arg("--log-dir")
                 .arg(image_log_root);
         }
+
+        if config.goalie {
+            cmd.arg("-g");
+        }
         
         cmd
+    }
+
+    fn parse_ready_fn(&self) -> fn(&str) -> bool  {
+        |line: &str| line.contains("init ok.")
     }
 
     fn info(&self) -> &PlayerBaseModel {

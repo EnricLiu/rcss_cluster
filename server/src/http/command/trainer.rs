@@ -10,7 +10,11 @@ use super::{AppState, Error, Response};
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct PostRequest<C: Command<Kind = TrainerCommand>>(C);
+pub struct PostRequest<C: Command<Kind = TrainerCommand>> {
+    #[serde(flatten)]
+    pub args: C,
+}
+
 #[derive(Debug)]
 pub struct PostResponse<C: Command<Kind = TrainerCommand>>(CommandResponse<C>);
 
@@ -24,7 +28,7 @@ pub async fn post<C: Command<Kind = TrainerCommand>>(
     State(s): State<AppState>,
     Json(req): Json<PostRequest<C>>,
 ) -> Json<Response> {
-    let result = s.service.send_trainer_command(req.0).await;
+    let result = s.service.send_trainer_command(req.args).await;
     if let Err(e) = result {
         return Json(Error::from(e).into());
     }
@@ -61,9 +65,11 @@ mod test {
 
     #[test]
     fn test_se_des() {
-        let req = PostRequest(Start);
+        let req = PostRequest {
+            args: Start
+        };
         let json = serde_json::to_string(&req).unwrap();
-        let req: PostRequest<Start> = serde_json::from_str("[null]").unwrap();
+        let req: PostRequest<Start> = serde_json::from_str("{}").unwrap();
         println!("{req:?}")
     }
 }
