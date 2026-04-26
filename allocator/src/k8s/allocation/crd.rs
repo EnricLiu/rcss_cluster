@@ -61,6 +61,7 @@ pub struct GameServerAllocationStatus {
     pub state: AllocationState,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
+    #[serde(default)]
     pub addresses: Vec<GameServerAllocationStatusAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ports: Option<Vec<GameServerPort>>,
@@ -84,6 +85,7 @@ impl GameServerAllocationStatus {
 #[serde(tag = "type", content = "address")]
 pub enum GameServerAllocationStatusAddress {
     InternalIP(IpAddr),
+    ExternalIP(IpAddr),
     Hostname(String),
     PodIP(IpAddr),
 }
