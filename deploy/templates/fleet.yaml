@@ -22,9 +22,9 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260424003
+  name: rcss-env-fleet-template-v260426001
 spec:
-  replicas: 2
+  replicas: 1
   scheduling: Packed
   strategy:
     type: RollingUpdate
@@ -151,11 +151,11 @@ spec:
                   mountPath: /var/run/rcss
               resources:
                 requests:
-                  memory: 192Mi
                   cpu: 200m
+                  memory: 64Mi
                 limits:
-                  memory: 256Mi
                   cpu: 500m
+                  memory: 128Mi
               env:
                 - name: RUST_LOG
                   value: "debug"
@@ -232,11 +232,11 @@ spec:
                   mountPath: /var/run/rcss
               resources:
                 requests:
-                  memory: 256Mi
-                  cpu: 300m
+                  cpu: 400m
+                  memory: 100Mi
                 limits:
-                  memory: 512Mi
                   cpu: 1000m
+                  memory: 256Mi
               env:
                 - name: RUST_LOG
                   value: "debug"
@@ -269,7 +269,7 @@ spec:
 #                - name: MC_TEAM_SPAWN_CONCURRENT_EN
 #                  value: "true"
                 - name: MC_PLAYER_SPAWN_DELAY
-                  value: "500"
+                  value: "2000"
                 - name: MC_TEAM_SPAWN_DELAY
                   value: "1000"
 
@@ -281,21 +281,3 @@ spec:
                   value: "30"
 #                - name: MC_CONFIG_FILE should not set in Agones mode
 #                  value: "0.0.0.0"
-
-            - name: rcss-probe
-              image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/rcss-probe:latest
-              volumeMounts:
-                - name: oss-env-dev
-                  mountPath: /mnt
-                - name: runtime-shared
-                  mountPath: /var/run/rcss
-              resources:
-                requests:
-                  cpu: 200m
-                  memory: 256Mi
-                limits:
-                  cpu: 500m
-                  memory: 512Mi
-              env:
-                - name: LOGGER_ROOT_FILE
-                  value: "/var/run/rcss/log-root"
