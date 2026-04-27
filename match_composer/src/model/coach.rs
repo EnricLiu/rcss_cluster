@@ -149,7 +149,7 @@ impl CoachModelBuilder {
             !matches!(kind, CoachKind::Ssp) {
             return Err(BuilderError::InvalidField {
                 field: "grpc",
-                message: "Cannot set gRPC configuration for a non-SSP player".to_string(),
+                message: "Cannot set gRPC configuration for a non-SSP coach".to_string(),
             });
         }
 
