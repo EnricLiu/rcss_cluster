@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use common::errors::BuilderError;
 use crate::declaration::{
+    CoachDeclaration,
     InitStateDeclaration,
     RefereeDeclaration,
     StopEventDeclaration
@@ -13,6 +14,8 @@ use crate::declaration::{
 pub struct Annotations {
     pub team_l: String, // team name
     pub team_r: String,
+    pub coach_l: Option<CoachDeclaration>,
+    pub coach_r: Option<CoachDeclaration>,
     pub init: InitStateDeclaration,
     pub referee: RefereeDeclaration,
     pub stopping: StopEventDeclaration,
@@ -31,12 +34,22 @@ impl Annotations {
             .unwrap_or_default();
         let team_l = map.remove("team.l").unwrap_or("TeamLeft".to_string());
         let team_r = map.remove("team.r").unwrap_or("TeamRight".to_string());
-        Annotations { referee, stopping, init, team_l, team_r }
+        let coach_l = map.get("team.coach.l")
+            .and_then(|c| serde_json::from_str(c).ok());
+        let coach_r = map.get("team.coach.r")
+            .and_then(|c| serde_json::from_str(c).ok());
+        Annotations { referee, stopping, init, team_l, team_r, coach_l, coach_r }
     }
     pub fn into_map(self) -> HashMap<String, String> {
         let mut map = HashMap::new();
         map.insert("team.l".to_string(), self.team_l);
         map.insert("team.r".to_string(), self.team_r);
+        if let Some(coach_l) = self.coach_l && let Ok(coach_str) = serde_json::to_string(&coach_l) {
+            map.insert("team.coach.l".to_string(), coach_str);
+        }
+        if let Some(coach_r) = self.coach_r && let Ok(coach_str) = serde_json::to_string(&coach_r) {
+            map.insert("team.coach.r".to_string(), coach_str);
+        }
         if let Ok(referee_str) = serde_json::to_string(&self.referee) {
             map.insert("referee".to_string(), referee_str);
         }

@@ -76,9 +76,17 @@ impl<'a> Declaration<'a, MetaData> {
             Side::RIGHT => (&meta.labels.right, &meta.annotations.team_r),
             _ => unreachable!(),
         };
+        let coach = match side {
+            Side::LEFT => meta.annotations.coach_l.clone(),
+            Side::RIGHT => meta.annotations.coach_r.clone(),
+            _ => unreachable!(),
+        };
 
         let mut team = TeamDeclaration::builder();
         team.with_side(side).with_name(team_name.clone());
+        if let Some(coach) = coach {
+            team.with_coach(coach);
+        }
         for label in labels.values() {
             team.add_player(label.player.clone());
         }

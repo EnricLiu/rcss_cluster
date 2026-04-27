@@ -1,6 +1,7 @@
 pub mod team;
 pub mod image;
 pub mod player;
+pub mod coach;
 pub mod referee;
 pub mod host_port;
 pub mod stop_event;
@@ -14,7 +15,13 @@ pub use team::Team as TeamDeclaration;
 pub use image::Image as ImageDeclaration;
 pub use player::{
     Player as PlayerDeclaration,
+    PlayerKind as PlayerKindDeclaration,
     PlayerBase as PlayerBaseDeclaration,
+};
+pub use coach::{
+    Coach as CoachDeclaration,
+    CoachKind as CoachKindDeclaration,
+    CoachBase as CoachBaseDeclaration,
 };
 pub use referee::Referee as RefereeDeclaration;
 pub use init_state::InitState as InitStateDeclaration;

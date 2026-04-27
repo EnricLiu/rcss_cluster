@@ -1,14 +1,15 @@
 use std::fmt::Debug;
-use crate::model::player::PlayerBaseModel;
+use crate::model::ProcessModel;
 use super::image::PolicyImage;
 
 pub trait Policy: Debug + Send + Sync + 'static {
-    
+    type Model: ProcessModel;
+
     fn command(&self) -> tokio::process::Command;
     fn parse_ready_fn(&self) -> fn(&str) -> bool;
 
-    fn info(&self) -> &PlayerBaseModel;
-    
+    fn info(&self) -> &Self::Model;
+
     fn log_dir(&self) -> Option<std::path::PathBuf>;
 
     fn mkdir(&self) -> std::io::Result<()> {
@@ -19,7 +20,9 @@ pub trait Policy: Debug + Send + Sync + 'static {
     }
 }
 
-impl Policy for Box<dyn Policy> {
+impl<M: ProcessModel> Policy for Box<dyn Policy<Model = M>> {
+    type Model = M;
+
     fn command(&self) -> tokio::process::Command {
         (**self).command()
     }
@@ -27,7 +30,7 @@ impl Policy for Box<dyn Policy> {
         (**self).parse_ready_fn()
     }
 
-    fn info(&self) -> &PlayerBaseModel {
+    fn info(&self) -> &Self::Model {
         (**self).info()
     }
 
@@ -41,6 +44,22 @@ impl Policy for Box<dyn Policy> {
 pub struct PlayerPolicy<P> {
     pub player: P,
     pub image: Box<dyn PolicyImage>,
+}
+
+
+#[derive(Debug)]
+pub struct CoachPolicy<C> {
+    pub coach: C,
+    pub image: Box<dyn PolicyImage>,
+}
+
+impl<C> CoachPolicy<C> {
+    pub fn new(coach: C, image: Box<dyn PolicyImage>) -> Self {
+        Self {
+            coach,
+            image,
+        }
+    }
 }
 
 impl<P> PlayerPolicy<P> {
