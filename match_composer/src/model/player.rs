@@ -4,10 +4,11 @@ use std::path::PathBuf;
 use serde::{Serialize, Deserialize};
 use common::errors::{BuilderError, BuilderResult};
 use common::types::Side;
-use allocator::declaration::player::PlayerKind as PlayerKindDeclaration;
+use allocator::declaration::PlayerKindDeclaration;
 
 use crate::config::RcssServerConfig;
 use crate::declaration::{ImageDeclaration, PlayerDeclaration, Unum};
+use super::ProcessModel;
 
 #[derive(Debug, Clone)]
 pub enum PlayerModel {
@@ -97,6 +98,24 @@ impl PlayerBaseModel {
             image,
             log_root,
         }
+    }
+}
+
+impl ProcessModel for PlayerBaseModel {
+    fn image(&self) -> &ImageDeclaration {
+        &self.image
+    }
+
+    fn log_dir(&self) -> Option<PathBuf> {
+        self.log_root.clone()
+    }
+
+    fn log_file_name(&self) -> String {
+        format!("{}-{}-stdio.log", self.team, self.unum)
+    }
+
+    fn process_label(&self) -> String {
+        format!("PolicyPlayer(unum={})", self.unum)
     }
 }
 

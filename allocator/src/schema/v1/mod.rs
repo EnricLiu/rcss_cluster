@@ -12,7 +12,7 @@ pub use config::ConfigV1;
 
 pub use team::{TeamsV1, TeamV1, TeamSideV1};
 pub use agent::AgentV1;
-pub use player::PlayerV1;
+pub use player::{CoachV1, PlayerV1};
 pub use policy::PolicyV1;
 
 pub use position::Position;

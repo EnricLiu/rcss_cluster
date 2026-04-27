@@ -19,6 +19,18 @@ pub struct PlayerV1 {
     pub blocklist: PlayerActionList,
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct CoachV1 {
+    #[serde(default="PolicyV1::helios_base")]
+    pub policy: PolicyV1,
+}
+
+impl Schema for CoachV1 {
+    fn verify(&self) -> Result<(), &'static str> {
+        self.policy.verify()
+    }
+}
+
 impl Schema for PlayerV1 {
     fn verify(&self) -> Result<(), &'static str> {
         if self.unum == 0 {

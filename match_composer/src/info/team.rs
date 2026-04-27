@@ -7,6 +7,7 @@ use common::types::Side;
 
 use crate::declaration::Unum;
 use crate::team::{Error as TeamError, Result as TeamResult};
+use super::coach::CoachInfo;
 use super::player::PlayerInfo;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -15,6 +16,7 @@ pub struct TeamInfo {
     pub side: Side,
     pub status: TeamStatusInfoSerDes,
     pub players: HashMap<Unum, PlayerInfo>,
+    pub coach: Option<CoachInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

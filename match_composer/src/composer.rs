@@ -149,16 +149,9 @@ impl Match {
             self.team_r.spawn(registry, player_delay).await
         };
 
-        tokio::select! {
-            res = spawn_l => {
-                res?;
-                info!("Team L spawned successfully, {:?}", self.team_l.info());
-            }
-            res = spawn_r => {
-                res?;
-                info!("Team R spawned successfully, {:?}", self.team_r.info());
-            },
-        }
+        tokio::try_join!(spawn_l, spawn_r)?;
+        info!("Team L spawned successfully, {:?}", self.team_l.info());
+        info!("Team R spawned successfully, {:?}", self.team_r.info());
 
         Ok(())
     }

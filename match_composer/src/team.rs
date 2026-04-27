@@ -5,16 +5,17 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use log::{info, trace, warn};
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use dashmap::DashMap;
-
+use allocator::schema::v1::CoachV1;
 use common::process::{ProcessStatus, ProcessStatusKind};
 
+use crate::coach::{Coach, CoachWrap, PolicyCoach};
 use crate::model::TeamModel;
-use crate::info::{PlayerInfo, PlayerStatusInfo, TeamInfo, TeamStatusInfo};
+use crate::info::{PlayerInfo, PlayerStatusInfo, TeamInfo};
 use crate::player::{Player, PolicyPlayer};
 use crate::policy::PolicyRegistry;
 use crate::declaration::{ImageDeclaration, Unum};
@@ -68,6 +69,7 @@ pub struct Team {
     status_tx: watch::Sender<TeamStatus>,
     status_rx: watch::Receiver<TeamStatus>,
     players: DashMap<Unum, PlayerWrap>,
+    coach: Mutex<Option<CoachWrap>>,
 
     monitor_task: Option<JoinHandle<()>>,
 }
@@ -80,6 +82,7 @@ impl Team {
             status_tx,
             status_rx,
             players: DashMap::new(),
+            coach: Mutex::new(None),
             monitor_task: None,
         }
     }
@@ -105,6 +108,18 @@ impl Team {
 
         self.ensure_log_dir().await;
 
+        if let Some(coach) = self.config.coach().cloned() {
+            let policy = registry.fetch_coach(coach).map_err(|coach| {
+                let err = Error::PolicyNotFound { image: coach.image.clone() };
+                self.status_tx.send(TeamStatus::Error(err.clone())).ok();
+                err
+            })?;
+
+            let coach = PolicyCoach::new(policy);
+            coach.spawn().await.map_err(|e| Error::SpawnCoach(format!("{e:?}")))?;
+            *self.coach.lock().await = Some(coach.into());
+        }
+
         let mut players = self.config.players().clone()
             .into_iter().map(|(_, p)| p).collect::<Vec<_>>();
 
@@ -128,16 +143,25 @@ impl Team {
 
         // Start the aggregation task: listen for player events and drive TeamStatus.
         let monitor_task = {
-            let player_watches: HashMap<Unum, watch::Receiver<ProcessStatus>> = {
-                self.players.iter()
+            let status_watches: HashMap<ParticipantId, watch::Receiver<ProcessStatus>> = {
+                let mut watches: HashMap<ParticipantId, watch::Receiver<ProcessStatus>> = self.players.iter()
                     .map(|p| (
-                        *p.key(),
+                        ParticipantId::Player(*p.key()),
                         p.status_watch().expect("The player process is initialized by the player.spawn().await, so the unwrap here should be safe.")
                     ))
-                    .collect()
+                    .collect();
+
+                if let Some(coach) = self.coach.lock().await.as_ref() {
+                    watches.insert(
+                        ParticipantId::Coach,
+                        coach.status_watch().expect("The coach process is initialized by the coach.spawn().await, so the unwrap here should be safe."),
+                    );
+                }
+
+                watches
             };
             Self::spawn_monitor_task(
-                &self.config, player_watches, self.status_tx.clone()
+                &self.config, status_watches, self.status_tx.clone()
             )
         }?;
         self.monitor_task = Some(monitor_task);
@@ -162,8 +186,16 @@ impl Team {
         if let Some(task) = self.monitor_task.take() {
             task.abort();
         }
+        self.shutdown_coach().await;
         self.shutdown_players().await;
         self.status_tx.send(TeamStatus::Idle).ok();
+    }
+
+    async fn shutdown_coach(&mut self) {
+        let mut coach = self.coach.lock().await.take();
+        if let Some(coach) = coach.as_mut() {
+            let _ = coach.shutdown().await;
+        }
     }
 
     async fn shutdown_players(&mut self) {
@@ -182,32 +214,32 @@ impl Team {
 
     fn spawn_monitor_task(
         config: &TeamModel,
-        status_watches: HashMap<Unum, watch::Receiver<ProcessStatus>>,
+        status_watches: HashMap<ParticipantId, watch::Receiver<ProcessStatus>>,
         status_tx: watch::Sender<TeamStatus>
     ) -> Result<JoinHandle<()>> {
         let team_name = config.name().to_string();
 
         type WatchFut = Pin<Box<dyn
-            Future<Output = (Unum, Result<ProcessStatusKind>, watch::Receiver<ProcessStatus>)>
+            Future<Output = (ParticipantId, Result<ProcessStatusKind>, watch::Receiver<ProcessStatus>)>
             + Send
         >>;
 
-        fn next_change(unum: Unum, mut rx: watch::Receiver<ProcessStatus>) -> WatchFut {
+        fn next_change(id: ParticipantId, mut rx: watch::Receiver<ProcessStatus>) -> WatchFut {
             Box::pin(async move {
                 let kind = match rx.changed().await {
                     Ok(()) => Ok(rx.borrow().kind.clone()),
-                    Err(e) => Err(Error::ChannelClosed { ch_name: "PlayerStatus" }),
+                    Err(_) => Err(Error::ChannelClosed { ch_name: "ProcessStatus" }),
                 };
 
-                (unum, kind, rx)
+                (id, kind, rx)
             })
         }
 
         let handle = tokio::spawn(async move {
-            let mut snapshots: HashMap<Unum, ProcessStatusKind> = {
+            let mut snapshots: HashMap<ParticipantId, ProcessStatusKind> = {
                 let mut map = HashMap::with_capacity(status_watches.len());
-                for (unum, rx) in status_watches.iter() {
-                    map.insert(*unum, rx.borrow().kind.clone());
+                for (id, rx) in status_watches.iter() {
+                    map.insert(*id, rx.borrow().kind.clone());
                 }
                 map
             };
@@ -216,17 +248,17 @@ impl Team {
                 .map(|(unum, rx)| next_change(unum, rx))
                 .collect();
 
-            while let Some((unum, maybe_kind, rx)) = futs.next().await {
+            while let Some((id, maybe_kind, rx)) = futs.next().await {
                 let kind = match maybe_kind {
                     Ok(k) => k,
                     Err(e) => {
-                        warn!("[{team_name}] Player {unum} status watch closed: {e}");
+                        warn!("[{team_name}] {} status watch closed: {e}", id.label());
                         continue
                     }
                 };
 
-                trace!("[{team_name}] Player {unum} status: {}", kind.name());
-                snapshots.insert(unum, kind);
+                trace!("[{team_name}] {} status: {}", id.label(), kind.name());
+                snapshots.insert(id, kind);
 
                 let new_status = Self::evaluate_team_status(&snapshots);
                 let is_terminal = new_status.is_finished();
@@ -244,14 +276,14 @@ impl Team {
                     break;
                 }
 
-                futs.push(next_change(unum, rx));
+                futs.push(next_change(id, rx));
             }
         });
 
         Ok(handle)
     }
 
-    fn evaluate_team_status(snapshots: &HashMap<Unum, ProcessStatusKind>) -> TeamStatus {
+    fn evaluate_team_status(snapshots: &HashMap<ParticipantId, ProcessStatusKind>) -> TeamStatus {
         if snapshots.is_empty() {
             return TeamStatus::Starting;
         }
@@ -262,22 +294,18 @@ impl Team {
         let all_finished = snapshots.values().all(|s| s.is_finished());
         let first_err  = snapshots.iter().find(|(_, s)| s.is_err());
         if all_finished {
-            if let Some((&unum, kind)) = first_err {
-                return TeamStatus::Error(Error::PlayerExited {
-                    unum,
-                    reason: kind.as_err().unwrap_or_default(),
-                });
+            if let Some((&id, kind)) = first_err {
+                return TeamStatus::Error(Self::participant_exit_error(id, kind));
             }
         }
 
-        if let Some((&unum, kind)) = first_err {
-            return TeamStatus::Aborting(Error::PlayerExited {
-                unum,
-                reason: kind.as_err().unwrap_or_default(),
-            });
+        if let Some((&id, kind)) = first_err {
+            return TeamStatus::Aborting(Self::participant_exit_error(id, kind));
         }
 
-        let any_success  = snapshots.values().any(|s| s.is_success());
+        let any_success  = snapshots.iter().any(|(id, s)| {
+            matches!(id, ParticipantId::Player(_)) && s.is_success()
+        });
         if any_success {
             return TeamStatus::ShuttingDown;
         }
@@ -288,17 +316,51 @@ impl Team {
         TeamStatus::Starting
     }
 
+    fn participant_exit_error(id: ParticipantId, kind: &ProcessStatusKind) -> Error {
+        let reason = kind.as_err().unwrap_or_default();
+        match id {
+            ParticipantId::Player(unum) => Error::PlayerExited { unum, reason },
+            ParticipantId::Coach => Error::CoachExited { reason },
+        }
+    }
+
     pub fn info(&self) -> TeamInfo {
+        let coach = {
+            let coach = self.coach.try_lock().ok();
+            if  let Some(coach) = &coach &&
+                let Some(coach) = coach.as_ref() {
+                Some(coach.info())
+            } else {
+                None
+            }
+        };
+
         TeamInfo {
             name: self.config.name().to_string(),
             side: self.config.side(),
             status: self.status_now().into(),
             players: self.players.iter().map(|entry| (*entry.key(), entry.info())).collect(),
+            coach,
         }
     }
     
     pub fn len(&self) -> usize {
         self.players.len()
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+enum ParticipantId {
+    Player(Unum),
+    Coach,
+}
+
+impl ParticipantId {
+    fn label(self) -> String {
+        match self {
+            ParticipantId::Player(unum) => format!("Player {unum}"),
+            ParticipantId::Coach => "Coach".to_string(),
+        }
     }
 }
 
@@ -319,8 +381,14 @@ pub enum Error {
     #[error("Failed to spawn player: {0}")]
     SpawnPlayer(String),
 
+    #[error("Failed to spawn coach: {0}")]
+    SpawnCoach(String),
+
     #[error("Player {unum} exited unexpectedly: {reason}")]
     PlayerExited { unum: Unum, reason: String },
+
+    #[error("Coach exited unexpectedly: {reason}")]
+    CoachExited { reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

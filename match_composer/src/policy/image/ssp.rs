@@ -17,7 +17,10 @@ impl PolicyImage for SSPImage {
         &self.image
     }
 
-    fn cmd(&self) -> Command {
+    fn player_cmd(&self) -> Command {
         Command::new(self.image().path.join("start_player.sh"))
+    }
+    fn coach_cmd(&self) -> Command {
+        Command::new(self.image().path.join("start_coach.sh"))
     }
 }
