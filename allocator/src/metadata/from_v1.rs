@@ -3,6 +3,8 @@ use std::collections::HashMap;
 use common::errors::BuilderError;
 
 use crate::declaration::{
+    CoachBaseDeclaration,
+    CoachDeclaration,
     HostPort,
     ImageDeclaration,
     InitStateDeclaration,
@@ -38,9 +40,9 @@ impl TryFrom<ConfigV1> for MetaData {
             ..
         } = value;
 
-        let (team_l, players_l) = parse_team(TeamSideV1::Left, teams.left, log)?;
-        let (team_r, players_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
-        
+        let (team_l, players_l, coach_l) = parse_team(TeamSideV1::Left, teams.left, log)?;
+        let (team_r, players_r, coach_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
+
         let labels = Labels::new(players_l, players_r);
         labels.validate()?;
 
@@ -49,6 +51,8 @@ impl TryFrom<ConfigV1> for MetaData {
             annotations: Annotations {
                 team_l,
                 team_r,
+                coach_l,
+                coach_r,
                 referee: RefereeDeclaration {
                     enabled: referee.enable,
                 },
@@ -68,11 +72,12 @@ impl TryFrom<ConfigV1> for MetaData {
 
 fn parse_team(
     side: TeamSideV1, team: TeamV1, log: bool
-) -> Result<(String, HashMap<Unum, PlayerLabel>), BuilderError> {
+) -> Result<(String, HashMap<Unum, PlayerLabel>, Option<CoachDeclaration>), BuilderError> {
     let TeamV1 {
         name,
         side: team_side,
         players,
+        coach,
     } = team;
 
     if side != team_side {
@@ -95,7 +100,25 @@ fn parse_team(
         }
     }
 
-    Ok((name, labels))
+    let coach = coach.map(|coach| convert_coach(coach, log)).transpose()?;
+
+    Ok((name, labels, coach))
+}
+
+fn convert_coach(coach: crate::schema::v1::CoachV1, log: bool) -> Result<CoachDeclaration, BuilderError> {
+    let image = ImageDeclaration::try_from(coach.policy.image().to_string())?;
+    let base = CoachBaseDeclaration { image, log };
+
+    match coach.policy {
+        PolicyV1::Bot { .. } => Ok(CoachDeclaration::Helios { base }),
+        PolicyV1::Agent(agent) => Ok(CoachDeclaration::Ssp {
+            base,
+            grpc: HostPort {
+                host: agent.grpc_host(),
+                port: agent.grpc_port(),
+            },
+        }),
+    }
 }
 
 fn convert_player(player: PlayerV1, log: bool) -> Result<(Unum, PlayerLabel), BuilderError> {
@@ -250,5 +273,50 @@ mod tests {
                 ..
             }
         ));
+    }
+
+    #[test]
+    fn converts_team_coaches_into_annotations() {
+        let config: ConfigV1 = serde_json::from_value(json!({
+            "teams": {
+                "left": {
+                    "name": "Lefties",
+                    "side": "left",
+                    "coach": {
+                        "policy": {
+                            "kind": "bot",
+                            "image": "HELIOS/helios-base"
+                        }
+                    },
+                    "players": [{
+                        "unum": 1,
+                        "policy": {
+                            "kind": "bot",
+                            "image": "HELIOS/helios-base"
+                        }
+                    }]
+                },
+                "right": {
+                    "name": "Righties",
+                    "side": "right",
+                    "players": [{
+                        "unum": 2,
+                        "policy": {
+                            "kind": "bot",
+                            "image": "HELIOS/helios-base"
+                        }
+                    }]
+                }
+            }
+        }))
+        .expect("config should deserialize");
+
+        let metadata = MetaData::try_from(config).expect("config should convert");
+
+        assert!(matches!(
+            metadata.annotations.coach_l,
+            Some(CoachDeclaration::Helios { .. })
+        ));
+        assert!(metadata.annotations.coach_r.is_none());
     }
 }

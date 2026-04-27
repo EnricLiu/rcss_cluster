@@ -8,7 +8,7 @@ use tokio::io::{AsyncWriteExt, BufWriter};
 use tokio::sync::{watch, OnceCell, SetError};
 use tokio::task::JoinHandle;
 use common::process::{Process, ProcessStatus};
-use crate::model::player::PlayerBaseModel;
+use crate::model::{PlayerBaseModel, ProcessModel};
 use crate::policy::Policy;
 
 const STDOUT_LOG_PREFIX: &[u8] = b"[stdout] ";
@@ -32,13 +32,15 @@ pub trait Player: Debug + Send + Sync + 'static {
 
 
 #[derive(Debug)]
-pub struct PolicyPlayer<Config: Policy + Sync + Send + 'static> {
+pub struct PolicyProcess<Config: Policy + Sync + Send + 'static> {
     pub config: Config,
     pub process: OnceCell<Process>,
     pub logging_task: OnceCell<JoinHandle<Result<()>>>,
 }
 
-impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
+pub type PolicyPlayer<Config> = PolicyProcess<Config>;
+
+impl<Config: Policy + Sync + Send + 'static> PolicyProcess<Config> {
     pub fn new(config: Config) -> Self {
         Self {
             config,
@@ -49,7 +51,7 @@ impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
 
     async fn create_log_path(&self) -> Result<()> {
         if let Some(dir) = self.config.log_dir() {
-            trace!("[PolicyPlayer(unum={})] Ensuring log directory: {:?}", self.model().unum, dir);
+            trace!("[{}] Ensuring log directory: {:?}", self.config.info().process_label(), dir);
             tokio::fs::create_dir_all(&dir).await
                 .map_err(|e| Error::LogMkdir(dir, e))?;
         }
@@ -157,7 +159,7 @@ impl<Config: Policy + Sync + Send + 'static> PolicyPlayer<Config> {
 }
 
 #[async_trait::async_trait]
-impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
+impl<Config: Policy<Model = PlayerBaseModel> + Sync + Send + 'static> Player for PolicyProcess<Config> {
     fn model(&self) -> &PlayerBaseModel {
         self.config.info()
     }
@@ -167,38 +169,57 @@ impl<Config: Policy + Sync + Send + 'static> Player for PolicyPlayer<Config> {
     }
 
     async fn spawn(&self) -> Result<()> {
-        let unum = self.model().unum;
-        info!("[PolicyPlayer(unum={unum})] Spawning player...");
+        self.spawn_process().await
+    }
+
+    async fn shutdown(&mut self) -> Result<()> {
+        self.shutdown_process().await
+    }
+}
+
+impl<Config: Policy + Sync + Send + 'static> PolicyProcess<Config> {
+    pub fn model(&self) -> &Config::Model {
+        self.config.info()
+    }
+
+    pub fn status_watch(&self) -> Option<watch::Receiver<ProcessStatus>> {
+        self.process.get().map(|p| p.status_watch())
+    }
+
+    pub fn status_now(&self) -> Option<ProcessStatus> {
+        self.status_watch().map(|w| w.borrow().clone())
+    }
+
+    pub async fn spawn_process(&self) -> Result<()> {
+        let label = self.model().process_label();
+        info!("[{label}] Spawning process...");
         self.create_log_path().await?;
 
         let mut command = self.config.command();
         command.stdout(Stdio::piped()).stderr(Stdio::piped());
-        debug!("[PolicyPlayer(unum={unum})] Spawn command: {:?}", command);
-        
+        debug!("[{label}] Spawn command: {:?}", command);
+
         let process = self.process.get_or_try_init(|| async {
             let child = command.spawn().map_err(Error::ChildFailedSpawn)?;
             <Result<_>>::Ok(Process::new(child, Some(self.config.parse_ready_fn()))?)
         }).await?;
-        info!("[PolicyPlayer(unum={unum})] Player task spawned successfully");
-        
-        if let Some(log_root) = &self.config.log_dir() {
-            let info = self.model();
-            let path = log_root.join(
-                format!("{}-{}-stdio.log", info.team, info.unum)
-            );
+        info!("[{label}] Process spawned successfully");
 
-            debug!("[PolicyPlayer(unum={unum})] Spawning log task with path: {:?}", path);
+        if let Some(log_root) = self.config.log_dir() {
+            let path = log_root.join(self.model().log_file_name());
+
+            debug!("[{label}] Spawning log task with path: {:?}", path);
             let logging_task = Self::spawn_log_task(process, path)?;
             if let Err(e) = self.logging_task.set(logging_task) {
                 set_task_error_abort("logging", e);
             }
-            info!("[PolicyPlayer(unum={unum})] Log task spawned successfully");
+            info!("[{label}] Log task spawned successfully");
         }
 
         Ok(())
     }
 
-    async fn shutdown(&mut self) -> Result<()> {
+    pub async fn shutdown_process(&mut self) -> Result<()> {
         if !self.process.initialized() {
             return Err(Error::NotRunning)
         }

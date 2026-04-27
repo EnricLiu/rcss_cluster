@@ -9,7 +9,8 @@ pub trait PolicyImage: Send + Sync {
         ImageDeclaration::try_from(self.image().to_raw()).ok()
     }
 
-    fn cmd(&self) -> Command;
+    fn player_cmd(&self) -> Command;
+    fn coach_cmd(&self) -> Command;
 }
 
 impl Debug for dyn PolicyImage {

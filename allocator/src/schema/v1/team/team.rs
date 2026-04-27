@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use crate::schema::v1::{Schema, PlayerV1};
+use crate::schema::v1::{CoachV1, Schema, PlayerV1};
 use super::TeamSideV1;
 
 #[derive(Deserialize, Serialize, Clone, Debug)]
@@ -7,6 +7,8 @@ pub struct TeamV1 {
     pub name: String,
     pub side: TeamSideV1,
     pub players: Vec<PlayerV1>,
+    #[serde(default)]
+    pub coach: Option<CoachV1>,
 }
 
 pub(super) fn verify_team(name: &str, players: &[PlayerV1]) -> Result<(), &'static str> {
@@ -35,6 +37,10 @@ pub(super) fn verify_team(name: &str, players: &[PlayerV1]) -> Result<(), &'stat
 
 impl Schema for TeamV1 {
     fn verify(&self) -> Result<(), &'static str> {
-        verify_team(&self.name, &self.players)
+        verify_team(&self.name, &self.players)?;
+        if let Some(coach) = &self.coach {
+            coach.verify()?;
+        }
+        Ok(())
     }
 }
