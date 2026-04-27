@@ -146,6 +146,8 @@ COPY match_composer/hub/HELIOS/helios-base/start_coach.sh \
      /app/hub/HELIOS/helios-base/start_coach.sh
 COPY match_composer/hub/HELIOS/helios-base/player.conf \
      /app/hub/HELIOS/helios-base/player.conf
+COPY match_composer/hub/HELIOS/helios-base/coach.conf \
+     /app/hub/HELIOS/helios-base/coach.conf
 
 COPY --from=helios-builder /tmp/helios-base/src/sample_player \
      /app/hub/HELIOS/helios-base/sample_player
