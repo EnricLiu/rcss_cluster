@@ -129,6 +129,8 @@ COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/start_coach.sh \
      /app/hub/Cyrus2D/SoccerSimulationProxy/start_coach.sh
 COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/player.conf \
      /app/hub/Cyrus2D/SoccerSimulationProxy/player.conf
+COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/coach.conf \
+     /app/hub/Cyrus2D/SoccerSimulationProxy/coach.conf
 
 COPY --from=ssp-builder /tmp/SoccerSimulationProxy/build/bin/sample_player \
      /app/hub/Cyrus2D/SoccerSimulationProxy/sample_player
