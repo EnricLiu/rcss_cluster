@@ -32,7 +32,7 @@ on:
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
   IMAGE_NAME: nexus-prime/rcss-match-composer
-  HUB_IMAGE: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
+  HUB_IMAGE_REPOSITORY: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base
 
 jobs:
   build-and-push:
@@ -47,8 +47,43 @@ jobs:
       contents: read
 
     steps:
+      - name: Resolve source context
+        id: context
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            checkout_ref="${{ github.event.workflow_run.head_sha }}"
+            source_sha="${{ github.event.workflow_run.head_sha }}"
+            source_branch="${{ github.event.workflow_run.head_branch }}"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            checkout_ref="${{ github.sha }}"
+            source_sha="${{ github.sha }}"
+            source_branch="${{ github.event.pull_request.base.ref }}"
+          else
+            checkout_ref="${{ github.sha }}"
+            source_sha="${{ github.sha }}"
+            source_branch="${{ github.ref_name }}"
+          fi
+
+          short_sha="$(printf '%s' "$source_sha" | cut -c1-7)"
+
+          if [ "${{ github.event_name }}" = "workflow_run" ]; then
+            hub_tag="sha-$short_sha"
+          elif [ "$source_branch" = "main" ] || [ "$source_branch" = "nightly" ]; then
+            hub_tag="$source_branch"
+          else
+            hub_tag="latest"
+          fi
+
+          echo "checkout_ref=$checkout_ref" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
+          echo "source_branch=$source_branch" >> "$GITHUB_OUTPUT"
+          echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
+          echo "hub_image=${{ env.HUB_IMAGE_REPOSITORY }}:$hub_tag" >> "$GITHUB_OUTPUT"
+
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.context.outputs.checkout_ref }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -63,24 +98,44 @@ jobs:
           username: ${{ secrets.ALIYUN_DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_DOCKER_REGISTRY_PASSWORD }}
 
+      - name: Wait for hub base image
+        if: github.event_name == 'workflow_run'
+        env:
+          HUB_IMAGE: ${{ steps.context.outputs.hub_image }}
+        run: |
+          for _ in 1 2 3 4 5; do
+            if docker buildx imagetools inspect "$HUB_IMAGE" >/dev/null 2>&1; then
+              exit 0
+            fi
+            sleep 30
+          done
+          if docker buildx imagetools inspect "$HUB_IMAGE" >/dev/null 2>&1; then
+            exit 0
+          fi
+          echo "Hub image not found: $HUB_IMAGE" >&2
+          exit 1
+
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=ref,event=branch
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=sha
-            type=sha,prefix=nightly-,enable=${{ github.ref == 'refs/heads/nightly' }}
+            type=raw,value=${{ steps.context.outputs.source_branch }},enable=${{ steps.context.outputs.source_branch == 'main' || steps.context.outputs.source_branch == 'nightly' }}
+            type=raw,value=sha-${{ steps.context.outputs.short_sha }}
+            type=raw,value=nightly-${{ steps.context.outputs.short_sha }},enable=${{ steps.context.outputs.source_branch == 'nightly' }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.context.outputs.source_sha }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./match_composer/Dockerfile
+          pull: true
           push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            HUB_IMAGE=${{ steps.context.outputs.hub_image }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
