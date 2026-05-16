@@ -1,15 +1,22 @@
 ###############################################################################
 # match_composer Dockerfile
 #
-# Only builds the Rust binary. Requires mc-hub:latest as the base image
-# (built separately via Dockerfile.hub, which contains all C++ deps).
+# Only builds the Rust binary. Requires a pre-built mc-hub image as the base
+# image (built separately via hub.Dockerfile, which contains all C++ deps).
 #
 # Build from workspace root:
 #   docker build -f match_composer/Dockerfile -t match_composer .
 #
 # If the hub base image doesn't exist yet, build it first:
-#   docker build -f match_composer/Dockerfile.hub -t mc-hub:latest .
+#   docker build -f match_composer/hub.Dockerfile -t mc-hub:latest .
+#
+# To build against a specific published hub image:
+#   docker build -f match_composer/Dockerfile \
+#     --build-arg HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:nightly \
+#     -t match_composer .
 ###############################################################################
+
+ARG HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
 
 # =============================================================================
 # Stage: cargo-chef planner (extracts dependency recipe)
@@ -39,7 +46,7 @@ RUN cargo build --release --bin match_composer
 # =============================================================================
 # Final runtime image — based on the pre-built hub image
 # =============================================================================
-FROM registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
+FROM ${HUB_IMAGE}
 
 LABEL version="0.1.0"
 LABEL authors="enricliu"

@@ -108,18 +108,6 @@ impl Team {
 
         self.ensure_log_dir().await;
 
-        if let Some(coach) = self.config.coach().cloned() {
-            let policy = registry.fetch_coach(coach).map_err(|coach| {
-                let err = Error::PolicyNotFound { image: coach.image.clone() };
-                self.status_tx.send(TeamStatus::Error(err.clone())).ok();
-                err
-            })?;
-
-            let coach = PolicyCoach::new(policy);
-            coach.spawn().await.map_err(|e| Error::SpawnCoach(format!("{e:?}")))?;
-            *self.coach.lock().await = Some(coach.into());
-        }
-
         let mut players = self.config.players().clone()
             .into_iter().map(|(_, p)| p).collect::<Vec<_>>();
 
@@ -139,6 +127,19 @@ impl Team {
             self.players.insert(unum, player.into());
 
             interval.tick().await;
+        }
+
+
+        if let Some(coach) = self.config.coach().cloned() {
+            let policy = registry.fetch_coach(coach).map_err(|coach| {
+                let err = Error::PolicyNotFound { image: coach.image.clone() };
+                self.status_tx.send(TeamStatus::Error(err.clone())).ok();
+                err
+            })?;
+
+            let coach = PolicyCoach::new(policy);
+            coach.spawn().await.map_err(|e| Error::SpawnCoach(format!("{e:?}")))?;
+            *self.coach.lock().await = Some(coach.into());
         }
 
         // Start the aggregation task: listen for player events and drive TeamStatus.
