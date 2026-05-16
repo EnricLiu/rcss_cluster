@@ -16,6 +16,8 @@
 #     -t match_composer .
 ###############################################################################
 
+ARG HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
+
 # =============================================================================
 # Stage: cargo-chef planner (extracts dependency recipe)
 # =============================================================================
@@ -44,7 +46,6 @@ RUN cargo build --release --bin match_composer
 # =============================================================================
 # Final runtime image — based on the pre-built hub image
 # =============================================================================
-ARG HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
 FROM ${HUB_IMAGE}
 
 LABEL version="0.1.0"

@@ -49,15 +49,23 @@ jobs:
     steps:
       - name: Resolve source context
         id: context
+        shell: bash
         run: |
+          set -euo pipefail
+
+          if [ -z "${HUB_IMAGE_REPOSITORY}" ]; then
+            echo "HUB_IMAGE_REPOSITORY is empty" >&2
+            exit 1
+          fi
+
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
             checkout_ref="${{ github.event.workflow_run.head_sha }}"
             source_sha="${{ github.event.workflow_run.head_sha }}"
             source_branch="${{ github.event.workflow_run.head_branch }}"
           elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            checkout_ref="${{ github.sha }}"
-            source_sha="${{ github.sha }}"
-            source_branch="${{ github.event.pull_request.base.ref }}"
+            checkout_ref="${{ github.event.pull_request.head.sha }}"
+            source_sha="${{ github.event.pull_request.head.sha }}"
+            source_branch="${{ github.event.pull_request.head.ref }}"
           else
             checkout_ref="${{ github.sha }}"
             source_sha="${{ github.sha }}"
@@ -74,11 +82,18 @@ jobs:
             hub_tag="latest"
           fi
 
+          hub_image="${HUB_IMAGE_REPOSITORY}:$hub_tag"
+
+          if [ -z "$hub_image" ]; then
+            echo "Resolved hub_image is empty" >&2
+            exit 1
+          fi
+
           echo "checkout_ref=$checkout_ref" >> "$GITHUB_OUTPUT"
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "source_branch=$source_branch" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "hub_image=${{ env.HUB_IMAGE_REPOSITORY }}:$hub_tag" >> "$GITHUB_OUTPUT"
+          echo "hub_image=$hub_image" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -114,6 +129,13 @@ jobs:
           fi
           echo "Hub image not found: $HUB_IMAGE" >&2
           exit 1
+
+      - name: Validate resolved hub image
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${{ steps.context.outputs.hub_image }}"
+          echo "Using HUB_IMAGE=${{ steps.context.outputs.hub_image }}"
 
       - name: Extract Docker metadata
         id: meta
