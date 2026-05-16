@@ -173,11 +173,11 @@ COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/player.conf \
 COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/coach.conf \
      /app/hub/CLSFramework/soccer-simulation-proxy/coach.conf
 
-COPY --from=ssp-builder /tmp/soccer-simulation-proxy/build/bin/sample_player \
+COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/sample_player \
      /app/hub/CLSFramework/soccer-simulation-proxy/sample_player
-COPY --from=ssp-builder /tmp/soccer-simulation-proxy/build/bin/sample_coach \
+COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/sample_coach \
      /app/hub/CLSFramework/soccer-simulation-proxy/sample_coach
-COPY --from=ssp-builder /tmp/soccer-simulation-proxy/build/bin/formations-dt \
+COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/formations-dt \
      /app/hub/CLSFramework/soccer-simulation-proxy/formations-dt
 
 # ---------- hub/HELIOS/helios-base ----------
