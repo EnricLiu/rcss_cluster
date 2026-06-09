@@ -219,6 +219,35 @@ do
       rpc_type="${2}"
       shift 1
       ;;
+    --g-ip)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_type="grpc"
+      rpc_host="${2}"
+      shift 1
+      ;;
+
+    --g-port)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_type="grpc"
+      rpc_port="${2}"
+      shift 1
+      ;;
+
+    --diff-g-port)
+      rpc_type="grpc"
+      rpc_port_step="true"
+      ;;
+
+    --gp20)
+      rpc_type="grpc"
+      rpc_add_20_to_port_for_right="true"
+      ;;
 
     *)
       echo 1>&2
