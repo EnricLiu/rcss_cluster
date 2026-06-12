@@ -22,7 +22,7 @@
 apiVersion: agones.dev/v1
 kind: Fleet
 metadata:
-  name: rcss-env-fleet-template-v260426001
+  name: rcss-env-fleet-template-v260612001
 spec:
   replicas: 1
   scheduling: Packed
@@ -151,10 +151,10 @@ spec:
                   mountPath: /var/run/rcss
               resources:
                 requests:
-                  cpu: 200m
+                  cpu: 300m
                   memory: 64Mi
                 limits:
-                  cpu: 500m
+                  cpu: 800m
                   memory: 128Mi
               env:
                 - name: RUST_LOG
@@ -200,8 +200,8 @@ spec:
                   value: "true"
                 - name: CONTAINER_AUTO_SHUTDOWN_ON_FINISH_EN
                   value: "false"
-#                - name: LOGGER_STDOUT_ALWAYS_EN
-#                  value: "true"
+                - name: LOGGER_STDOUT_ALWAYS_EN
+                  value: "true"
 
                 - name: MATCH_COMPOSER_EN
                   value: "true"

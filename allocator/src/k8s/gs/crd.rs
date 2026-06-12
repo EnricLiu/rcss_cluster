@@ -1,0 +1,157 @@
+use std::borrow::Cow;
+use std::collections::BTreeMap;
+use std::net::IpAddr;
+
+use k8s_openapi::api::core::v1::PodTemplateSpec;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServer {
+    #[serde(rename = "apiVersion")]
+    pub api_version: String,
+    pub kind: String,
+    pub metadata: ObjectMeta,
+    pub spec: GameServerSpec,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<GameServerStatus>,
+}
+
+impl GameServer {
+    pub fn name(&self) -> &str {
+        self.metadata.name.as_deref().unwrap_or("Anonymous GameServer")
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub container: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ports: Option<Vec<GameServerPortSpec>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub health: Option<HealthSpec>,
+    #[serde(rename = "sdkServer", skip_serializing_if = "Option::is_none")]
+    pub sdk_server: Option<SdkServerSpec>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counters: Option<BTreeMap<String, CounterStatus>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lists: Option<BTreeMap<String, ListStatus>>,
+    pub template: PodTemplateSpec,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerPortSpec {
+    pub name: String,
+    #[serde(rename = "portPolicy")]
+    pub port_policy: String,
+    #[serde(rename = "containerPort")]
+    pub container_port: i32,
+    pub protocol: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HealthSpec {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disabled: Option<bool>,
+    #[serde(rename = "initialDelaySeconds", skip_serializing_if = "Option::is_none")]
+    pub initial_delay_seconds: Option<i32>,
+    #[serde(rename = "periodSeconds", skip_serializing_if = "Option::is_none")]
+    pub period_seconds: Option<i32>,
+    #[serde(rename = "failureThreshold", skip_serializing_if = "Option::is_none")]
+    pub failure_threshold: Option<i32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SdkServerSpec {
+    #[serde(rename = "logLevel", skip_serializing_if = "Option::is_none")]
+    pub log_level: Option<String>,
+    #[serde(rename = "grpcPort", skip_serializing_if = "Option::is_none")]
+    pub grpc_port: Option<i32>,
+    #[serde(rename = "httpPort", skip_serializing_if = "Option::is_none")]
+    pub http_port: Option<i32>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CounterStatus {
+    pub count: i64,
+    pub capacity: i64,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ListStatus {
+    #[serde(default)]
+    pub values: Vec<String>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerStatus {
+    pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    #[serde(default)]
+    pub addresses: Vec<GameServerStatusAddress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ports: Option<Vec<GameServerStatusPort>>,
+    #[serde(rename = "nodeName", skip_serializing_if = "Option::is_none")]
+    pub node_name: Option<String>,
+}
+
+impl GameServerStatus {
+    pub fn is_ready(&self) -> bool {
+        self.state == "Ready"
+    }
+
+    pub fn get_pod_ip(&self) -> Option<IpAddr> {
+        for addr in &self.addresses {
+            if let GameServerStatusAddress::PodIP(ip) = addr {
+                return Some(*ip);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "address")]
+pub enum GameServerStatusAddress {
+    InternalIP(IpAddr),
+    ExternalIP(IpAddr),
+    Hostname(String),
+    PodIP(IpAddr),
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerStatusPort {
+    pub name: String,
+    pub port: u16,
+}
+
+impl kube::Resource for GameServer {
+    type DynamicType = ();
+    type Scope = kube::core::NamespaceResourceScope;
+
+    fn kind(_: &()) -> Cow<'_, str> {
+        "GameServer".into()
+    }
+
+    fn group(_: &()) -> Cow<'_, str> {
+        "agones.dev".into()
+    }
+
+    fn version(_: &()) -> Cow<'_, str> {
+        "v1".into()
+    }
+
+    fn plural(_: &()) -> Cow<'_, str> {
+        "gameservers".into()
+    }
+
+    fn meta(&self) -> &ObjectMeta {
+        &self.metadata
+    }
+
+    fn meta_mut(&mut self) -> &mut ObjectMeta {
+        &mut self.metadata
+    }
+}

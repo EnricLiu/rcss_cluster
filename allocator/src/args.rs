@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum Scheduling {
@@ -15,6 +16,16 @@ impl Scheduling {
             Scheduling::Distributed => "Distributed",
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocateMode {
+    #[default]
+    #[serde(rename = "gs")]
+    GameServer,
+    #[serde(rename = "fleet")]
+    Fleet,
 }
 
 #[derive(Debug, Clone, Parser)]
@@ -34,9 +45,18 @@ pub struct Args {
     
     #[arg(long, env = "AGONES_FLEET_NAMESPACE", default_value = "rcss-env-dev", help = "Kubernetes namespace, where the Fleet(GameServers) are allocated")]
     pub namespace: String,
-    
-    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "deploy/templates/fleet.yaml", help = "Path to the Fleet template YAML file for GameServer allocation")]
+
+    /// Path to the Fleet template YAML file for Fleet-based allocation
+    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "deploy/templates/fleet.yaml", help = "Path to the Fleet template YAML file for Fleet-based allocation")]
     pub fleet_template: PathBuf,
+
+    /// Path to the GameServer template YAML file for direct allocation
+    #[arg(long, env = "AGONES_GS_TEMPLATE_PATH", default_value = "deploy/templates/gameserver.yaml", help = "Path to the GameServer template YAML file for direct allocation")]
+    pub gs_template: PathBuf,
+
+    /// Default allocation mode: direct (GameServer) or fleet (Fleet-based)
+    #[arg(long, env = "ALLOCATOR_DEFAULT_MODE", default_value = "gs", help = "Default allocation mode")]
+    pub default_mode: AllocateMode,
     
     /// Scheduling strategy for GameServer allocation
     #[arg(long, env = "AGONES_GSA_SCHEDULE_STRATEGY", default_value = "packed")]

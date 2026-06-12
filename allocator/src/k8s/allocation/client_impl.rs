@@ -1,4 +1,5 @@
 use std::fmt::Debug;
+use std::time::Duration;
 
 use kube::Api;
 use kube::api::PostParams;
@@ -17,6 +18,60 @@ use super::builder::{GsAllocation, GsAllocationBuilder};
 use super::{Error, Result, K8sClient};
 
 impl K8sClient {
+    pub async fn gs_allocate_from_new_gs(
+        &self,
+        metadata: MetaData,
+        timeout: Option<Duration>,
+    ) -> AllocationResult<GsAllocation> {
+        let gs = self.create_and_wait_gs_by_meta(metadata, timeout).await
+            .map_err(|e| AllocationError::InvalidMetaData(format!("Failed to create GameServer: {e:?}")))?;
+
+        let gs_name = gs.name().to_string();
+        info!("GameServer[{gs_name}] is ready, proceeding with allocation");
+
+        let match_labels = {
+            let mut labels = gs.metadata.labels.clone()
+                .unwrap_or_default();
+            labels.insert("agones.dev/gameserver".to_string(), gs_name.clone());
+            labels
+        };
+
+        let selector = GameServerSelector {
+            match_labels: Some(match_labels.into_iter().collect()),
+            match_expressions: None,
+        };
+
+        let allocation = GameServerAllocation {
+            api_version: "allocation.agones.dev/v1".to_string(),
+            kind: "GameServerAllocation".to_string(),
+            metadata: ObjectMeta {
+                namespace: Some(self.agones_ns.to_string()),
+                ..Default::default()
+            },
+            spec: GameServerAllocationSpec {
+                selectors: vec![selector],
+                scheduling: None,
+                metadata: None,
+            },
+            status: None,
+        };
+
+        let api: Api<GameServerAllocation> = Api::namespaced(self.client.clone(), &self.agones_ns);
+        let mut retry_interval = self.retry_interval();
+        for _ in 1..=self.n_retry_human() {
+            match make_allocation(&api, &allocation).await {
+                Ok(res) => return Ok(res),
+                Err(AllocationError::Busy) => {
+                    info!("Allocation request failed due to contention, retrying...");
+                }
+                Err(e) => return Err(e),
+            }
+            retry_interval.tick().await;
+        };
+
+        Err(AllocationError::Busy)
+    }
+
     pub async fn gs_allocate(
         &self,
         scheduling: Scheduling,

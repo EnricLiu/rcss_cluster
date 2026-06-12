@@ -1,6 +1,7 @@
 mod k8s;
 mod auth;
 mod args;
+mod utils;
 mod schema;
 mod metadata;
 mod controller;
@@ -29,10 +30,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("    Bind address: {}", addr);
     log::info!("    Namespace: {}", args.namespace);
     log::info!("    Fleet template path: {}", args.fleet_template.display());
+    log::info!("    GameServer template path: {}", args.gs_template.display());
+    log::info!("    Default mode: {:?}", args.default_mode);
 
     log::info!("Loading fleet template");
     k8s::init_fleet_template(&args.fleet_template)
         .map_err(|e| format!("Fleet template initialization failed: {e}"))?;
+
+    log::info!("Loading GameServer template");
+    k8s::init_gs_template(&args.gs_template)
+        .map_err(|e| format!("GameServer template initialization failed: {e}"))?;
 
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);
