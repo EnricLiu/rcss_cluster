@@ -1,14 +1,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::net::IpAddr;
+use std::ops::Deref;
 
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use serde::{Deserialize, Serialize};
 
-use super::{GameServerStatusAddress, GameServerStatusPort};
-
-pub type GameServerAllocationStatusAddress = GameServerStatusAddress;
-pub type GameServerPort = GameServerStatusPort;
+use super::GameServerConnectionInfo;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerAllocation {
@@ -47,12 +45,6 @@ pub struct LabelSelectorRequirement {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AllocationMetadata {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotations: Option<HashMap<String, String>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum AllocationState {
     #[serde(rename = "UnAllocated")]
     Unallocated,
@@ -65,27 +57,39 @@ pub enum AllocationState {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerAllocationStatus {
     pub state: AllocationState,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub address: Option<String>,
-    #[serde(default)]
-    pub addresses: Vec<GameServerAllocationStatusAddress>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub ports: Option<Vec<GameServerPort>>,
     #[serde(rename = "gameServerName", skip_serializing_if = "Option::is_none")]
     pub game_server_name: Option<String>,
+    #[serde(flatten)]
+    pub connection: GameServerConnectionInfo,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<GameServerMetadata>,
+}
+
+impl Deref for GameServerAllocationStatus {
+    type Target = GameServerConnectionInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.connection
+    }
 }
 
 impl GameServerAllocationStatus {
     pub fn get_pod_ip(&self) -> Option<IpAddr> {
-        for addr in &self.addresses {
-            let maybe_pod_ip = addr.as_pod_ip();
-            if let Some(pod_ip) = maybe_pod_ip {
-                return Some(*pod_ip);
-            }
-        }
-        None
+        self.connection.get_pod_ip()
     }
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<HashMap<String, String>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<HashMap<String, String>>,
+}
+
+pub type AllocationMetadata = GameServerMetadata;
 
 impl kube::Resource for GameServerAllocation {
     type DynamicType = ();

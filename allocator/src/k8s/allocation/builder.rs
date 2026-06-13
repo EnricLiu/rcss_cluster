@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use std::net::IpAddr;
 
 use common::errors::{BuilderError, BuilderResult};
-use super::crd::GameServerPort;
+use super::crd::GameServerStatusPort;
 
 #[derive(Debug, Clone)]
 pub struct GsAllocation {
@@ -53,7 +53,7 @@ impl GsAllocationBuilder {
         self
     }
 
-    pub fn parse_ports(&mut self, ports: Vec<GameServerPort>) -> &mut Self {
+    pub fn parse_ports(&mut self, ports: Vec<GameServerStatusPort>) -> &mut Self {
         for port in ports {
             self.add_port(port.name, port.port);
         }

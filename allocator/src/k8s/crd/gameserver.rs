@@ -1,9 +1,10 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::net::IpAddr;
+use std::ops::Deref;
 
 use k8s_openapi::api::core::v1::PodTemplateSpec;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -80,6 +81,8 @@ pub struct CounterStatus {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ListStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capacity: Option<i64>,
     #[serde(default)]
     pub values: Vec<String>,
 }
@@ -87,6 +90,24 @@ pub struct ListStatus {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerStatus {
     pub state: String,
+    #[serde(flatten)]
+    pub connection: GameServerConnectionInfo,
+    #[serde(rename = "reservedUntil", skip_serializing_if = "Option::is_none")]
+    pub reserved_until: Option<Time>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eviction: Option<Eviction>,
+}
+
+impl Deref for GameServerStatus {
+    type Target = GameServerConnectionInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.connection
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerConnectionInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
     #[serde(default)]
@@ -95,6 +116,10 @@ pub struct GameServerStatus {
     pub ports: Option<Vec<GameServerStatusPort>>,
     #[serde(rename = "nodeName", skip_serializing_if = "Option::is_none")]
     pub node_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counters: Option<BTreeMap<String, CounterStatus>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lists: Option<BTreeMap<String, ListStatus>>,
 }
 
 impl GameServerStatus {
@@ -102,6 +127,12 @@ impl GameServerStatus {
         self.state == "Ready"
     }
 
+    pub fn get_pod_ip(&self) -> Option<IpAddr> {
+        self.connection.get_pod_ip()
+    }
+}
+
+impl GameServerConnectionInfo {
     pub fn get_pod_ip(&self) -> Option<IpAddr> {
         for addr in &self.addresses {
             if let Some(pod_ip) = addr.as_pod_ip() {
@@ -115,8 +146,10 @@ impl GameServerStatus {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(tag = "type", content = "address")]
 pub enum GameServerStatusAddress {
+    ExternalDNS(String),
     InternalIP(IpAddr),
     ExternalIP(IpAddr),
+    InternalDNS(String),
     Hostname(String),
     PodIP(IpAddr),
 }
@@ -134,6 +167,11 @@ impl GameServerStatusAddress {
 pub struct GameServerStatusPort {
     pub name: String,
     pub port: u16,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Eviction {
+    pub safe: String,
 }
 
 impl kube::Resource for GameServer {
