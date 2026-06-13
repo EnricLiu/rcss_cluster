@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use serde::{Deserialize, Serialize};
 
-use crate::k8s::gs::crd::GameServerSpec;
+use super::GameServerSpec;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Fleet {

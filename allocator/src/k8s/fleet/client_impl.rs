@@ -6,11 +6,10 @@ use serde_json::Value;
 
 use common::errors::{BuilderError, BuilderResult};
 
-use crate::k8s::crd::FleetStatus;
 use crate::metadata::{Labels, MetaData};
 use crate::schema::v1::ConfigV1;
 
-use super::crd::Fleet;
+use super::crd::{Fleet, FleetStatus};
 use super::builder::FleetBuilder;
 use super::{Error, K8sClient, Result};
 

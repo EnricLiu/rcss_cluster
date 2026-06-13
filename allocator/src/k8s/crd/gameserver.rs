@@ -104,8 +104,8 @@ impl GameServerStatus {
 
     pub fn get_pod_ip(&self) -> Option<IpAddr> {
         for addr in &self.addresses {
-            if let GameServerStatusAddress::PodIP(ip) = addr {
-                return Some(*ip);
+            if let Some(pod_ip) = addr.as_pod_ip() {
+                return Some(*pod_ip);
             }
         }
         None
@@ -119,6 +119,15 @@ pub enum GameServerStatusAddress {
     ExternalIP(IpAddr),
     Hostname(String),
     PodIP(IpAddr),
+}
+
+impl GameServerStatusAddress {
+    pub fn as_pod_ip(&self) -> Option<&IpAddr> {
+        match self {
+            GameServerStatusAddress::PodIP(ip) => Some(ip),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1,8 +1,14 @@
-use std::net::IpAddr;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::net::IpAddr;
+
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use serde::{Deserialize, Serialize};
+
+use super::{GameServerStatusAddress, GameServerStatusPort};
+
+pub type GameServerAllocationStatusAddress = GameServerStatusAddress;
+pub type GameServerPort = GameServerStatusPort;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServerAllocation {
@@ -79,30 +85,6 @@ impl GameServerAllocationStatus {
         }
         None
     }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(tag = "type", content = "address")]
-pub enum GameServerAllocationStatusAddress {
-    InternalIP(IpAddr),
-    ExternalIP(IpAddr),
-    Hostname(String),
-    PodIP(IpAddr),
-}
-
-impl GameServerAllocationStatusAddress {
-    pub fn as_pod_ip(&self) -> Option<&IpAddr> {
-        match self {
-            GameServerAllocationStatusAddress::PodIP(ip) => Some(ip),
-            _ => None,
-        }
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GameServerPort {
-    pub name: String,
-    pub port: u16,
 }
 
 impl kube::Resource for GameServerAllocation {

@@ -7,6 +7,7 @@ use tokio::time::Interval;
 mod fleet;
 mod allocation;
 pub mod gs;
+pub mod crd;
 
 pub mod error;
 
@@ -30,13 +31,6 @@ pub use gs::{
     gs_template,
     gs_template_version,
 };
-
-pub mod crd {
-    pub use super::fleet::crd::*;
-    pub use super::allocation::crd::*;
-    pub use super::gs::crd::*;
-}
-
 
 #[derive(Clone)]
 pub struct K8sClient {

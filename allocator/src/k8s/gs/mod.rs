@@ -1,11 +1,10 @@
-pub mod crd;
 pub mod lifecycle;
 mod sweeper;
 mod builder;
 mod client_impl;
 mod template;
 
-use super::{Error, Result, K8sClient};
+use super::{Error, Result, K8sClient, crd};
 
 pub use sweeper::GsSweepConfig;
 pub use template::{
