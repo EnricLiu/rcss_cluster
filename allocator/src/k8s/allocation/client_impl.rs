@@ -30,8 +30,7 @@ impl K8sClient {
         info!("GameServer[{gs_name}] is ready, proceeding with allocation");
 
         let match_labels = {
-            let mut labels = gs.metadata.labels.clone()
-                .unwrap_or_default();
+            let mut labels = gs.metadata.labels.clone().unwrap_or_default();
             labels.insert("agones.dev/gameserver".to_string(), gs_name.clone());
             labels
         };
@@ -64,11 +63,23 @@ impl K8sClient {
                 Err(AllocationError::Busy) => {
                     info!("Allocation request failed due to contention, retrying...");
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
+                        info!(
+                            "Failed to cleanup GameServer[{gs_name}] after allocation failure: {cleanup_err:?}"
+                        );
+                    }
+                    return Err(e);
+                }
             }
             retry_interval.tick().await;
         };
 
+        if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
+            info!(
+                "Failed to cleanup GameServer[{gs_name}] after allocation contention: {cleanup_err:?}"
+            );
+        }
         Err(AllocationError::Busy)
     }
 
@@ -133,7 +144,7 @@ impl K8sClient {
 
 async fn make_allocation(
     api: &Api<GameServerAllocation>,
-    allocation: &GameServerAllocation
+    allocation: &GameServerAllocation,
 ) -> AllocationResult<GsAllocation> {
 
     let result = api.create(&PostParams::default(), allocation).await?;

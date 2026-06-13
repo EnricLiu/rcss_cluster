@@ -67,5 +67,20 @@ pub struct Args {
     
     #[arg(long, env = "K8S_RETRY_INTERVAL_MS", default_value_t = 300, help = "Interval in milliseconds between Kubernetes API retries")]
     pub k8s_retry_interval_ms: u64,
-}
 
+    /// Sweep interval for allocator-managed direct GameServers. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_SWEEP_INTERVAL_S", default_value_t = 60)]
+    pub gs_sweep_interval_s: u64,
+
+    /// Delete direct GameServers that stay Ready without allocation longer than this. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_READY_IDLE_TTL_S", default_value_t = 600)]
+    pub gs_ready_idle_ttl_s: u64,
+
+    /// Delete allocated direct GameServers without a recent heartbeat longer than this. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_LEASE_TTL_S", default_value_t = 7200)]
+    pub gs_lease_ttl_s: u64,
+
+    /// Delete direct GameServers older than this regardless of state. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_HARD_TTL_S", default_value_t = 14400)]
+    pub gs_hard_ttl_s: u64,
+}

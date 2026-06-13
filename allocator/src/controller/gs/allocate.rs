@@ -31,7 +31,7 @@ pub struct PostResponse {
 #[derive(Debug)]
 struct ParsedPostRequest {
     pub meta: crate::MetaData,
-    pub mode: AllocateMode,
+    pub mode: Option<AllocateMode>,
 }
 
 impl TryFrom<PostRequest> for ParsedPostRequest {
@@ -67,14 +67,10 @@ impl TryFrom<PostRequest> for ParsedPostRequest {
             })),
         };
 
-        let mode = req.mode.unwrap_or_default();
-
-        Ok(
-            Self {
-                meta,
-                mode,
-            }
-        )
+        Ok(Self {
+            meta,
+            mode: req.mode,
+        })
     }
 }
 
@@ -103,7 +99,8 @@ pub async fn post(
         Response::error(e.desc(), &e.to_string())
     };
 
-    match req.mode {
+    let mode = req.mode.unwrap_or(state.config.default_mode);
+    match mode {
         AllocateMode::GameServer => {
             let alloc_res = state.k8s.gs_allocate_from_new_gs(
                 req.meta,

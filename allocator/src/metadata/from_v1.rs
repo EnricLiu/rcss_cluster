@@ -169,7 +169,7 @@ mod tests {
                 "ball": { "x": 0.5, "y": 0.25 }
             },
             "teams": {
-                "allies": {
+                "right": {
                     "name": "Righties",
                     "side": "right",
                     "players": [{
@@ -184,7 +184,7 @@ mod tests {
                         }
                     }]
                 },
-                "opponents": {
+                "left": {
                     "name": "Lefties",
                     "side": "left",
                     "players": [{
@@ -231,7 +231,7 @@ mod tests {
     fn rejects_duplicate_player_unums_within_team() {
         let config: ConfigV1 = serde_json::from_value(json!({
             "teams": {
-                "allies": {
+                "left": {
                     "name": "HB1",
                     "players": [
                         {
@@ -250,7 +250,7 @@ mod tests {
                         }
                     ]
                 },
-                "opponents": {
+                "right": {
                     "name": "HB2",
                     "players": [{
                         "unum": 2,

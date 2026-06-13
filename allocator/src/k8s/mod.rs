@@ -25,6 +25,7 @@ pub use fleet::{
 };
 
 pub use gs::{
+    GsSweepConfig,
     init_gs_template,
     gs_template,
     gs_template_version,
