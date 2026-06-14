@@ -4,7 +4,7 @@ use std::time::Duration;
 use kube::Api;
 use kube::api::PostParams;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use log::{debug, info};
+use log::{debug, info, warn};
 use common::errors::BuilderError;
 use crate::MetaData;
 use crate::args::Scheduling;
@@ -58,29 +58,33 @@ impl K8sClient {
 
         let api: Api<GameServerAllocation> = Api::namespaced(self.client.clone(), &self.agones_ns);
         let mut retry_interval = self.retry_interval();
+        let mut err = Ok(());
         for _ in 1..=self.n_retry_human() {
             match make_allocation(&api, &allocation).await {
                 Ok(res) => return Ok(res),
-                Err(AllocationError::Busy) => {
-                    info!("Allocation request failed due to contention, retrying...");
+                Err(e @ (AllocationError::Busy | AllocationError::UnAllocated)) => {
+                    info!("Allocation request failed due to {e}, retrying...");
+                    err = Err(e);
                 }
                 Err(e) => {
-                    if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
-                        info!(
-                            "Failed to cleanup GameServer[{gs_name}] after allocation failure: {cleanup_err:?}"
-                        );
-                    }
-                    return Err(e);
+                    warn!("Allocation request failed due to unexpected error: {e:?}");
+                    err = Err(e);
+                    break;
                 }
             }
             retry_interval.tick().await;
         };
 
-        if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
-            info!(
-                "Failed to cleanup GameServer[{gs_name}] after allocation contention: {cleanup_err:?}"
-            );
+        if let Err(e) = err {
+            warn!("Allocation request failed after {} retries: {e:?}", self.n_retry_human());
+            if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
+                warn!(
+                    "Failed to cleanup GameServer[{gs_name}] after allocation failure: {cleanup_err:?}"
+                );
+            }
+            return Err(e)
         }
+
         Err(AllocationError::Busy)
     }
 
