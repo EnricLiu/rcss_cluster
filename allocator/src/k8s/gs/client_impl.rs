@@ -90,7 +90,21 @@ impl K8sClient {
         }
     }
 
+    pub async fn drop_managed_direct_gs(&self, name: &str) -> Result<()> {
+        let gs = match self.gs_client.get(name).await {
+            Ok(gs) => gs,
+            Err(kube::Error::Api(err)) if err.code == 404 => return Ok(()),
+            Err(e) => return Err(Error::SelectGs(e)),
+        };
+
+        ensure_managed_direct_gs(&gs, name)?;
+        self.drop_gs(name).await
+    }
+
     pub async fn heartbeat_gs(&self, name: &str) -> Result<()> {
+        let gs = self.gs_client.get(name).await.map_err(Error::SelectGs)?;
+        ensure_managed_direct_gs(&gs, name)?;
+
         let patch = json!({
             "metadata": {
                 "annotations": {
@@ -195,4 +209,45 @@ impl K8sClient {
             }
         }
     }
+}
+
+fn ensure_managed_direct_gs(gs: &GameServer, name: &str) -> Result<()> {
+    let labels = gs.metadata.labels.as_ref();
+    if label_eq(labels, MANAGED_BY_LABEL, MANAGED_BY_ALLOCATOR)
+        && label_eq(labels, ALLOCATION_MODE_LABEL, ALLOCATION_MODE_DIRECT_GS)
+        && label_eq(labels, DIRECT_GS_NAME_LABEL, name)
+    {
+        return Ok(());
+    }
+
+    Err(Error::GsNotMatch {
+        gs: name.to_string(),
+        expected: format!(
+            "{MANAGED_BY_LABEL}={MANAGED_BY_ALLOCATOR},{ALLOCATION_MODE_LABEL}={ALLOCATION_MODE_DIRECT_GS},{DIRECT_GS_NAME_LABEL}={name}"
+        ),
+        actual: format!(
+            "{}={},{}={},{}={}",
+            MANAGED_BY_LABEL,
+            label_value(labels, MANAGED_BY_LABEL).unwrap_or("<missing>"),
+            ALLOCATION_MODE_LABEL,
+            label_value(labels, ALLOCATION_MODE_LABEL).unwrap_or("<missing>"),
+            DIRECT_GS_NAME_LABEL,
+            label_value(labels, DIRECT_GS_NAME_LABEL).unwrap_or("<missing>")
+        ),
+    })
+}
+
+fn label_eq(
+    labels: Option<&std::collections::BTreeMap<String, String>>,
+    key: &str,
+    expected: &str,
+) -> bool {
+    label_value(labels, key).map_or(false, |actual| actual == expected)
+}
+
+fn label_value<'a>(
+    labels: Option<&'a std::collections::BTreeMap<String, String>>,
+    key: &str,
+) -> Option<&'a str> {
+    labels?.get(key).map(String::as_str)
 }

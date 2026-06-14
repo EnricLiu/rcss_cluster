@@ -13,7 +13,7 @@ pub struct DeleteRequest {
 pub struct DeleteResponse {}
 
 async fn delete(State(state): State<AppState>, Json(req): Json<DeleteRequest>) -> Response {
-    let res = state.k8s.drop_gs(&req.name).await;
+    let res = state.k8s.drop_managed_direct_gs(&req.name).await;
     match res {
         Ok(_) => Response::success(DeleteResponse {}),
         Err(err) => Response::error(err.desc(), &err.to_string()),
