@@ -8,6 +8,7 @@ use log::{debug, info};
 use common::errors::BuilderError;
 use crate::MetaData;
 use crate::args::Scheduling;
+use crate::k8s::gs::lifecycle::DIRECT_GS_NAME_LABEL;
 use super::crd::{
     AllocationState,
     AllocationMetadata, GameServerAllocation,
@@ -31,7 +32,7 @@ impl K8sClient {
 
         let match_labels = {
             let mut labels = gs.metadata.labels.clone().unwrap_or_default();
-            labels.insert("agones.dev/gameserver".to_string(), gs_name.clone());
+            labels.insert(DIRECT_GS_NAME_LABEL.to_string(), gs_name.clone());
             labels
         };
 

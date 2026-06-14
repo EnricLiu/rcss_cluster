@@ -11,7 +11,8 @@ use super::builder::GameServerBuilder;
 use super::crd::GameServer;
 use super::lifecycle::{
     ALLOCATION_MODE_DIRECT_GS, ALLOCATION_MODE_LABEL, CREATED_AT_ANNOTATION,
-    LAST_HEARTBEAT_ANNOTATION, MANAGED_BY_ALLOCATOR, MANAGED_BY_LABEL, TEMPLATE_VERSION_LABEL,
+    DIRECT_GS_NAME_LABEL, LAST_HEARTBEAT_ANNOTATION, MANAGED_BY_ALLOCATOR, MANAGED_BY_LABEL,
+    TEMPLATE_VERSION_LABEL,
     managed_direct_selector, now_unix_secs,
 };
 use super::{Error, K8sClient, Result};
@@ -43,6 +44,7 @@ impl K8sClient {
             TEMPLATE_VERSION_LABEL.to_string(),
             super::gs_template_version().to_string(),
         );
+        labels.insert(DIRECT_GS_NAME_LABEL.to_string(), name.clone());
 
         let mut annotations = meta.annotations.clone().into_map();
         annotations.insert(
