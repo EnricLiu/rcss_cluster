@@ -1,6 +1,7 @@
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
+use clap::builder::PossibleValue;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
@@ -18,7 +19,7 @@ impl Scheduling {
     }
 }
 
-#[derive(Debug, Clone, Copy, ValueEnum, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum AllocateMode {
     #[default]
@@ -26,6 +27,33 @@ pub enum AllocateMode {
     GameServer,
     #[serde(rename = "fleet")]
     Fleet,
+}
+
+impl ValueEnum for AllocateMode {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::GameServer, Self::Fleet]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input = if ignore_case {
+            &input.to_lowercase()
+        } else {
+            input
+        };
+
+        match input {
+            "gs" => Ok(Self::GameServer),
+            "fleet" => Ok(Self::Fleet),
+            _ => Err(format!("unknown allocation mode: {}", input)),
+        }
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<PossibleValue> {
+        match self {
+            Self::GameServer => Some(PossibleValue::new("gs")),
+            Self::Fleet => Some(PossibleValue::new("fleet")),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Parser)]
