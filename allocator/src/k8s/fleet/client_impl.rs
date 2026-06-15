@@ -6,11 +6,10 @@ use serde_json::Value;
 
 use common::errors::{BuilderError, BuilderResult};
 
-use crate::k8s::crd::FleetStatus;
 use crate::metadata::{Labels, MetaData};
 use crate::schema::v1::ConfigV1;
 
-use super::crd::Fleet;
+use super::crd::{Fleet, FleetStatus};
 use super::builder::FleetBuilder;
 use super::{Error, K8sClient, Result};
 
@@ -72,7 +71,12 @@ impl<'a> FleetName<'a> {
 impl K8sClient {
     pub const DEFAULT_FLEET_READY_TIMEOUT: Duration = Duration::from_secs(100);
 
-    pub async fn get_or_create_fleet(&self, gs_conf: Value, version: u8, timeout: Option<Duration>) -> Result<Fleet> {
+    pub async fn get_or_create_fleet(
+        &self,
+        gs_conf: Value,
+        version: u8,
+        timeout: Option<Duration>,
+    ) -> Result<Fleet> {
         let meta: MetaData = match version {
             1 => {
                 let conf: ConfigV1 = serde_json::from_value(gs_conf).map_err(Error::InvalidFleetGS)?;
@@ -88,7 +92,11 @@ impl K8sClient {
         self.get_or_create_fleet_by_meta(meta, timeout).await
     }
 
-    pub async fn get_or_create_fleet_by_meta(&self, meta: MetaData, timeout: Option<Duration>) -> Result<Fleet> {
+    pub async fn get_or_create_fleet_by_meta(
+        &self,
+        meta: MetaData,
+        timeout: Option<Duration>,
+    ) -> Result<Fleet> {
         let fleet = self.fleet_by_labels(&meta.labels).await;
         let fleet_name = FleetName::from_labels(&meta.labels)?;
 

@@ -22,6 +22,7 @@ agones = "1.56"
 
 serde_yaml = "0.9"
 sha2 = "0.11"
+snowflake_me = { version = "1", features = ["ip-fallback"] }
 
 common = { path = "../common", features = ["axum"] }
 

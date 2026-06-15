@@ -1,96 +1,27 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::net::IpAddr;
+use std::ops::Deref;
 
 use k8s_openapi::api::core::v1::PodTemplateSpec;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time};
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Fleet {
+pub struct GameServer {
     #[serde(rename = "apiVersion")]
     pub api_version: String,
     pub kind: String,
     pub metadata: ObjectMeta,
-    pub spec: FleetSpec,
-    pub status: Option<FleetStatus>,
-}
-
-impl Fleet {
-    pub fn name(&self) -> &str {
-        self.metadata.name.as_deref().unwrap_or("Anonymous Fleet")
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FleetStatus {
-    pub replicas: usize,
-    #[serde(rename = "allocatedReplicas")]
-    pub allocated_replicas: usize,
-    #[serde(rename = "readyReplicas")]
-    pub ready_replicas: usize,
-    #[serde(rename = "reservedReplicas")]
-    pub reserved_replicas: usize,
-}
-
-impl FleetStatus {
-    pub fn has_ready(&self) -> bool {
-        self.ready_replicas > 0
-    }
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FleetSpec {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub replicas: Option<i32>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub scheduling: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub strategy: Option<FleetStrategy>,
-    #[serde(rename = "allocationOverflow", skip_serializing_if = "Option::is_none")]
-    pub allocation_overflow: Option<AllocationOverflow>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub priorities: Option<Vec<Priority>>,
-    pub template: GameServerTemplateSpec,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct FleetStrategy {
-    #[serde(rename = "type")]
-    pub strategy_type: String,
-    #[serde(rename = "rollingUpdate", skip_serializing_if = "Option::is_none")]
-    pub rolling_update: Option<RollingUpdateStrategy>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct RollingUpdateStrategy {
-    #[serde(rename = "maxSurge", skip_serializing_if = "Option::is_none")]
-    pub max_surge: Option<String>,
-    #[serde(rename = "maxUnavailable", skip_serializing_if = "Option::is_none")]
-    pub max_unavailable: Option<String>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct AllocationOverflow {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub labels: Option<BTreeMap<String, String>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub annotations: Option<BTreeMap<String, String>>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Priority {
-    #[serde(rename = "type")]
-    pub priority_type: String,
-    pub key: String,
-    pub order: String,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct GameServerTemplateSpec {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub metadata: Option<ObjectMeta>,
     pub spec: GameServerSpec,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub status: Option<GameServerStatus>,
+}
+
+impl GameServer {
+    pub fn name(&self) -> &str {
+        self.metadata.name.as_deref().unwrap_or("Anonymous GameServer")
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -150,16 +81,105 @@ pub struct CounterStatus {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ListStatus {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub capacity: Option<i64>,
     #[serde(default)]
     pub values: Vec<String>,
 }
 
-impl kube::Resource for Fleet {
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerStatus {
+    pub state: String,
+    #[serde(flatten)]
+    pub connection: GameServerConnectionInfo,
+    #[serde(rename = "reservedUntil", skip_serializing_if = "Option::is_none")]
+    pub reserved_until: Option<Time>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub eviction: Option<Eviction>,
+}
+
+impl Deref for GameServerStatus {
+    type Target = GameServerConnectionInfo;
+
+    fn deref(&self) -> &Self::Target {
+        &self.connection
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerConnectionInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address: Option<String>,
+    #[serde(default)]
+    pub addresses: Vec<GameServerStatusAddress>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ports: Option<Vec<GameServerStatusPort>>,
+    #[serde(rename = "nodeName", skip_serializing_if = "Option::is_none")]
+    pub node_name: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub counters: Option<BTreeMap<String, CounterStatus>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lists: Option<BTreeMap<String, ListStatus>>,
+}
+
+impl GameServerStatus {
+    pub fn is_ready(&self) -> bool {
+        self.state == "Ready"
+    }
+
+    pub fn get_pod_ip(&self) -> Option<IpAddr> {
+        self.connection.get_pod_ip()
+    }
+}
+
+impl GameServerConnectionInfo {
+    pub fn get_pod_ip(&self) -> Option<IpAddr> {
+        for addr in &self.addresses {
+            if let Some(pod_ip) = addr.as_pod_ip() {
+                return Some(*pod_ip);
+            }
+        }
+        None
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(tag = "type", content = "address")]
+pub enum GameServerStatusAddress {
+    ExternalDNS(String),
+    InternalIP(IpAddr),
+    ExternalIP(IpAddr),
+    InternalDNS(String),
+    Hostname(String),
+    PodIP(IpAddr),
+}
+
+impl GameServerStatusAddress {
+    pub fn as_pod_ip(&self) -> Option<&IpAddr> {
+        match self {
+            GameServerStatusAddress::PodIP(ip) => Some(ip),
+            _ => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct GameServerStatusPort {
+    pub name: String,
+    pub port: u16,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Eviction {
+    pub safe: String,
+}
+
+impl kube::Resource for GameServer {
     type DynamicType = ();
     type Scope = kube::core::NamespaceResourceScope;
 
     fn kind(_: &()) -> Cow<'_, str> {
-        "Fleet".into()
+        "GameServer".into()
     }
 
     fn group(_: &()) -> Cow<'_, str> {
@@ -171,7 +191,7 @@ impl kube::Resource for Fleet {
     }
 
     fn plural(_: &()) -> Cow<'_, str> {
-        "fleets".into()
+        "gameservers".into()
     }
 
     fn meta(&self) -> &ObjectMeta {

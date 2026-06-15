@@ -1,6 +1,8 @@
 use std::net::Ipv4Addr;
 use std::path::PathBuf;
 use clap::{Parser, ValueEnum};
+use clap::builder::PossibleValue;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum Scheduling {
@@ -13,6 +15,43 @@ impl Scheduling {
         match self {
             Scheduling::Packed => "Packed",
             Scheduling::Distributed => "Distributed",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AllocateMode {
+    #[default]
+    #[serde(rename = "gs")]
+    GameServer,
+    #[serde(rename = "fleet")]
+    Fleet,
+}
+
+impl ValueEnum for AllocateMode {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[Self::GameServer, Self::Fleet]
+    }
+
+    fn from_str(input: &str, ignore_case: bool) -> Result<Self, String> {
+        let input = if ignore_case {
+            &input.to_lowercase()
+        } else {
+            input
+        };
+
+        match input {
+            "gs" => Ok(Self::GameServer),
+            "fleet" => Ok(Self::Fleet),
+            _ => Err(format!("unknown allocation mode: {}", input)),
+        }
+    }
+
+    fn to_possible_value<'a>(&self) -> Option<PossibleValue> {
+        match self {
+            Self::GameServer => Some(PossibleValue::new("gs")),
+            Self::Fleet => Some(PossibleValue::new("fleet")),
         }
     }
 }
@@ -34,9 +73,18 @@ pub struct Args {
     
     #[arg(long, env = "AGONES_FLEET_NAMESPACE", default_value = "rcss-env-dev", help = "Kubernetes namespace, where the Fleet(GameServers) are allocated")]
     pub namespace: String,
-    
-    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "deploy/templates/fleet.yaml", help = "Path to the Fleet template YAML file for GameServer allocation")]
+
+    /// Path to the Fleet template YAML file for Fleet-based allocation
+    #[arg(long, env = "AGONES_FLEET_TEMPLATE_PATH", default_value = "deploy/templates/fleet.yaml", help = "Path to the Fleet template YAML file for Fleet-based allocation")]
     pub fleet_template: PathBuf,
+
+    /// Path to the GameServer template YAML file for direct allocation
+    #[arg(long, env = "AGONES_GS_TEMPLATE_PATH", default_value = "deploy/templates/gameserver.yaml", help = "Path to the GameServer template YAML file for direct allocation")]
+    pub gs_template: PathBuf,
+
+    /// Default allocation mode: direct (GameServer) or fleet (Fleet-based)
+    #[arg(long, env = "ALLOCATOR_DEFAULT_MODE", default_value = "gs", help = "Default allocation mode")]
+    pub default_mode: AllocateMode,
     
     /// Scheduling strategy for GameServer allocation
     #[arg(long, env = "AGONES_GSA_SCHEDULE_STRATEGY", default_value = "packed")]
@@ -47,5 +95,20 @@ pub struct Args {
     
     #[arg(long, env = "K8S_RETRY_INTERVAL_MS", default_value_t = 300, help = "Interval in milliseconds between Kubernetes API retries")]
     pub k8s_retry_interval_ms: u64,
-}
 
+    /// Sweep interval for allocator-managed direct GameServers. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_SWEEP_INTERVAL_S", default_value_t = 60)]
+    pub gs_sweep_interval_s: u64,
+
+    /// Delete direct GameServers that stay Ready without allocation longer than this. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_READY_IDLE_TTL_S", default_value_t = 600)]
+    pub gs_ready_idle_ttl_s: u64,
+
+    /// Delete allocated direct GameServers without a recent heartbeat longer than this. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_LEASE_TTL_S", default_value_t = 7200)]
+    pub gs_lease_ttl_s: u64,
+
+    /// Delete direct GameServers older than this regardless of state. Set to 0 to disable.
+    #[arg(long, env = "ALLOCATOR_GS_HARD_TTL_S", default_value_t = 14400)]
+    pub gs_hard_ttl_s: u64,
+}
