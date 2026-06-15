@@ -5,7 +5,7 @@ use std::ops::Deref;
 
 use k8s_openapi::api::core::v1::PodTemplateSpec;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::{ObjectMeta, Time};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct GameServer {
@@ -110,7 +110,7 @@ impl Deref for GameServerStatus {
 pub struct GameServerConnectionInfo {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub address: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "deserialize_null_as_default")]
     pub addresses: Vec<GameServerStatusAddress>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub ports: Option<Vec<GameServerStatusPort>>,
@@ -200,5 +200,32 @@ impl kube::Resource for GameServer {
 
     fn meta_mut(&mut self) -> &mut ObjectMeta {
         &mut self.metadata
+    }
+}
+
+fn deserialize_null_as_default<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: Deserializer<'de>,
+    T: Deserialize<'de> + Default,
+{
+    Ok(Option::<T>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn deserializes_null_addresses_as_empty() {
+        let status: GameServerStatus = serde_json::from_value(serde_json::json!({
+            "state": "Starting",
+            "address": "",
+            "addresses": null,
+            "ports": null
+        }))
+        .expect("GameServer status with null addresses should deserialize");
+
+        assert!(status.addresses.is_empty());
+        assert_eq!(status.state, "Starting");
     }
 }
