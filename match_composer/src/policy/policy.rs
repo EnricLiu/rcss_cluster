@@ -53,6 +53,12 @@ pub struct CoachPolicy<C> {
     pub image: Box<dyn PolicyImage>,
 }
 
+#[derive(Debug)]
+pub struct TrainerPolicy<T> {
+    pub trainer: T,
+    pub image: Box<dyn PolicyImage>,
+}
+
 impl<C> CoachPolicy<C> {
     pub fn new(coach: C, image: Box<dyn PolicyImage>) -> Self {
         Self {
@@ -71,3 +77,11 @@ impl<P> PlayerPolicy<P> {
     }
 }
 
+impl<T> TrainerPolicy<T> {
+    pub fn new(trainer: T, image: Box<dyn PolicyImage>) -> Self {
+        Self {
+            trainer,
+            image,
+        }
+    }
+}

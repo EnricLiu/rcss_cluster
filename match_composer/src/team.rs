@@ -10,7 +10,6 @@ use tokio::task::JoinHandle;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use dashmap::DashMap;
-use allocator::schema::v1::CoachV1;
 use common::process::{ProcessStatus, ProcessStatusKind};
 
 use crate::coach::{Coach, CoachWrap, PolicyCoach};
@@ -19,6 +18,7 @@ use crate::info::{PlayerInfo, PlayerStatusInfo, TeamInfo};
 use crate::player::{Player, PolicyPlayer};
 use crate::policy::PolicyRegistry;
 use crate::declaration::{ImageDeclaration, Unum};
+use crate::trainer::{PolicyTrainer, Trainer, TrainerWrap};
 
 pub use crate::info::TeamStatusInfo as TeamStatus;
 
@@ -70,6 +70,7 @@ pub struct Team {
     status_rx: watch::Receiver<TeamStatus>,
     players: DashMap<Unum, PlayerWrap>,
     coach: Mutex<Option<CoachWrap>>,
+    trainer: Mutex<Option<TrainerWrap>>,
 
     monitor_task: Option<JoinHandle<()>>,
 }
@@ -83,6 +84,7 @@ impl Team {
             status_rx,
             players: DashMap::new(),
             coach: Mutex::new(None),
+            trainer: Mutex::new(None),
             monitor_task: None,
         }
     }
@@ -142,6 +144,18 @@ impl Team {
             *self.coach.lock().await = Some(coach.into());
         }
 
+        if let Some(trainer) = self.config.trainer().cloned() {
+            let policy = registry.fetch_trainer(trainer).map_err(|trainer| {
+                let err = Error::PolicyNotFound { image: trainer.image.clone() };
+                self.status_tx.send(TeamStatus::Error(err.clone())).ok();
+                err
+            })?;
+
+            let trainer = PolicyTrainer::new(policy);
+            trainer.spawn().await.map_err(|e| Error::SpawnTrainer(format!("{e:?}")))?;
+            *self.trainer.lock().await = Some(trainer.into());
+        }
+
         // Start the aggregation task: listen for player events and drive TeamStatus.
         let monitor_task = {
             let status_watches: HashMap<ParticipantId, watch::Receiver<ProcessStatus>> = {
@@ -156,6 +170,13 @@ impl Team {
                     watches.insert(
                         ParticipantId::Coach,
                         coach.status_watch().expect("The coach process is initialized by the coach.spawn().await, so the unwrap here should be safe."),
+                    );
+                }
+
+                if let Some(trainer) = self.trainer.lock().await.as_ref() {
+                    watches.insert(
+                        ParticipantId::Trainer,
+                        trainer.status_watch().expect("The trainer process is initialized by the trainer.spawn().await, so the unwrap here should be safe."),
                     );
                 }
 
@@ -187,6 +208,7 @@ impl Team {
         if let Some(task) = self.monitor_task.take() {
             task.abort();
         }
+        self.shutdown_trainer().await;
         self.shutdown_coach().await;
         self.shutdown_players().await;
         self.status_tx.send(TeamStatus::Idle).ok();
@@ -196,6 +218,13 @@ impl Team {
         let mut coach = self.coach.lock().await.take();
         if let Some(coach) = coach.as_mut() {
             let _ = coach.shutdown().await;
+        }
+    }
+
+    async fn shutdown_trainer(&mut self) {
+        let mut trainer = self.trainer.lock().await.take();
+        if let Some(trainer) = trainer.as_mut() {
+            let _ = trainer.shutdown().await;
         }
     }
 
@@ -322,6 +351,7 @@ impl Team {
         match id {
             ParticipantId::Player(unum) => Error::PlayerExited { unum, reason },
             ParticipantId::Coach => Error::CoachExited { reason },
+            ParticipantId::Trainer => Error::TrainerExited { reason },
         }
     }
 
@@ -335,6 +365,15 @@ impl Team {
                 None
             }
         };
+        let trainer = {
+            let trainer = self.trainer.try_lock().ok();
+            if  let Some(trainer) = &trainer &&
+                let Some(trainer) = trainer.as_ref() {
+                Some(trainer.info())
+            } else {
+                None
+            }
+        };
 
         TeamInfo {
             name: self.config.name().to_string(),
@@ -342,6 +381,7 @@ impl Team {
             status: self.status_now().into(),
             players: self.players.iter().map(|entry| (*entry.key(), entry.info())).collect(),
             coach,
+            trainer,
         }
     }
     
@@ -354,6 +394,7 @@ impl Team {
 enum ParticipantId {
     Player(Unum),
     Coach,
+    Trainer,
 }
 
 impl ParticipantId {
@@ -361,6 +402,7 @@ impl ParticipantId {
         match self {
             ParticipantId::Player(unum) => format!("Player {unum}"),
             ParticipantId::Coach => "Coach".to_string(),
+            ParticipantId::Trainer => "Trainer".to_string(),
         }
     }
 }
@@ -385,11 +427,17 @@ pub enum Error {
     #[error("Failed to spawn coach: {0}")]
     SpawnCoach(String),
 
+    #[error("Failed to spawn trainer: {0}")]
+    SpawnTrainer(String),
+
     #[error("Player {unum} exited unexpectedly: {reason}")]
     PlayerExited { unum: Unum, reason: String },
 
     #[error("Coach exited unexpectedly: {reason}")]
     CoachExited { reason: String },
+
+    #[error("Trainer exited unexpectedly: {reason}")]
+    TrainerExited { reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

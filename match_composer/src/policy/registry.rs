@@ -3,7 +3,8 @@ use std::path::Path;
 use super::image::ImageRegistry;
 use crate::model::coach::{CoachBaseModel, CoachModel};
 use crate::model::player::{PlayerBaseModel, PlayerModel};
-use crate::policy::{CoachPolicy, PlayerPolicy, Policy};
+use crate::model::trainer::{TrainerBaseModel, TrainerModel};
+use crate::policy::{CoachPolicy, PlayerPolicy, Policy, TrainerPolicy};
 
 pub struct PolicyRegistry {
     pub images: ImageRegistry,
@@ -48,6 +49,25 @@ impl PolicyRegistry {
             },
             CoachModel::Ssp(ssp) => {
                 Box::new(CoachPolicy::new(ssp, image)) as Box<dyn Policy<Model = CoachBaseModel>>
+            },
+        };
+
+        Ok(ret)
+    }
+
+    pub fn fetch_trainer(&self, trainer: TrainerModel) -> Result<Box<dyn Policy<Model = TrainerBaseModel>>, TrainerModel> {
+        let image = self.images.try_get(&trainer.image.provider(), &trainer.image.model());
+        let image = match image {
+            Some(image) => image,
+            None => return Err(trainer),
+        };
+
+        let ret = match trainer {
+            TrainerModel::Helios(helios) => {
+                Box::new(TrainerPolicy::new(helios, image)) as Box<dyn Policy<Model = TrainerBaseModel>>
+            },
+            TrainerModel::Ssp(ssp) => {
+                Box::new(TrainerPolicy::new(ssp, image)) as Box<dyn Policy<Model = TrainerBaseModel>>
             },
         };
 

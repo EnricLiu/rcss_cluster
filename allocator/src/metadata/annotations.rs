@@ -16,6 +16,8 @@ pub struct Annotations {
     pub team_r: String,
     pub coach_l: Option<CoachDeclaration>,
     pub coach_r: Option<CoachDeclaration>,
+    pub trainer_l: Option<CoachDeclaration>,
+    pub trainer_r: Option<CoachDeclaration>,
     pub init: InitStateDeclaration,
     pub referee: RefereeDeclaration,
     pub stopping: StopEventDeclaration,
@@ -38,7 +40,11 @@ impl Annotations {
             .and_then(|c| serde_json::from_str(c).ok());
         let coach_r = map.get("team.coach.r")
             .and_then(|c| serde_json::from_str(c).ok());
-        Annotations { referee, stopping, init, team_l, team_r, coach_l, coach_r }
+        let trainer_l = map.get("team.trainer.l")
+            .and_then(|c| serde_json::from_str(c).ok());
+        let trainer_r = map.get("team.trainer.r")
+            .and_then(|c| serde_json::from_str(c).ok());
+        Annotations { referee, stopping, init, team_l, team_r, coach_l, coach_r, trainer_l, trainer_r }
     }
     pub fn into_map(self) -> HashMap<String, String> {
         let mut map = HashMap::new();
@@ -49,6 +55,12 @@ impl Annotations {
         }
         if let Some(coach_r) = self.coach_r && let Ok(coach_str) = serde_json::to_string(&coach_r) {
             map.insert("team.coach.r".to_string(), coach_str);
+        }
+        if let Some(trainer_l) = self.trainer_l && let Ok(trainer_str) = serde_json::to_string(&trainer_l) {
+            map.insert("team.trainer.l".to_string(), trainer_str);
+        }
+        if let Some(trainer_r) = self.trainer_r && let Ok(trainer_str) = serde_json::to_string(&trainer_r) {
+            map.insert("team.trainer.r".to_string(), trainer_str);
         }
         if let Ok(referee_str) = serde_json::to_string(&self.referee) {
             map.insert("referee".to_string(), referee_str);

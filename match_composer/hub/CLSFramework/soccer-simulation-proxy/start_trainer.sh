@@ -126,30 +126,11 @@ do
   shift 1
 done
 
-OPT="-h ${host} -p ${port} -t ${teamname}"
-#OPT="${OPT} --player-config ${config} --config_dir ${config_dir}"
-OPT="${OPT} ${debugopt}"
-opt="${opt} --rpc-host ${rpc_host}"
-opt="${opt} --rpc-port ${rpc_port}"
-opt="${opt} --rpc-type ${rpc_type}"
-if [ "${rpc_port_step}" = "true" ]; then
-  opt="${opt} --rpc-port-step"
-fi
-if [ "${rpc_add_20_to_port_for_right}" = "true" ]; then
-  opt="${opt} --rpc-add-20-to-port-for-right"
-fi
-#if [ $number -gt 0 ]; then
-#  $player ${OPT} -g &
-#  $sleepprog $goaliesleep
-#fi
-
-#for (( i=2; i<=${number}; i=$i+1 )) ; do
-
-#done
+trainer_opt="-h ${host} -p ${port} -t ${teamname}"
+trainer_opt="${trainer_opt} ${debugopt}"
 trainer_opt="${trainer_opt} --rpc-host ${rpc_host}"
 trainer_opt="${trainer_opt} --rpc-port ${rpc_port}"
 trainer_opt="${trainer_opt} --rpc-type ${rpc_type}"
-
 if [ "${rpc_port_step}" = "true" ]; then
   trainer_opt="${trainer_opt} --rpc-port-step"
 fi
@@ -157,4 +138,6 @@ if [ "${rpc_add_20_to_port_for_right}" = "true" ]; then
   trainer_opt="${trainer_opt} --rpc-add-20-to-port-for-right"
 fi
 
-exec $trainer "$trainer_opt"
+ping -c 1 "$host" >/dev/null 2>&1
+
+exec $trainer ${trainer_opt}

@@ -11,6 +11,7 @@ pub trait PolicyImage: Send + Sync {
 
     fn player_cmd(&self) -> Command;
     fn coach_cmd(&self) -> Command;
+    fn trainer_cmd(&self) -> Command;
 }
 
 impl Debug for dyn PolicyImage {
