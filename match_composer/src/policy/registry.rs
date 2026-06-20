@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use super::image::ImageRegistry;
+use super::image::{ImageFormat, ImageRegistry, ImageRole};
 use crate::model::coach::{CoachBaseModel, CoachModel};
 use crate::model::player::{PlayerBaseModel, PlayerModel};
 use crate::model::trainer::{TrainerBaseModel, TrainerModel};
@@ -23,6 +23,10 @@ impl PolicyRegistry {
             Some(image) => image,
             None => return Err(player),
         };
+
+        if !ImageRegistry::role_is_compatible(image.as_ref(), ImageRole::Player, &player) {
+            return Err(player);
+        }
         
         let ret = match player {
             PlayerModel::Helios(helios) => {
@@ -43,6 +47,10 @@ impl PolicyRegistry {
             None => return Err(coach),
         };
 
+        if !ImageRegistry::role_is_compatible(image.as_ref(), ImageRole::Coach, &coach) {
+            return Err(coach);
+        }
+
         let ret = match coach {
             CoachModel::Helios(helios) => {
                 Box::new(CoachPolicy::new(helios, image)) as Box<dyn Policy<Model = CoachBaseModel>>
@@ -61,6 +69,13 @@ impl PolicyRegistry {
             Some(image) => image,
             None => return Err(trainer),
         };
+        let expected_format = match &trainer {
+            TrainerModel::Helios(_) => ImageFormat::Helios,
+            TrainerModel::Ssp(_) => ImageFormat::Ssp,
+        };
+        if !ImageRegistry::role_is_compatible(image.as_ref(), ImageRole::Trainer, &trainer) {
+            return Err(trainer);
+        }
 
         let ret = match trainer {
             TrainerModel::Helios(helios) => {

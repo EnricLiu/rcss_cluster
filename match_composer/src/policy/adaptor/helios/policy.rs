@@ -4,7 +4,8 @@ use tokio::process::Command;
 use crate::model::player::{HeliosPlayerModel, PlayerBaseModel};
 use crate::model::coach::{CoachBaseModel, HeliosCoachModel};
 use crate::model::trainer::{HeliosTrainerModel, TrainerBaseModel};
-use super::{PlayerPolicy, Policy, CoachPolicy, TrainerPolicy};
+use crate::policy::{PlayerPolicy, Policy, CoachPolicy, ReadyMatcher, TrainerPolicy};
+use crate::policy::image::ImageRole;
 
 
 impl Policy for PlayerPolicy<HeliosPlayerModel> {
@@ -36,8 +37,8 @@ impl Policy for PlayerPolicy<HeliosPlayerModel> {
         cmd
     }
 
-    fn parse_ready_fn(&self) -> fn(&str) -> bool {
-        |line: &str| line.contains("init ok.")
+    fn parse_ready_fn(&self) -> ReadyMatcher {
+        self.image.parse_ready_fn(ImageRole::Player)
     }
 
     fn info(&self) -> &PlayerBaseModel {
@@ -72,8 +73,8 @@ impl Policy for CoachPolicy<HeliosCoachModel> {
         cmd
     }
 
-    fn parse_ready_fn(&self) -> fn(&str) -> bool {
-        |line: &str| line.contains("init ok.")
+    fn parse_ready_fn(&self) -> ReadyMatcher {
+        self.image.parse_ready_fn(ImageRole::Coach)
     }
 
     fn info(&self) -> &CoachBaseModel {
@@ -107,8 +108,8 @@ impl Policy for TrainerPolicy<HeliosTrainerModel> {
         cmd
     }
 
-    fn parse_ready_fn(&self) -> fn(&str) -> bool {
-        |line: &str| line.contains("init ok.")
+    fn parse_ready_fn(&self) -> ReadyMatcher {
+        self.image.parse_ready_fn(ImageRole::Trainer)
     }
 
     fn info(&self) -> &TrainerBaseModel {

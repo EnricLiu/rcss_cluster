@@ -2,11 +2,13 @@ use std::fmt::Debug;
 use crate::model::ProcessModel;
 use super::image::PolicyImage;
 
+pub type ReadyMatcher = Box<dyn Fn(&str) -> bool + Send + 'static>;
+
 pub trait Policy: Debug + Send + Sync + 'static {
     type Model: ProcessModel;
 
     fn command(&self) -> tokio::process::Command;
-    fn parse_ready_fn(&self) -> fn(&str) -> bool;
+    fn parse_ready_fn(&self) -> ReadyMatcher;
 
     fn info(&self) -> &Self::Model;
 
@@ -26,7 +28,7 @@ impl<M: ProcessModel> Policy for Box<dyn Policy<Model = M>> {
     fn command(&self) -> tokio::process::Command {
         (**self).command()
     }
-    fn parse_ready_fn(&self) -> fn(&str) -> bool {
+    fn parse_ready_fn(&self) -> ReadyMatcher {
         (**self).parse_ready_fn()
     }
 

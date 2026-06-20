@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "HELIOS/helios-base",
+  "format": "helios",
+  "description": "HELIOS base player and coach launch scripts",
+  "roles": {
+    "player": {
+      "entrypoint": "start_player.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "coach": {
+      "entrypoint": "start_coach.sh",
+      "ready_stdout_contains": "init ok."
+    }
+  }
+}
