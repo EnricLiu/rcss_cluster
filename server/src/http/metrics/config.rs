@@ -9,7 +9,7 @@ use super::{AppState, Response};
 
 #[derive(Serialize, Debug)]
 pub struct GetResponse<'a> {
-    #[flatten]
+    #[serde(flatten)]
     base: &'a BaseConfig,
 }
 
