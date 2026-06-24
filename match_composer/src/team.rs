@@ -23,6 +23,7 @@ use crate::trainer::{PolicyTrainer, Trainer, TrainerWrap};
 pub use crate::info::TeamStatusInfo as TeamStatus;
 
 pub const SPAWN_DURATION: Duration = Duration::from_millis(100);
+pub const PLAYER_READY_TIMEOUT: Duration = Duration::from_secs(30);
 
 
 #[derive(Debug)]
@@ -130,9 +131,9 @@ impl Team {
 
             interval.tick().await;
         }
-
-
         if let Some(coach) = self.config.coach().cloned() {
+            self.wait_for_any_player_ready().await?;
+
             let policy = registry.fetch_coach(coach).map_err(|coach| {
                 let err = Error::PolicyNotFound { image: coach.image.clone() };
                 self.status_tx.send(TeamStatus::Error(err.clone())).ok();
@@ -190,6 +191,53 @@ impl Team {
 
 
         Ok(())
+    }
+
+    async fn wait_for_any_player_ready(&self) -> Result<()> {
+        let team_name = self.config.name().to_string();
+        let status_watches = self.players.iter()
+            .map(|player| {
+                player.status_watch().expect(
+                    "The player process is initialized by player.spawn().await",
+                )
+            })
+            .collect();
+
+        Self::wait_for_any_ready_status(&team_name, status_watches).await
+    }
+
+    async fn wait_for_any_ready_status(
+        team_name: &str,
+        status_watches: Vec<watch::Receiver<ProcessStatus>>,
+    ) -> Result<()> {
+        let mut readiness = status_watches.into_iter()
+            .map(|mut status| async move {
+                status
+                    .wait_for(|status| status.is_ready() || status.is_finished())
+                    .await
+                    .map(|status| status.is_ready())
+                    .unwrap_or(false)
+            })
+            .collect::<FuturesUnordered<_>>();
+
+        let team_name = team_name.to_string();
+
+        let wait = async {
+            while let Some(is_ready) = readiness.next().await {
+                if is_ready {
+                    return Ok(());
+                }
+            }
+
+            Err(Error::NoReadyPlayer { team: team_name.clone() })
+        };
+
+        tokio::time::timeout(PLAYER_READY_TIMEOUT, wait)
+            .await
+            .map_err(|_| Error::PlayerReadyTimeout {
+                team: team_name,
+                timeout: PLAYER_READY_TIMEOUT,
+            })?
     }
 
 
@@ -424,6 +472,12 @@ pub enum Error {
     #[error("Failed to spawn player: {0}")]
     SpawnPlayer(String),
 
+    #[error("No player became ready before initializing the coach for team '{team}'")]
+    NoReadyPlayer { team: String },
+
+    #[error("Timed out after {timeout:?} waiting for a player to become ready for team '{team}'")]
+    PlayerReadyTimeout { team: String, timeout: Duration },
+
     #[error("Failed to spawn coach: {0}")]
     SpawnCoach(String),
 
@@ -441,3 +495,39 @@ pub enum Error {
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use common::process::ProcessStatus;
+    use tokio::sync::watch;
+
+    use super::{Error, Team};
+
+    #[tokio::test]
+    async fn player_ready_wait_succeeds_when_any_player_is_running() {
+        let mut ready = ProcessStatus::init();
+        ready.as_running();
+        let (_ready_tx, ready_rx) = watch::channel(ready);
+
+        let mut failed = ProcessStatus::init();
+        failed.as_dead("player failed".to_string());
+        let (_failed_tx, failed_rx) = watch::channel(failed);
+
+        Team::wait_for_any_ready_status("TEST", vec![failed_rx, ready_rx])
+            .await
+            .expect("one ready player should unblock coach startup");
+    }
+
+    #[tokio::test]
+    async fn player_ready_wait_fails_when_all_players_finish() {
+        let mut failed = ProcessStatus::init();
+        failed.as_dead("player failed".to_string());
+        let (_failed_tx, failed_rx) = watch::channel(failed);
+
+        let error = Team::wait_for_any_ready_status("TEST", vec![failed_rx])
+            .await
+            .expect_err("finished players must not unblock coach startup");
+
+        assert!(matches!(error, Error::NoReadyPlayer { team } if team == "TEST"));
+    }
+}
