@@ -1,6 +1,7 @@
 #!/bin/sh
 
-LIBPATH=/root/local/lib
+DIR=`dirname $0`
+LIBPATH="${DIR}/lib"
 if [ x"$LIBPATH" != x ]; then
   if [ x"$LD_LIBRARY_PATH" = x ]; then
     LD_LIBRARY_PATH=$LIBPATH
@@ -9,8 +10,6 @@ if [ x"$LIBPATH" != x ]; then
   fi
   export LD_LIBRARY_PATH
 fi
-
-DIR=`dirname $0`
 
 trainer="${DIR}/sample_trainer"
 teamname="TRAINER_MODE"

@@ -10,6 +10,15 @@ echo "******************************************************************"
 
 
 DIR=`dirname $0`
+LIBPATH=${DIR}/lib
+if [ x"$LIBPATH" != x ]; then
+  if [ x"$LD_LIBRARY_PATH" = x ]; then
+    LD_LIBRARY_PATH=$LIBPATH
+  else
+    LD_LIBRARY_PATH=$LIBPATH:$LD_LIBRARY_PATH
+  fi
+  export LD_LIBRARY_PATH
+fi
 
 player="${DIR}/sample_player"
 teamname="HELIOS_base"

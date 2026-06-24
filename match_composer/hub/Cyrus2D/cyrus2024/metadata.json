@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "Cyrus2D/cyrus2024",
+  "format": "helios",
+  "description": "HELIOS-compatible Cyrus 2024 player and coach image",
+  "roles": {
+    "player": {
+      "entrypoint": "start_player.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "coach": {
+      "entrypoint": "start_coach.sh",
+      "ready_stdout_contains": "init ok."
+    }
+  }
+}

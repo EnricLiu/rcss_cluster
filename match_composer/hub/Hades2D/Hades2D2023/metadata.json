@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "Hades2D/Hades2D2023",
+  "format": "helios",
+  "description": "HELIOS-compatible Hades2D2023 player and coach image",
+  "roles": {
+    "player": {
+      "entrypoint": "start_player.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "coach": {
+      "entrypoint": "start_coach.sh",
+      "ready_stdout_contains": "init ok."
+    }
+  }
+}
