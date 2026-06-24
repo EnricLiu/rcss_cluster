@@ -29,6 +29,10 @@ pub use agones::{
 };
 
 pub use error::{Error, Result};
-pub use base::ServerStatus;
+pub use base::{
+    BaseConfig,
+    BaseService,
+    ServerStatus,
+};
 
 pub const GAME_END_TIMESTEP: u16 = 6000;
