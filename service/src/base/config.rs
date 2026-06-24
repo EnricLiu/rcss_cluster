@@ -1,9 +1,10 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
-use serde::Serialize;
+use serde::{Serialize, Serializer};
+use serde::ser::SerializeStruct;
 use crate::base::BaseArgs;
 
-#[derive(Serialize, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct BaseConfig {
     pub half_time_auto_start: Option<u16>,
     pub always_log_stdout: bool,
@@ -19,6 +20,18 @@ impl BaseConfig {
 
     pub fn log_root(&self) -> &Path {
         self.log_root.get().unwrap()
+    }
+}
+
+impl Serialize for BaseConfig {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_struct("BaseConfig", 4)?;
+        state.serialize_field("half_time_auto_start", &self.half_time_auto_start)?;
+        state.serialize_field("always_log_stdout", &self.always_log_stdout)?;
+        state.serialize_field("log_root", &self.log_root())?;
+        state.serialize_field("rcss_game_log_rel_dir", &self.rcss_game_log_rel_dir)?;
+        state.serialize_field("rcss_stdio_log_rel_path", &self.rcss_stdio_log_rel_path)?;
+        state.end()
     }
 }
 
