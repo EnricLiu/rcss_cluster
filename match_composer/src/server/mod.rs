@@ -200,10 +200,7 @@ pub async fn listen(addr: SocketAddr, meta: MetaData, config: MatchComposerConfi
     let state = AppState::new(config, Some(shutdown_rx))?;
     
     state.update_meta(Some(meta)).await;
-    // let _state = state.clone();
-    // tokio::spawn(async move {
-    //     _state.start(Some(meta)).await
-    // });
+    let start_state = state.clone();
     
     let app = routes::route("/", state);
 
@@ -212,6 +209,11 @@ pub async fn listen(addr: SocketAddr, meta: MetaData, config: MatchComposerConfi
         .expect("Failed to bind TCP listener");
 
     info!("match_composer listening on {addr}");
+    tokio::spawn(async move {
+        if let Err(e) = start_state.start(None).await {
+            error!("[AppState] Failed to auto-start composer from config file: {e}");
+        }
+    });
 
     let signal = async move {
         let ctrl_c = async {

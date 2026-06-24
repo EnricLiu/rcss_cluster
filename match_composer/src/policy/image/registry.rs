@@ -25,6 +25,9 @@ impl ImageRegistry {
             entry.ok().and_then(|ent| {
                 if  let Ok(ty) = ent.file_type() && ty.is_dir() &&
                     let Ok(model) = ent.file_name().into_string() {
+                    if model.starts_with('.') {
+                        return None;
+                    }
                     return Some(ImageInfo {
                         provider: provider.to_string(),
                         model,
@@ -48,6 +51,9 @@ impl ImageRegistry {
             entry.ok().and_then(|ent| {
                 if  let Ok(ty) = ent.file_type() && ty.is_dir() &&
                     let Ok(provider) = ent.file_name().into_string() {
+                    if provider.starts_with('.') {
+                        return None;
+                    }
                     return Some(provider)
                 }
                 None
@@ -186,5 +192,40 @@ mod tests {
             ImageRole::Trainer,
             ImageFormat::Helios,
         ));
+    }
+
+    #[test]
+    fn all_hub_images_have_registry_metadata() {
+        let registry = ImageRegistry::new(hub());
+        let providers = registry
+            .providers()
+            .expect("hub providers should be readable")
+            .collect::<Vec<_>>();
+
+        assert!(!providers.iter().any(|provider| provider.starts_with('.')));
+
+        for provider in providers {
+            let models = registry
+                .models(&provider)
+                .expect("hub provider should be readable")
+                .collect::<Vec<_>>();
+
+            for model in models {
+                let image = registry
+                    .try_get(&model.provider, &model.model)
+                    .unwrap_or_else(|| panic!("image should load: {}", model.to_raw()));
+
+                assert!(
+                    image.supports_role(ImageRole::Player),
+                    "image should support player: {}",
+                    image.image().to_raw(),
+                );
+                assert!(
+                    image.supports_role(ImageRole::Coach),
+                    "image should support coach: {}",
+                    image.image().to_raw(),
+                );
+            }
+        }
     }
 }

@@ -69,10 +69,7 @@ impl PolicyRegistry {
             Some(image) => image,
             None => return Err(trainer),
         };
-        let expected_format = match &trainer {
-            TrainerModel::Helios(_) => ImageFormat::Helios,
-            TrainerModel::Ssp(_) => ImageFormat::Ssp,
-        };
+
         if !ImageRegistry::role_is_compatible(image.as_ref(), ImageRole::Trainer, &trainer) {
             return Err(trainer);
         }

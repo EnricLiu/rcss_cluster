@@ -1,5 +1,6 @@
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use chrono::Utc;
 use log::info;
 
 use tokio::sync::{watch, RwLock};
@@ -134,6 +135,9 @@ impl Match {
         tokio::time::sleep(team_delay).await;
         self.team_r.spawn(registry, player_delay).await?;
         info!("Team R spawned successfully, {:?}", self.team_r.info());
+        self.status_tx.send_replace(GameStatusInfo::Running {
+            started_at: Utc::now(),
+        });
         Ok(())
     }
 
@@ -152,6 +156,9 @@ impl Match {
         tokio::try_join!(spawn_l, spawn_r)?;
         info!("Team L spawned successfully, {:?}", self.team_l.info());
         info!("Team R spawned successfully, {:?}", self.team_r.info());
+        self.status_tx.send_replace(GameStatusInfo::Running {
+            started_at: Utc::now(),
+        });
 
         Ok(())
     }
