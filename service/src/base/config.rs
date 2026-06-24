@@ -1,8 +1,9 @@
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use serde::Serialize;
 use crate::base::BaseArgs;
 
-#[derive(Clone, Debug)]
+#[derive(Serialize, Clone, Debug)]
 pub struct BaseConfig {
     pub half_time_auto_start: Option<u16>,
     pub always_log_stdout: bool,
