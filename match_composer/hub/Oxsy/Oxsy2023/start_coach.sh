@@ -1,3 +1,11 @@
 #!/bin/sh
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$DIR/../../.registry/start_role.sh" "$DIR" coach "$@"
+. "$DIR/../../.registry/helios_common.sh"
+
+BASE="$DIR"
+teamname="Oxsy"
+coach="$BASE/bin/oxsycoach"
+mc_parse_coach_args "$@"
+cd "$BASE" || exit 1
+opt="-server_ip $host -coach_port $port -team_name $teamname"
+exec "$coach" $opt

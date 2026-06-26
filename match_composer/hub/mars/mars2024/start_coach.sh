@@ -1,3 +1,14 @@
 #!/bin/sh
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$DIR/../../.registry/start_role.sh" "$DIR" coach "$@"
+. "$DIR/../../.registry/helios_common.sh"
+
+BASE="$DIR/bin"
+teamname="Mars"
+coach="$BASE/sample_coach"
+coach_conf="$BASE/coach.conf"
+team_graphic=""
+extra_coach_opt=""
+mc_parse_coach_args "$@"
+mc_prepend_ld_path "$BASE/lib"
+cd "$BASE/." 2>/dev/null || cd "$BASE" || exit 1
+mc_exec_librcsc_coach

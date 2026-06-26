@@ -10,7 +10,7 @@
     },
     "coach": {
       "entrypoint": "start_coach.sh",
-      "ready_stdout_contains": "init ok."
+      "ready_stdout_contains": "ready to rumble!"
     }
   }
 }

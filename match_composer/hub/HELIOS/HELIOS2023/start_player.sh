@@ -1,3 +1,40 @@
 #!/bin/sh
 DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-exec "$DIR/../../.registry/start_role.sh" "$DIR" player "$@"
+. "$DIR/../../.registry/helios_common.sh"
+
+BASE="$DIR"
+teamname="HELIOS2023"
+version="18"
+mc_parse_player_args "$@"
+mc_prepend_ld_path "$BASE/lib"
+cd "$BASE" || exit 1
+game_id=`date '+%Y%m%d-%H%M%S'`
+common_opt=""
+common_opt="$common_opt --common-conf $BASE/common.conf"
+common_opt="$common_opt -h $host -t $teamname -v $version"
+common_opt="$common_opt --strategy-dir $BASE/data/strategy"
+common_opt="$common_opt --formation-dir $BASE/data/formations"
+common_opt="$common_opt --setplay-dir $BASE/data/setplay"
+common_opt="$common_opt --strategy-conf $BASE/data/strategy.conf"
+common_opt="$common_opt --chain-search-method BestFirstSearch"
+common_opt="$common_opt --evaluator-name Default"
+common_opt="$common_opt --intercept-evaluator-name Default"
+common_opt="$common_opt --max-chain-length 3 --max-evaluate-size 3000"
+common_opt="$common_opt --svmrank-evaluator-model $BASE/data/svmrank_evaluator/model"
+common_opt="$common_opt --svmrank-intercept-evaluator-model $BASE/data/svmrank_intercept_evaluator/model"
+common_opt="$common_opt --neural-network-evaluator-dir $BASE/data/neural_network_evaluator/"
+common_opt="$common_opt --center-forward-free-move-model $BASE/data/center_forward_free_move/model"
+common_opt="$common_opt --svm-formation-classifier-model $BASE/data/svm_formation_classifier/svm.model"
+common_opt="$common_opt --intercept-conf-dir $BASE/data/intercept_probability/"
+common_opt="$common_opt --opponent-data-dir $BASE/data/opponent_data/"
+common_opt="$common_opt --audio_shift 0"
+player_opt="--player-config $BASE/player.conf $common_opt -p $port"
+player_opt="$player_opt $fullstateopt --debug_server_host $debug_server_host --debug_server_port $debug_server_port"
+player_opt="$player_opt $offline_logging $debugopt $debug_opt"
+echo "dist-datetime = 20230709-1346-JST"
+echo "player options: $player_opt"
+if [ "$goalie" = true ]; then
+  exec "$BASE/helios_player" $player_opt -g
+else
+  exec "$BASE/helios_player" $player_opt
+fi
