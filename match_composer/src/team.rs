@@ -10,7 +10,6 @@ use tokio::task::JoinHandle;
 use futures::StreamExt;
 use futures::stream::FuturesUnordered;
 use dashmap::DashMap;
-use allocator::schema::v1::CoachV1;
 use common::process::{ProcessStatus, ProcessStatusKind};
 
 use crate::coach::{Coach, CoachWrap, PolicyCoach};
@@ -19,10 +18,12 @@ use crate::info::{PlayerInfo, PlayerStatusInfo, TeamInfo};
 use crate::player::{Player, PolicyPlayer};
 use crate::policy::PolicyRegistry;
 use crate::declaration::{ImageDeclaration, Unum};
+use crate::trainer::{PolicyTrainer, Trainer, TrainerWrap};
 
 pub use crate::info::TeamStatusInfo as TeamStatus;
 
 pub const SPAWN_DURATION: Duration = Duration::from_millis(100);
+pub const PLAYER_READY_TIMEOUT: Duration = Duration::from_secs(30);
 
 
 #[derive(Debug)]
@@ -70,6 +71,7 @@ pub struct Team {
     status_rx: watch::Receiver<TeamStatus>,
     players: DashMap<Unum, PlayerWrap>,
     coach: Mutex<Option<CoachWrap>>,
+    trainer: Mutex<Option<TrainerWrap>>,
 
     monitor_task: Option<JoinHandle<()>>,
 }
@@ -83,6 +85,7 @@ impl Team {
             status_rx,
             players: DashMap::new(),
             coach: Mutex::new(None),
+            trainer: Mutex::new(None),
             monitor_task: None,
         }
     }
@@ -128,9 +131,9 @@ impl Team {
 
             interval.tick().await;
         }
-
-
         if let Some(coach) = self.config.coach().cloned() {
+            self.wait_for_any_player_ready().await?;
+
             let policy = registry.fetch_coach(coach).map_err(|coach| {
                 let err = Error::PolicyNotFound { image: coach.image.clone() };
                 self.status_tx.send(TeamStatus::Error(err.clone())).ok();
@@ -140,6 +143,18 @@ impl Team {
             let coach = PolicyCoach::new(policy);
             coach.spawn().await.map_err(|e| Error::SpawnCoach(format!("{e:?}")))?;
             *self.coach.lock().await = Some(coach.into());
+        }
+
+        if let Some(trainer) = self.config.trainer().cloned() {
+            let policy = registry.fetch_trainer(trainer).map_err(|trainer| {
+                let err = Error::PolicyNotFound { image: trainer.image.clone() };
+                self.status_tx.send(TeamStatus::Error(err.clone())).ok();
+                err
+            })?;
+
+            let trainer = PolicyTrainer::new(policy);
+            trainer.spawn().await.map_err(|e| Error::SpawnTrainer(format!("{e:?}")))?;
+            *self.trainer.lock().await = Some(trainer.into());
         }
 
         // Start the aggregation task: listen for player events and drive TeamStatus.
@@ -159,6 +174,13 @@ impl Team {
                     );
                 }
 
+                if let Some(trainer) = self.trainer.lock().await.as_ref() {
+                    watches.insert(
+                        ParticipantId::Trainer,
+                        trainer.status_watch().expect("The trainer process is initialized by the trainer.spawn().await, so the unwrap here should be safe."),
+                    );
+                }
+
                 watches
             };
             Self::spawn_monitor_task(
@@ -169,6 +191,53 @@ impl Team {
 
 
         Ok(())
+    }
+
+    async fn wait_for_any_player_ready(&self) -> Result<()> {
+        let team_name = self.config.name().to_string();
+        let status_watches = self.players.iter()
+            .map(|player| {
+                player.status_watch().expect(
+                    "The player process is initialized by player.spawn().await",
+                )
+            })
+            .collect();
+
+        Self::wait_for_any_ready_status(&team_name, status_watches).await
+    }
+
+    async fn wait_for_any_ready_status(
+        team_name: &str,
+        status_watches: Vec<watch::Receiver<ProcessStatus>>,
+    ) -> Result<()> {
+        let mut readiness = status_watches.into_iter()
+            .map(|mut status| async move {
+                status
+                    .wait_for(|status| status.is_ready() || status.is_finished())
+                    .await
+                    .map(|status| status.is_ready())
+                    .unwrap_or(false)
+            })
+            .collect::<FuturesUnordered<_>>();
+
+        let team_name = team_name.to_string();
+
+        let wait = async {
+            while let Some(is_ready) = readiness.next().await {
+                if is_ready {
+                    return Ok(());
+                }
+            }
+
+            Err(Error::NoReadyPlayer { team: team_name.clone() })
+        };
+
+        tokio::time::timeout(PLAYER_READY_TIMEOUT, wait)
+            .await
+            .map_err(|_| Error::PlayerReadyTimeout {
+                team: team_name,
+                timeout: PLAYER_READY_TIMEOUT,
+            })?
     }
 
 
@@ -187,6 +256,7 @@ impl Team {
         if let Some(task) = self.monitor_task.take() {
             task.abort();
         }
+        self.shutdown_trainer().await;
         self.shutdown_coach().await;
         self.shutdown_players().await;
         self.status_tx.send(TeamStatus::Idle).ok();
@@ -196,6 +266,13 @@ impl Team {
         let mut coach = self.coach.lock().await.take();
         if let Some(coach) = coach.as_mut() {
             let _ = coach.shutdown().await;
+        }
+    }
+
+    async fn shutdown_trainer(&mut self) {
+        let mut trainer = self.trainer.lock().await.take();
+        if let Some(trainer) = trainer.as_mut() {
+            let _ = trainer.shutdown().await;
         }
     }
 
@@ -322,6 +399,7 @@ impl Team {
         match id {
             ParticipantId::Player(unum) => Error::PlayerExited { unum, reason },
             ParticipantId::Coach => Error::CoachExited { reason },
+            ParticipantId::Trainer => Error::TrainerExited { reason },
         }
     }
 
@@ -335,6 +413,15 @@ impl Team {
                 None
             }
         };
+        let trainer = {
+            let trainer = self.trainer.try_lock().ok();
+            if  let Some(trainer) = &trainer &&
+                let Some(trainer) = trainer.as_ref() {
+                Some(trainer.info())
+            } else {
+                None
+            }
+        };
 
         TeamInfo {
             name: self.config.name().to_string(),
@@ -342,6 +429,7 @@ impl Team {
             status: self.status_now().into(),
             players: self.players.iter().map(|entry| (*entry.key(), entry.info())).collect(),
             coach,
+            trainer,
         }
     }
     
@@ -354,6 +442,7 @@ impl Team {
 enum ParticipantId {
     Player(Unum),
     Coach,
+    Trainer,
 }
 
 impl ParticipantId {
@@ -361,6 +450,7 @@ impl ParticipantId {
         match self {
             ParticipantId::Player(unum) => format!("Player {unum}"),
             ParticipantId::Coach => "Coach".to_string(),
+            ParticipantId::Trainer => "Trainer".to_string(),
         }
     }
 }
@@ -382,14 +472,62 @@ pub enum Error {
     #[error("Failed to spawn player: {0}")]
     SpawnPlayer(String),
 
+    #[error("No player became ready before initializing the coach for team '{team}'")]
+    NoReadyPlayer { team: String },
+
+    #[error("Timed out after {timeout:?} waiting for a player to become ready for team '{team}'")]
+    PlayerReadyTimeout { team: String, timeout: Duration },
+
     #[error("Failed to spawn coach: {0}")]
     SpawnCoach(String),
+
+    #[error("Failed to spawn trainer: {0}")]
+    SpawnTrainer(String),
 
     #[error("Player {unum} exited unexpectedly: {reason}")]
     PlayerExited { unum: Unum, reason: String },
 
     #[error("Coach exited unexpectedly: {reason}")]
     CoachExited { reason: String },
+
+    #[error("Trainer exited unexpectedly: {reason}")]
+    TrainerExited { reason: String },
 }
 
 pub type Result<T> = std::result::Result<T, Error>;
+
+#[cfg(test)]
+mod tests {
+    use common::process::ProcessStatus;
+    use tokio::sync::watch;
+
+    use super::{Error, Team};
+
+    #[tokio::test]
+    async fn player_ready_wait_succeeds_when_any_player_is_running() {
+        let mut ready = ProcessStatus::init();
+        ready.as_running();
+        let (_ready_tx, ready_rx) = watch::channel(ready);
+
+        let mut failed = ProcessStatus::init();
+        failed.as_dead("player failed".to_string());
+        let (_failed_tx, failed_rx) = watch::channel(failed);
+
+        Team::wait_for_any_ready_status("TEST", vec![failed_rx, ready_rx])
+            .await
+            .expect("one ready player should unblock coach startup");
+    }
+
+    #[tokio::test]
+    async fn player_ready_wait_fails_when_all_players_finish() {
+        let mut failed = ProcessStatus::init();
+        failed.as_dead("player failed".to_string());
+        let (_failed_tx, failed_rx) = watch::channel(failed);
+
+        let error = Team::wait_for_any_ready_status("TEST", vec![failed_rx])
+            .await
+            .expect_err("finished players must not unblock coach startup");
+
+        assert!(matches!(error, Error::NoReadyPlayer { team } if team == "TEST"));
+    }
+}

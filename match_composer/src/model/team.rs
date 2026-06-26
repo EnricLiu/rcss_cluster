@@ -7,6 +7,7 @@ use common::types::Side;
 use crate::config::RcssServerConfig;
 use crate::model::coach::CoachModel;
 use crate::model::player::PlayerModel;
+use crate::model::trainer::TrainerModel;
 use crate::declaration::{TeamDeclaration, Unum};
 
 
@@ -17,11 +18,12 @@ pub struct TeamModel {
     pub log_root: Option<PathBuf>,
     pub players: OnceLock<DashMap<Unum, PlayerModel>>,
     pub coach: OnceLock<Option<CoachModel>>,
+    pub trainer: OnceLock<Option<TrainerModel>>,
 }
 
 impl TeamModel {
     fn from(declaration: TeamDeclaration, server: RcssServerConfig, log_root: Option<PathBuf>) -> Self {
-        Self { declaration, server, log_root, players: OnceLock::new(), coach: OnceLock::new() }
+        Self { declaration, server, log_root, players: OnceLock::new(), coach: OnceLock::new(), trainer: OnceLock::new() }
     }
     
     pub fn builder() -> TeamModelBuilder {
@@ -49,6 +51,10 @@ impl TeamModel {
 
     pub fn coach(&self) -> Option<&CoachModel> {
         self.coach.get_or_init(|| self.parse_coach()).as_ref()
+    }
+
+    pub fn trainer(&self) -> Option<&TrainerModel> {
+        self.trainer.get_or_init(|| self.parse_trainer()).as_ref()
     }
 
     fn parse_players(&self) -> DashMap<Unum, PlayerModel> {
@@ -81,6 +87,20 @@ impl TeamModel {
                 .with_log_root(self.log_root.clone());
 
             builder.build_into().expect("Failed to build CoachModel")
+        })
+    }
+
+    fn parse_trainer(&self) -> Option<TrainerModel> {
+        self.declaration.trainer.clone().map(|trainer| {
+            let mut builder = TrainerModel::builder();
+            builder
+                .with_declaration(trainer)
+                .with_team_side(self.side())
+                .with_team_name(self.name().to_string())
+                .with_server(self.server().trainer.clone())
+                .with_log_root(self.log_root.clone());
+
+            builder.build_into().expect("Failed to build TrainerModel")
         })
     }
 }

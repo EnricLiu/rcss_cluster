@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use crate::model::coach::{CoachBaseModel, SspCoachModel};
 use crate::model::player::{PlayerBaseModel, SspPlayerModel};
-use super::{CoachPolicy, PlayerPolicy, Policy};
+use crate::model::trainer::{SspTrainerModel, TrainerBaseModel};
+use crate::policy::image::ImageRole;
+use crate::policy::{CoachPolicy, PlayerPolicy, Policy, ReadyMatcher, TrainerPolicy};
 
 impl Policy for PlayerPolicy<SspPlayerModel> {
     type Model = PlayerBaseModel;
@@ -14,7 +16,9 @@ impl Policy for PlayerPolicy<SspPlayerModel> {
             .arg("-h").arg(config.server.ip().to_string())
             .arg("-p").arg(config.server.port().to_string())
             .arg("-t").arg(&config.team)
-            .arg("-u").arg(config.unum.to_string())
+            .arg("-u").arg(config.unum.to_string());
+
+        cmd
             .arg("--g-ip").arg(config.grpc.ip().to_string())
             .arg("--g-port").arg(config.grpc.port().to_string());
 
@@ -31,8 +35,8 @@ impl Policy for PlayerPolicy<SspPlayerModel> {
         cmd
     }
 
-    fn parse_ready_fn(&self) -> fn(&str) -> bool  {
-        |line: &str| line.contains("init ok.")
+    fn parse_ready_fn(&self) -> ReadyMatcher  {
+        self.image.parse_ready_fn(ImageRole::Player)
     }
 
     fn info(&self) -> &PlayerBaseModel {
@@ -53,7 +57,9 @@ impl Policy for CoachPolicy<SspCoachModel> {
         cmd
             .arg("-h").arg(config.server.ip().to_string())
             .arg("-p").arg(config.server.port().to_string())
-            .arg("-t").arg(&config.team)
+            .arg("-t").arg(&config.team);
+
+        cmd
             .arg("--g-ip").arg(config.grpc.ip().to_string())
             .arg("--g-port").arg(config.grpc.port().to_string());
 
@@ -66,8 +72,8 @@ impl Policy for CoachPolicy<SspCoachModel> {
         cmd
     }
 
-    fn parse_ready_fn(&self) -> fn(&str) -> bool {
-        |line: &str| line.contains("init ok.")
+    fn parse_ready_fn(&self) -> ReadyMatcher {
+        self.image.parse_ready_fn(ImageRole::Coach)
     }
 
     fn info(&self) -> &CoachBaseModel {
@@ -76,5 +82,42 @@ impl Policy for CoachPolicy<SspCoachModel> {
 
     fn log_dir(&self) -> Option<PathBuf> {
         self.coach.log_root.clone()
+    }
+}
+
+impl Policy for TrainerPolicy<SspTrainerModel> {
+    type Model = TrainerBaseModel;
+
+    fn command(&self) -> Command {
+        let mut cmd = self.image.trainer_cmd();
+        let config = &self.trainer;
+        cmd
+            .arg("-h").arg(config.server.ip().to_string())
+            .arg("-p").arg(config.server.port().to_string())
+            .arg("-t").arg(&config.team);
+
+        cmd
+            .arg("--g-ip").arg(config.grpc.ip().to_string())
+            .arg("--g-port").arg(config.grpc.port().to_string());
+
+        if let Some(log_root) = &config.log_root {
+            cmd.arg("--debug")
+                .arg("--log-dir")
+                .arg(log_root);
+        }
+
+        cmd
+    }
+
+    fn parse_ready_fn(&self) -> ReadyMatcher {
+        self.image.parse_ready_fn(ImageRole::Trainer)
+    }
+
+    fn info(&self) -> &TrainerBaseModel {
+        self.trainer.as_ref()
+    }
+
+    fn log_dir(&self) -> Option<PathBuf> {
+        self.trainer.log_root.clone()
     }
 }

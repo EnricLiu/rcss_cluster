@@ -3,6 +3,7 @@ mod model;
 mod config;
 mod player;
 mod coach;
+mod trainer;
 mod policy;
 mod server;
 mod metadata;

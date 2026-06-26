@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "id": "CLSFramework/soccer-simulation-proxy",
+  "format": "ssp",
+  "description": "SoccerSimulationProxy v2 with gRPC player, coach, and trainer roles",
+  "roles": {
+    "player": {
+      "entrypoint": "start_player.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "coach": {
+      "entrypoint": "start_coach.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "trainer": {
+      "entrypoint": "start_trainer.sh",
+      "ready_stdout_contains": "init ok."
+    }
+  }
+}

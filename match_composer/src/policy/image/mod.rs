@@ -1,9 +1,7 @@
-mod ssp;
 mod image;
 mod registry;
-mod helios_base;
+mod manifest;
 
 pub use image::PolicyImage;
 pub use registry::ImageRegistry;
-pub use helios_base::HeliosBaseImage;
-pub use ssp::SSPImage;
+pub use manifest::{ImageFormat, ImageRole, ManifestImage};
