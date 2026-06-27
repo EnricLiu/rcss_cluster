@@ -22,9 +22,9 @@ on:
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/docker-match-composer.yml"
-  # Rebuild when hub base image is updated
+  # Rebuild when runtime base images are updated
   workflow_run:
-    workflows: ["Build & Push mc-hub Base Image"]
+    workflows: ["Build & Push match_composer Base Images"]
     types: [completed]
     branches: [main, nightly]
   workflow_dispatch:
@@ -32,16 +32,17 @@ on:
 env:
   REGISTRY: registry.cn-beijing.aliyuncs.com
   IMAGE_NAME: nexus-prime/rcss-match-composer
-  HUB_IMAGE_REPOSITORY: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base
+  BASE_IMAGE_REPOSITORY: registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    # Skip if triggered by a failed hub build
+    # Skip failed base builds and PR base builds that did not push sha images.
     if: >-
       (github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')) &&
       (github.event_name != 'workflow_run' ||
-      github.event.workflow_run.conclusion == 'success')
+      (github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event != 'pull_request'))
 
     permissions:
       contents: read
@@ -53,8 +54,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -z "${HUB_IMAGE_REPOSITORY}" ]; then
-            echo "HUB_IMAGE_REPOSITORY is empty" >&2
+          if [ -z "${BASE_IMAGE_REPOSITORY}" ]; then
+            echo "BASE_IMAGE_REPOSITORY is empty" >&2
             exit 1
           fi
 
@@ -75,17 +76,21 @@ jobs:
           short_sha="$(printf '%s' "$source_sha" | cut -c1-7)"
 
           if [ "${{ github.event_name }}" = "workflow_run" ]; then
-            hub_tag="sha-$short_sha"
+            base_tag="sha-$short_sha"
+            bundled_base_tag="bundled-sha-$short_sha"
           elif [ "$source_branch" = "main" ] || [ "$source_branch" = "nightly" ]; then
-            hub_tag="$source_branch"
+            base_tag="$source_branch"
+            bundled_base_tag="bundled-$source_branch"
           else
-            hub_tag="latest"
+            base_tag="latest"
+            bundled_base_tag="bundled-latest"
           fi
 
-          hub_image="${HUB_IMAGE_REPOSITORY}:$hub_tag"
+          base_image="${BASE_IMAGE_REPOSITORY}:$base_tag"
+          bundled_base_image="${BASE_IMAGE_REPOSITORY}:$bundled_base_tag"
 
-          if [ -z "$hub_image" ]; then
-            echo "Resolved hub_image is empty" >&2
+          if [ -z "$base_image" ] || [ -z "$bundled_base_image" ]; then
+            echo "Resolved base image is empty" >&2
             exit 1
           fi
 
@@ -93,7 +98,8 @@ jobs:
           echo "source_sha=$source_sha" >> "$GITHUB_OUTPUT"
           echo "source_branch=$source_branch" >> "$GITHUB_OUTPUT"
           echo "short_sha=$short_sha" >> "$GITHUB_OUTPUT"
-          echo "hub_image=$hub_image" >> "$GITHUB_OUTPUT"
+          echo "base_image=$base_image" >> "$GITHUB_OUTPUT"
+          echo "bundled_base_image=$bundled_base_image" >> "$GITHUB_OUTPUT"
 
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -113,43 +119,48 @@ jobs:
           username: ${{ secrets.ALIYUN_DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_DOCKER_REGISTRY_PASSWORD }}
 
-      - name: Wait for hub base image
+      - name: Wait for base images
         if: github.event_name == 'workflow_run'
         env:
-          HUB_IMAGE: ${{ steps.context.outputs.hub_image }}
+          BASE_IMAGE: ${{ steps.context.outputs.base_image }}
+          BUNDLED_BASE_IMAGE: ${{ steps.context.outputs.bundled_base_image }}
         run: |
-          for _ in 1 2 3 4 5; do
-            if docker buildx imagetools inspect "$HUB_IMAGE" >/dev/null 2>&1; then
-              exit 0
+          for image in "$BASE_IMAGE" "$BUNDLED_BASE_IMAGE"; do
+            for _ in 1 2 3 4 5; do
+              if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+                break
+              fi
+              sleep 30
+            done
+            if ! docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+              echo "Base image not found: $image" >&2
+              exit 1
             fi
-            sleep 30
           done
-          if docker buildx imagetools inspect "$HUB_IMAGE" >/dev/null 2>&1; then
-            exit 0
-          fi
-          echo "Hub image not found: $HUB_IMAGE" >&2
-          exit 1
 
-      - name: Validate resolved hub image
+      - name: Validate resolved base images
         shell: bash
         run: |
           set -euo pipefail
-          test -n "${{ steps.context.outputs.hub_image }}"
-          echo "Using HUB_IMAGE=${{ steps.context.outputs.hub_image }}"
+          test -n "${{ steps.context.outputs.base_image }}"
+          test -n "${{ steps.context.outputs.bundled_base_image }}"
+          echo "Using BASE_IMAGE=${{ steps.context.outputs.base_image }}"
+          echo "Using BUNDLED_BASE_IMAGE=${{ steps.context.outputs.bundled_base_image }}"
 
-      - name: Extract Docker metadata
+      - name: Extract runtime image metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=latest,enable=${{ steps.context.outputs.source_branch == 'main' }}
             type=raw,value=${{ steps.context.outputs.source_branch }},enable=${{ steps.context.outputs.source_branch == 'main' || steps.context.outputs.source_branch == 'nightly' }}
             type=raw,value=sha-${{ steps.context.outputs.short_sha }}
             type=raw,value=nightly-${{ steps.context.outputs.short_sha }},enable=${{ steps.context.outputs.source_branch == 'nightly' }}
           labels: |
             org.opencontainers.image.revision=${{ steps.context.outputs.source_sha }}
 
-      - name: Build and push Docker image
+      - name: Build and push runtime image
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -157,11 +168,38 @@ jobs:
           pull: true
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
-            HUB_IMAGE=${{ steps.context.outputs.hub_image }}
+            BASE_IMAGE=${{ steps.context.outputs.base_image }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=match-composer-runtime
+          cache-to: type=gha,mode=max,scope=match-composer-runtime
+
+      - name: Extract bundled runtime image metadata
+        id: bundled-meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=bundled-latest,enable=${{ steps.context.outputs.source_branch == 'main' }}
+            type=raw,value=bundled-${{ steps.context.outputs.source_branch }},enable=${{ steps.context.outputs.source_branch == 'main' || steps.context.outputs.source_branch == 'nightly' }}
+            type=raw,value=bundled-sha-${{ steps.context.outputs.short_sha }}
+            type=raw,value=bundled-nightly-${{ steps.context.outputs.short_sha }},enable=${{ steps.context.outputs.source_branch == 'nightly' }}
+          labels: |
+            org.opencontainers.image.revision=${{ steps.context.outputs.source_sha }}
+
+      - name: Build and push bundled runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./match_composer/Dockerfile
+          pull: true
+          push: ${{ github.event_name != 'pull_request' }}
+          build-args: |
+            BASE_IMAGE=${{ steps.context.outputs.bundled_base_image }}
+          tags: ${{ steps.bundled-meta.outputs.tags }}
+          labels: ${{ steps.bundled-meta.outputs.labels }}
+          cache-from: type=gha,scope=match-composer-bundled-runtime
+          cache-to: type=gha,mode=max,scope=match-composer-bundled-runtime
 
   retag-release:
     runs-on: ubuntu-latest
@@ -183,7 +221,7 @@ jobs:
           username: ${{ secrets.ALIYUN_DOCKER_REGISTRY_USERNAME }}
           password: ${{ secrets.ALIYUN_DOCKER_REGISTRY_PASSWORD }}
 
-      - name: Extract source image tag
+      - name: Extract source runtime image tag
         id: source-meta
         uses: docker/metadata-action@v5
         with:
@@ -191,7 +229,7 @@ jobs:
           tags: |
             type=sha
 
-      - name: Extract release image tags
+      - name: Extract release runtime image tags
         id: release-meta
         uses: docker/metadata-action@v5
         with:
@@ -200,29 +238,57 @@ jobs:
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
 
-      - name: Wait for source image
+      - name: Extract source bundled runtime image tag
+        id: bundled-source
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=sha,prefix=bundled-sha-
+
+      - name: Extract release bundled runtime image tags
+        id: bundled-release
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern=bundled-{{version}}
+            type=semver,pattern=bundled-{{major}}.{{minor}}
+
+      - name: Wait for source images
         env:
           SOURCE_IMAGE: ${{ steps.source-meta.outputs.tags }}
+          BUNDLED_SOURCE_IMAGE: ${{ steps.bundled-source.outputs.tags }}
         run: |
-          for _ in 1 2 3 4 5; do
-            if docker buildx imagetools inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
-              exit 0
+          for image in "$SOURCE_IMAGE" "$BUNDLED_SOURCE_IMAGE"; do
+            for _ in 1 2 3 4 5; do
+              if docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+                break
+              fi
+              sleep 30
+            done
+            if ! docker buildx imagetools inspect "$image" >/dev/null 2>&1; then
+              echo "Source image not found: $image" >&2
+              exit 1
             fi
-            sleep 30
           done
-          if docker buildx imagetools inspect "$SOURCE_IMAGE" >/dev/null 2>&1; then
-            exit 0
-          fi
-          echo "Source image not found: $SOURCE_IMAGE" >&2
-          exit 1
 
-      - name: Retag release image
+      - name: Retag release images
         env:
           SOURCE_IMAGE: ${{ steps.source-meta.outputs.tags }}
           RELEASE_TAGS: ${{ steps.release-meta.outputs.tags }}
+          BUNDLED_SOURCE_IMAGE: ${{ steps.bundled-source.outputs.tags }}
+          BUNDLED_RELEASE_TAGS: ${{ steps.bundled-release.outputs.tags }}
         run: |
-          tags=()
-          while IFS= read -r tag; do
-            [ -n "$tag" ] && tags+=(-t "$tag")
-          done <<< "$RELEASE_TAGS"
-          docker buildx imagetools create "${tags[@]}" "$SOURCE_IMAGE"
+          retag() {
+            local source_image="$1"
+            local release_tags="$2"
+            local tags=()
+            while IFS= read -r tag; do
+              [ -n "$tag" ] && tags+=(-t "$tag")
+            done <<< "$release_tags"
+            docker buildx imagetools create "${tags[@]}" "$source_image"
+          }
+
+          retag "$SOURCE_IMAGE" "$RELEASE_TAGS"
+          retag "$BUNDLED_SOURCE_IMAGE" "$BUNDLED_RELEASE_TAGS"
