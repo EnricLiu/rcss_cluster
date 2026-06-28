@@ -20,7 +20,7 @@ ARG BASE_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
 # =============================================================================
 # Base build image with common C++ toolchain
 # =============================================================================
-FROM ${BASE_IMAGE} AS cpp-base
+FROM debian:12-slim AS cpp-base
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
