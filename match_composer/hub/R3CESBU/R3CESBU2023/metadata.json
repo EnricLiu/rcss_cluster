@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "R3CESBU/R3CESBU2023",
+  "format": "helios",
+  "description": "HELIOS-compatible R3CESBU2023 player and coach image",
+  "roles": {
+    "player": {
+      "entrypoint": "start_player.sh",
+      "ready_stdout_contains": "init ok."
+    },
+    "coach": {
+      "entrypoint": "start_coach.sh",
+      "ready_stdout_contains": "recv (ok eye on)"
+    }
+  }
+}

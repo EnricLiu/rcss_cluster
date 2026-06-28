@@ -9,6 +9,7 @@ use crate::declaration::Unum;
 use crate::team::{Error as TeamError, Result as TeamResult};
 use super::coach::CoachInfo;
 use super::player::PlayerInfo;
+use super::trainer::TrainerInfo;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TeamInfo {
@@ -17,6 +18,7 @@ pub struct TeamInfo {
     pub status: TeamStatusInfoSerDes,
     pub players: HashMap<Unum, PlayerInfo>,
     pub coach: Option<CoachInfo>,
+    pub trainer: Option<TrainerInfo>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

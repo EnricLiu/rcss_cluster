@@ -12,6 +12,7 @@ pub struct Team {
     pub side: Side,
     pub players: DashMap<Unum, Player>,
     pub coach: Option<Coach>,
+    pub trainer: Option<Coach>,
 }
 
 impl Team {
@@ -27,6 +28,7 @@ pub struct TeamBuilder {
     pub side: Option<Side>,
     pub players: DashMap<Unum, Player>,
     pub coach: Option<Coach>,
+    pub trainer: Option<Coach>,
 }
 
 impl TeamBuilder {
@@ -54,6 +56,11 @@ impl TeamBuilder {
         self
     }
 
+    pub fn with_trainer(&mut self, trainer: Coach) -> &mut Self {
+        self.trainer = Some(trainer);
+        self
+    }
+
     pub fn build(&self) -> BuilderResult<Team> {
         let name = self.name.clone().ok_or(BuilderError::MissingField { field: "name" })?;
         let side = self.side.ok_or(BuilderError::MissingField { field: "side" })?;
@@ -66,6 +73,7 @@ impl TeamBuilder {
             side,
             players: self.players.clone(),
             coach: self.coach.clone(),
+            trainer: self.trainer.clone(),
         })
     }
 }

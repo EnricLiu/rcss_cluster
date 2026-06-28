@@ -1,6 +1,7 @@
 pub mod image;
 pub mod player;
 pub mod coach;
+pub mod trainer;
 pub mod team;
 
 use std::fmt::Debug;
@@ -11,6 +12,7 @@ pub use team::TeamModel;
 pub use image::ImageInfo;
 pub use player::{PlayerModel, PlayerBaseModel, PlayerKind};
 pub use coach::{CoachBaseModel, CoachKind, CoachModel};
+pub use trainer::{TrainerBaseModel, TrainerKind, TrainerModel};
 
 pub trait ProcessModel: Debug + Send + Sync + 'static {
 	fn image(&self) -> &ImageDeclaration;

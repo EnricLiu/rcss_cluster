@@ -1,14 +1,16 @@
 use std::fmt::Debug;
+use std::time::Duration;
 
 use kube::Api;
 use kube::api::PostParams;
 use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
-use log::{debug, info};
+use log::{debug, info, warn};
 use common::errors::BuilderError;
 use crate::MetaData;
 use crate::args::Scheduling;
-use crate::k8s::crd::AllocationState;
+use crate::k8s::gs::lifecycle::DIRECT_GS_NAME_LABEL;
 use super::crd::{
+    AllocationState,
     AllocationMetadata, GameServerAllocation,
     GameServerAllocationSpec, GameServerSelector,
 };
@@ -17,6 +19,75 @@ use super::builder::{GsAllocation, GsAllocationBuilder};
 use super::{Error, Result, K8sClient};
 
 impl K8sClient {
+    pub async fn gs_allocate_from_new_gs(
+        &self,
+        metadata: MetaData,
+        timeout: Option<Duration>,
+    ) -> AllocationResult<GsAllocation> {
+        let gs = self.create_and_wait_gs_by_meta(metadata, timeout).await
+            .map_err(|e| AllocationError::InvalidMetaData(format!("Failed to create GameServer: {e:?}")))?;
+
+        let gs_name = gs.name().to_string();
+        info!("GameServer[{gs_name}] is ready, proceeding with allocation");
+
+        let match_labels = {
+            let mut labels = gs.metadata.labels.clone().unwrap_or_default();
+            labels.insert(DIRECT_GS_NAME_LABEL.to_string(), gs_name.clone());
+            labels
+        };
+
+        let selector = GameServerSelector {
+            match_labels: Some(match_labels.into_iter().collect()),
+            match_expressions: None,
+        };
+
+        let allocation = GameServerAllocation {
+            api_version: "allocation.agones.dev/v1".to_string(),
+            kind: "GameServerAllocation".to_string(),
+            metadata: ObjectMeta {
+                namespace: Some(self.agones_ns.to_string()),
+                ..Default::default()
+            },
+            spec: GameServerAllocationSpec {
+                selectors: vec![selector],
+                scheduling: None,
+                metadata: None,
+            },
+            status: None,
+        };
+
+        let api: Api<GameServerAllocation> = Api::namespaced(self.client.clone(), &self.agones_ns);
+        let mut retry_interval = self.retry_interval();
+        let mut err = Ok(());
+        for _ in 1..=self.n_retry_human() {
+            match make_allocation(&api, &allocation).await {
+                Ok(res) => return Ok(res),
+                Err(e @ (AllocationError::Busy | AllocationError::UnAllocated)) => {
+                    info!("Allocation request failed due to {e}, retrying...");
+                    err = Err(e);
+                }
+                Err(e) => {
+                    warn!("Allocation request failed due to unexpected error: {e:?}");
+                    err = Err(e);
+                    break;
+                }
+            }
+            retry_interval.tick().await;
+        };
+
+        if let Err(e) = err {
+            warn!("Allocation request failed after {} retries: {e:?}", self.n_retry_human());
+            if let Err(cleanup_err) = self.drop_gs(&gs_name).await {
+                warn!(
+                    "Failed to cleanup GameServer[{gs_name}] after allocation failure: {cleanup_err:?}"
+                );
+            }
+            return Err(e)
+        }
+
+        Err(AllocationError::Busy)
+    }
+
     pub async fn gs_allocate(
         &self,
         scheduling: Scheduling,
@@ -27,6 +98,7 @@ impl K8sClient {
 
         // Build allocation metadata with annotations
         let allocation_metadata = AllocationMetadata {
+            labels: None,
             annotations: Some(metadata.annotations.into_map()),
         };
 
@@ -78,7 +150,7 @@ impl K8sClient {
 
 async fn make_allocation(
     api: &Api<GameServerAllocation>,
-    allocation: &GameServerAllocation
+    allocation: &GameServerAllocation,
 ) -> AllocationResult<GsAllocation> {
 
     let result = api.create(&PostParams::default(), allocation).await?;
@@ -104,9 +176,9 @@ async fn make_allocation(
     let res = {
         let mut builder = GsAllocationBuilder::new();
         builder
-            .parse_host(status.address.as_ref()).map_err(AllocationError::BadResponse)?
+            .parse_host(status.connection.address.as_ref()).map_err(AllocationError::BadResponse)?
             .set_pod_ip(status.get_pod_ip())
-            .parse_ports(status.ports.unwrap_or_default())
+            .parse_ports(status.connection.ports.clone().unwrap_or_default())
             .set_name(status.game_server_name.clone());
         builder.build_into().map_err(AllocationError::BadResponse)?
     };

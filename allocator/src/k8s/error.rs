@@ -51,6 +51,39 @@ pub enum Error {
         fleet: String,
     },
 
+    #[error("Failed to create GameServer[{gs}], {source}")]
+    CreateGs {
+        gs: String,
+        #[source]
+        source: kube::Error,
+    },
+
+    #[error("Failed to delete GameServer, {0}")]
+    DeleteGs(#[source] kube::Error),
+
+    #[error("Failed to select GameServer, {0}")]
+    SelectGs(#[source] kube::Error),
+
+    #[error("GameServer not found with the given labels")]
+    GsNotFound,
+
+    #[error("GameServer[{gs}]: labels do not match the expected labels. Expected: {expected}, Actual: {actual}")]
+    GsNotMatch {
+        gs: String,
+        expected: String,
+        actual: String,
+    },
+
+    #[error("GameServer[{gs}] is not ready after waiting")]
+    GsNotReady {
+        gs: String,
+    },
+
+    #[error("GameServer[{gs}] already exists")]
+    GsAlreadyExists {
+        gs: String,
+    },
+
     #[error("Allocation error: {0}")]
     Allocation(#[from] super::allocation::AllocationError),
 
@@ -74,6 +107,13 @@ impl Error {
             Error::FleetNotMatch { .. } => "FleetNotMatch",
             Error::FleetAlreadyExists { .. } => "FleetAlreadyExists",
             Error::FleetNotReady { .. } => "FleetNotReady",
+            Error::CreateGs { .. } => "CreateGs",
+            Error::DeleteGs(_) => "DeleteGs",
+            Error::SelectGs(_) => "SelectGs",
+            Error::GsNotFound => "GsNotFound",
+            Error::GsNotMatch { .. } => "GsNotMatch",
+            Error::GsAlreadyExists { .. } => "GsAlreadyExists",
+            Error::GsNotReady { .. } => "GsNotReady",
         }
     }
 }

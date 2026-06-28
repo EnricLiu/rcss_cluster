@@ -41,8 +41,8 @@ impl CoachedProcessSpawner {
         self
     }
     
-    pub fn with_log_dir(&mut self, log_dir: &'static str) -> &mut Self {
-        self.process_config_mut().with_log_dir(log_dir);
+    pub fn with_all_log_dir(&mut self, log_dir: &'static str) -> &mut Self {
+        self.process_config_mut().with_all_log_dir(log_dir);
         self
     }
 

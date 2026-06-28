@@ -1,17 +1,21 @@
 use axum::extract::State;
-use axum::{Router, routing};
+use axum::{Router, routing, Json};
+use axum::response::IntoResponse;
 use serde::Serialize;
 
+use service::BaseConfig;
 
 use super::{AppState, Response};
 
 #[derive(Serialize, Debug)]
-pub struct GetResponse {
-    
+pub struct GetResponse<'a> {
+    #[serde(flatten)]
+    base: &'a BaseConfig,
 }
 
 async fn get(State(state): State<AppState>) -> Response {
-    todo!()
+    let resp = GetResponse { base: state.service.base_config() };
+    Response::success(resp)
 }
 
 pub fn route(path: &str) -> Router<AppState> {

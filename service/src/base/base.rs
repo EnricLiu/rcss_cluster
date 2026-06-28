@@ -96,7 +96,7 @@ impl BaseService {
         spawner
             .with_ports(args.player_port, args.trainer_port, args.coach_port)
             .with_sync_mode(args.rcss_sync)
-            .with_log_dir(rcss_game_log_dir);
+            .with_all_log_dir(rcss_game_log_dir);
 
         BaseService::new(config, spawner).await
     }

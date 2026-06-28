@@ -6,6 +6,8 @@ use tokio::time::Interval;
 
 mod fleet;
 mod allocation;
+pub mod gs;
+pub mod crd;
 
 pub mod error;
 
@@ -23,11 +25,12 @@ pub use fleet::{
     fleet_template_version,
 };
 
-pub mod crd {
-    pub use super::fleet::crd::*;
-    pub use super::allocation::crd::*;
-}
-
+pub use gs::{
+    GsSweepConfig,
+    init_gs_template,
+    gs_template,
+    gs_template_version,
+};
 
 #[derive(Clone)]
 pub struct K8sClient {
@@ -35,6 +38,7 @@ pub struct K8sClient {
     client: Client,
 
     fleet_client: Arc<Api<crd::Fleet>>,
+    gs_client: Arc<Api<crd::GameServer>>,
     alloc_client: Arc<Api<crd::GameServerAllocation>>,
     
     n_retry: usize,
@@ -47,6 +51,7 @@ impl K8sClient {
             .map_err(Error::CreateClient)?;
 
         let fleet_client = Api::<crd::Fleet>::namespaced(client.clone(), &agones_ns);
+        let gs_client = Api::<crd::GameServer>::namespaced(client.clone(), &agones_ns);
         let alloc_client = Api::<crd::GameServerAllocation>::namespaced(client.clone(), &agones_ns);
 
         Ok(Self {
@@ -55,12 +60,17 @@ impl K8sClient {
             n_retry,
             retry_duration,
             fleet_client: Arc::new(fleet_client),
+            gs_client: Arc::new(gs_client),
             alloc_client: Arc::new(alloc_client),
         })
     }
 
     pub fn fleet_client(&self) -> &Api<crd::Fleet> {
         &self.fleet_client
+    }
+
+    pub fn gs_client(&self) -> &Api<crd::GameServer> {
+        &self.gs_client
     }
 
     pub fn alloc_client(&self) -> &Api<crd::GameServerAllocation> {

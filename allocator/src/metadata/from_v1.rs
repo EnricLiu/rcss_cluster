@@ -40,8 +40,8 @@ impl TryFrom<ConfigV1> for MetaData {
             ..
         } = value;
 
-        let (team_l, players_l, coach_l) = parse_team(TeamSideV1::Left, teams.left, log)?;
-        let (team_r, players_r, coach_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
+        let (team_l, players_l, coach_l, trainer_l) = parse_team(TeamSideV1::Left, teams.left, log)?;
+        let (team_r, players_r, coach_r, trainer_r) = parse_team(TeamSideV1::Right, teams.right, log)?;
 
         let labels = Labels::new(players_l, players_r);
         labels.validate()?;
@@ -53,6 +53,8 @@ impl TryFrom<ConfigV1> for MetaData {
                 team_r,
                 coach_l,
                 coach_r,
+                trainer_l,
+                trainer_r,
                 referee: RefereeDeclaration {
                     enabled: referee.enable,
                 },
@@ -72,12 +74,13 @@ impl TryFrom<ConfigV1> for MetaData {
 
 fn parse_team(
     side: TeamSideV1, team: TeamV1, log: bool
-) -> Result<(String, HashMap<Unum, PlayerLabel>, Option<CoachDeclaration>), BuilderError> {
+) -> Result<(String, HashMap<Unum, PlayerLabel>, Option<CoachDeclaration>, Option<CoachDeclaration>), BuilderError> {
     let TeamV1 {
         name,
         side: team_side,
         players,
         coach,
+        trainer,
     } = team;
 
     if side != team_side {
@@ -101,8 +104,9 @@ fn parse_team(
     }
 
     let coach = coach.map(|coach| convert_coach(coach, log)).transpose()?;
+    let trainer = trainer.map(|trainer| convert_trainer(trainer, log)).transpose()?;
 
-    Ok((name, labels, coach))
+    Ok((name, labels, coach, trainer))
 }
 
 fn convert_coach(coach: crate::schema::v1::CoachV1, log: bool) -> Result<CoachDeclaration, BuilderError> {
@@ -110,6 +114,22 @@ fn convert_coach(coach: crate::schema::v1::CoachV1, log: bool) -> Result<CoachDe
     let base = CoachBaseDeclaration { image, log };
 
     match coach.policy {
+        PolicyV1::Bot { .. } => Ok(CoachDeclaration::Helios { base }),
+        PolicyV1::Agent(agent) => Ok(CoachDeclaration::Ssp {
+            base,
+            grpc: HostPort {
+                host: agent.grpc_host(),
+                port: agent.grpc_port(),
+            },
+        }),
+    }
+}
+
+fn convert_trainer(trainer: crate::schema::v1::TrainerV1, log: bool) -> Result<CoachDeclaration, BuilderError> {
+    let image = ImageDeclaration::try_from(trainer.policy.image().to_string())?;
+    let base = CoachBaseDeclaration { image, log };
+
+    match trainer.policy {
         PolicyV1::Bot { .. } => Ok(CoachDeclaration::Helios { base }),
         PolicyV1::Agent(agent) => Ok(CoachDeclaration::Ssp {
             base,
@@ -169,7 +189,7 @@ mod tests {
                 "ball": { "x": 0.5, "y": 0.25 }
             },
             "teams": {
-                "allies": {
+                "right": {
                     "name": "Righties",
                     "side": "right",
                     "players": [{
@@ -184,7 +204,7 @@ mod tests {
                         }
                     }]
                 },
-                "opponents": {
+                "left": {
                     "name": "Lefties",
                     "side": "left",
                     "players": [{
@@ -231,7 +251,7 @@ mod tests {
     fn rejects_duplicate_player_unums_within_team() {
         let config: ConfigV1 = serde_json::from_value(json!({
             "teams": {
-                "allies": {
+                "left": {
                     "name": "HB1",
                     "players": [
                         {
@@ -250,7 +270,7 @@ mod tests {
                         }
                     ]
                 },
-                "opponents": {
+                "right": {
                     "name": "HB2",
                     "players": [{
                         "unum": 2,
@@ -276,7 +296,7 @@ mod tests {
     }
 
     #[test]
-    fn converts_team_coaches_into_annotations() {
+    fn converts_team_coaches_and_trainers_into_annotations() {
         let config: ConfigV1 = serde_json::from_value(json!({
             "teams": {
                 "left": {
@@ -286,6 +306,15 @@ mod tests {
                         "policy": {
                             "kind": "bot",
                             "image": "HELIOS/helios-base"
+                        }
+                    },
+                    "trainer": {
+                        "policy": {
+                            "kind": "agent",
+                            "agent": "ssp",
+                            "image": "CLSFramework/soccer-simulation-proxy",
+                            "grpc_host": "127.0.0.1",
+                            "grpc_port": 50051
                         }
                     },
                     "players": [{
@@ -318,5 +347,10 @@ mod tests {
             Some(CoachDeclaration::Helios { .. })
         ));
         assert!(metadata.annotations.coach_r.is_none());
+        assert!(matches!(
+            metadata.annotations.trainer_l,
+            Some(CoachDeclaration::Ssp { .. })
+        ));
+        assert!(metadata.annotations.trainer_r.is_none());
     }
 }

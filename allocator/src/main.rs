@@ -1,6 +1,7 @@
 mod k8s;
 mod auth;
 mod args;
+mod utils;
 mod schema;
 mod metadata;
 mod controller;
@@ -12,7 +13,7 @@ use std::time::Duration;
 use arcstr::ArcStr;
 use clap::Parser;
 
-use k8s::K8sClient;
+use k8s::{GsSweepConfig, K8sClient};
 use args::Args;
 
 use metadata::MetaData;
@@ -29,18 +30,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log::info!("    Bind address: {}", addr);
     log::info!("    Namespace: {}", args.namespace);
     log::info!("    Fleet template path: {}", args.fleet_template.display());
+    log::info!("    GameServer template path: {}",args.gs_template.display());
+    log::info!("    Default mode: {:?}", args.default_mode);
 
     log::info!("Loading fleet template");
     k8s::init_fleet_template(&args.fleet_template)
         .map_err(|e| format!("Fleet template initialization failed: {e}"))?;
+
+    log::info!("Loading GameServer template");
+    k8s::init_gs_template(&args.gs_template)
+        .map_err(|e| format!("GameServer template initialization failed: {e}"))?;
 
     log::info!("Initializing Kubernetes client");
     let namespace = ArcStr::from(&args.namespace);
     let k8s = K8sClient::new(
         namespace,
         args.k8s_n_retry,
-        Duration::from_millis(args.k8s_retry_interval_ms)
+        Duration::from_millis(args.k8s_retry_interval_ms),
     ).await?;
+
+    let sweep_config = GsSweepConfig {
+        interval: Duration::from_secs(args.gs_sweep_interval_s),
+        ready_idle_ttl: duration_opt(args.gs_ready_idle_ttl_s),
+        lease_ttl: duration_opt(args.gs_lease_ttl_s),
+        hard_ttl: duration_opt(args.gs_hard_ttl_s),
+    };
+    if sweep_config.enabled() {
+        tokio::spawn(k8s.clone().run_managed_gs_sweeper(sweep_config));
+    }
 
     let state = AppState {
         config: Arc::new(args.clone()),
@@ -57,6 +74,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("Server shutdown complete");
     Ok(())
+}
+
+fn duration_opt(seconds: u64) -> Option<Duration> {
+    if seconds == 0 {
+        None
+    } else {
+        Some(Duration::from_secs(seconds))
+    }
 }
 
 async fn shutdown_signal() {

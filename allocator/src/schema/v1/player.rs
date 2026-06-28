@@ -25,7 +25,19 @@ pub struct CoachV1 {
     pub policy: PolicyV1,
 }
 
+#[derive(Deserialize, Serialize, Clone, Debug)]
+pub struct TrainerV1 {
+    #[serde(default="PolicyV1::helios_base")]
+    pub policy: PolicyV1,
+}
+
 impl Schema for CoachV1 {
+    fn verify(&self) -> Result<(), &'static str> {
+        self.policy.verify()
+    }
+}
+
+impl Schema for TrainerV1 {
     fn verify(&self) -> Result<(), &'static str> {
         self.policy.verify()
     }

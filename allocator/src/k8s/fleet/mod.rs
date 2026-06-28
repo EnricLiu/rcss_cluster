@@ -1,10 +1,9 @@
-pub mod crd;
 mod builder;
 mod template;
 mod client_impl;
 
 
-use super::{Error, Result, K8sClient};
+use super::{Error, Result, K8sClient, crd};
 
 pub use template::{
     init_fleet_template,

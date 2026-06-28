@@ -1,0 +1,175 @@
+#!/bin/sh
+
+DIR=`dirname $0`
+LIBPATH="${DIR}/lib"
+if [ x"$LIBPATH" != x ]; then
+  if [ x"$LD_LIBRARY_PATH" = x ]; then
+    LD_LIBRARY_PATH=$LIBPATH
+  else
+    LD_LIBRARY_PATH=$LIBPATH:$LD_LIBRARY_PATH
+  fi
+  export LD_LIBRARY_PATH
+fi
+
+trainer="${DIR}/sample_trainer"
+teamname="TRAINER_MODE"
+host="localhost"
+port=6001
+rpc_host="localhost"
+rpc_port=50051
+rpc_port_step="false"
+rpc_add_20_to_port_for_right="false"
+rpc_type="grpc"
+#config="${DIR}/player.conf"
+#config_dir="${DIR}/formations-dt"
+
+debugopt=""
+
+usage()
+{
+  (echo "Usage: $0 [options]"
+   echo "Possible options are:"
+   echo "      --help                print this"
+   echo "  -h, --host HOST           specifies server host"
+   echo "  -p, --port PORT              specifies server coach port (default: 6002)"
+   echo "      --debug                  writes debug log (default: off)"
+   echo "      --log-dir DIRECTORY      specifies debug log directory (default: /tmp)"
+   echo "  --rpc-host RPC host          specifies rpc host (default: localhost)"
+   echo "  --rpc-port RPC PORT          specifies rpc port (default: 50051)"
+   echo "  --rpc-port-step              specifies different rpc port for each player (default: false)"
+   echo "  --rpc-add-20-to-port-for-right                    add 20 to RPC Port if team run on right side (default: false)"
+   echo "  --rpc-type                   type of rpc framework (default: thrift) or grpc"
+   echo "  -t, --teamname TEAMNAME   specifies team name") 1>&2
+}
+
+while [ $# -gt 0 ]
+do
+  case $1 in
+
+    --help)
+      usage
+      exit 0
+      ;;
+
+    -h|--host)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      host=$2
+      shift 1
+      ;;
+    -p|--port|-P)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      port="${2}"
+      shift 1
+      ;;
+    -t|--teamname)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      teamname=$2
+      shift 1
+      ;;
+    --debug)
+      debugopt="${debugopt} --offline_logging --debug --debug_server_connect"
+      ;;
+    --log-dir)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      debugopt="${debugopt} --log_dir ${2}"
+      shift 1
+      ;;
+    --rpc-host)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_host="${2}"
+      shift 1
+      ;;
+    --rpc-port)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_port="${2}"
+      shift 1
+      ;;
+    --rpc-port-step)
+      rpc_port_step="true"
+      ;;
+    --rpc-add-20-to-port-for-right)
+      rpc_add_20_to_port_for_right="true"
+      ;;
+    --rpc-type)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_type="${2}"
+      shift 1
+      ;;
+    --g-ip)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_type="grpc"
+      rpc_host="${2}"
+      shift 1
+      ;;
+
+    --g-port)
+      if [ $# -lt 2 ]; then
+        usage
+        exit 1
+      fi
+      rpc_type="grpc"
+      rpc_port="${2}"
+      shift 1
+      ;;
+
+    --diff-g-port)
+      rpc_type="grpc"
+      rpc_port_step="true"
+      ;;
+
+    --gp20)
+      rpc_type="grpc"
+      rpc_add_20_to_port_for_right="true"
+      ;;
+
+    *)
+      echo 1>&2
+      echo "invalid option \"${1}\"." 1>&2
+      echo 1>&2
+      usage
+      exit 1
+      ;;
+  esac
+
+  shift 1
+done
+
+trainer_opt="-h ${host} -p ${port} -t ${teamname}"
+trainer_opt="${trainer_opt} ${debugopt}"
+trainer_opt="${trainer_opt} --rpc-host ${rpc_host}"
+trainer_opt="${trainer_opt} --rpc-port ${rpc_port}"
+trainer_opt="${trainer_opt} --rpc-type ${rpc_type}"
+if [ "${rpc_port_step}" = "true" ]; then
+  trainer_opt="${trainer_opt} --rpc-port-step"
+fi
+if [ "${rpc_add_20_to_port_for_right}" = "true" ]; then
+  trainer_opt="${trainer_opt} --rpc-add-20-to-port-for-right"
+fi
+
+ping -c 1 "$host" >/dev/null 2>&1
+
+exec $trainer ${trainer_opt}

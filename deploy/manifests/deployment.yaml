@@ -44,7 +44,16 @@ spec:
               value: "rcss-env-dev"
             - name: AGONES_FLEET_TEMPLATE_PATH
               value: "/mnt/template/fleet.yaml"
-
+            - name: AGONES_GS_TEMPLATE_PATH
+              value: "/mnt/template/gameserver.yaml"
+            - name: ALLOCATOR_GS_SWEEP_INTERVAL_S
+              value: "30"
+            - name: ALLOCATOR_GS_READY_IDLE_TTL_S
+              value: "60"
+            - name: ALLOCATOR_GS_LEASE_TTL_S
+              value: "300"
+            - name: ALLOCATOR_GS_HARD_TTL_S
+              value: "600"
 #            - name: ALLOCATOR_AUTH_TOKEN
 #              valueFrom:
 #                secretKeyRef:

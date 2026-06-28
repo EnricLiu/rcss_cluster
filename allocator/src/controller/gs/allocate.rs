@@ -1,13 +1,14 @@
 use std::net::IpAddr;
 use std::collections::HashMap;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use axum::{extract::State, routing, Json, Router};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use common::errors::BuilderError;
 
+use crate::args::AllocateMode;
 use crate::schema::{v1, Schema};
-use crate::k8s::{AllocationError, Error, GsAllocation};
+use crate::k8s::{Error, GsAllocation};
 
 use super::{AppState, Response};
 
@@ -16,6 +17,7 @@ use super::{AppState, Response};
 pub struct PostRequest {
     pub version: u8,
     pub conf: Value,
+    pub mode: Option<AllocateMode>,
 }
 
 #[derive(Serialize, Debug)]
@@ -29,6 +31,7 @@ pub struct PostResponse {
 #[derive(Debug)]
 struct ParsedPostRequest {
     pub meta: crate::MetaData,
+    pub mode: Option<AllocateMode>,
 }
 
 impl TryFrom<PostRequest> for ParsedPostRequest {
@@ -64,11 +67,10 @@ impl TryFrom<PostRequest> for ParsedPostRequest {
             })),
         };
 
-        Ok(
-            Self {
-                meta
-            }
-        )
+        Ok(Self {
+            meta,
+            mode: req.mode,
+        })
     }
 }
 
@@ -97,29 +99,51 @@ pub async fn post(
         Response::error(e.desc(), &e.to_string())
     };
 
-    match state.k8s.get_or_create_fleet_by_meta(req.meta.clone(), None).await {
-        Ok(fleet) => {
-            debug!("Fleet[{}] is ready for allocation", fleet.name());
-        },
-        Err(e) => {
-            warn!("Failed to get or create fleet, error: {:?}", e);
-            return error(&e.into())
+    let mode = req.mode.unwrap_or(state.config.default_mode);
+    match mode {
+        AllocateMode::GameServer => {
+            let alloc_res = state.k8s.gs_allocate_from_new_gs(
+                req.meta,
+                None,
+            ).await;
+
+            match alloc_res {
+                Ok(res) => {
+                    info!("GameServer Allocation successful: {res:?}");
+                    success(res)
+                },
+                Err(e) => {
+                    warn!("GameServer Allocation failed: {e:?}");
+                    error(&(e.into()))
+                }
+            }
         }
-    }
+        AllocateMode::Fleet => {
+            match state.k8s.get_or_create_fleet_by_meta(req.meta.clone(), None).await {
+                Ok(fleet) => {
+                    debug!("Fleet[{}] is ready for allocation", fleet.name());
+                },
+                Err(e) => {
+                    warn!("Failed to get or create fleet, error: {:?}", e);
+                    return error(&e.into())
+                }
+            }
 
-    let alloc_res = state.k8s.gs_allocate(
-        state.config.scheduling.clone(),
-        req.meta,
-    ).await;
+            let alloc_res = state.k8s.gs_allocate(
+                state.config.scheduling.clone(),
+                req.meta,
+            ).await;
 
-    match alloc_res {
-        Ok(res) => {
-            info!("Allocation successful: {res:?}");
-            success(res)
-        },
-        Err(e) => {
-            warn!("Allocation failed: {e:?}");
-            error(&(e.into()))
+            match alloc_res {
+                Ok(res) => {
+                    info!("Fleet Allocation successful: {res:?}");
+                    success(res)
+                },
+                Err(e) => {
+                    warn!("Fleet Allocation failed: {e:?}");
+                    error(&(e.into()))
+                }
+            }
         }
     }
 }
