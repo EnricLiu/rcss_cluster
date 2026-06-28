@@ -1,5 +1,5 @@
 ###############################################################################
-# Hub base image Dockerfile
+# Bundled hub base image Dockerfile
 #
 # Builds all C++ dependencies that rarely change:
 #   1) librcsc
@@ -12,8 +12,10 @@
 # The match_composer Dockerfile then FROMs this image.
 #
 # Build from workspace root:
-#   docker build -f match_composer/Dockerfile.hub -t mc-hub:latest .
+#   docker build -f match_composer/bundled.Dockerfile -t rcss-mc-base:bundled-latest .
 ###############################################################################
+
+ARG BASE_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
 
 # =============================================================================
 # Base build image with common C++ toolchain
@@ -124,17 +126,11 @@ RUN git clone https://github.com/helios-base/helios-base.git && \
 # =============================================================================
 # Final hub base image
 # =============================================================================
-FROM debian:12-slim
+FROM ${BASE_IMAGE}
 
-LABEL version="0.1.0"
+LABEL version="0.7.0"
 LABEL authors="enricliu"
-LABEL description="Pre-built hub images (SSP + helios-base) with shared libs"
-
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get install -y --no-install-recommends \
-        libboost-system1.81.0 libboost-filesystem1.81.0 \
-        libstdc++6 ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+LABEL description="Runtime base with bundled hub images (SSP + helios-base)"
 
 WORKDIR /app
 
@@ -146,7 +142,13 @@ COPY --from=grpc-builder /opt/grpc-install/lib/ /usr/local/lib/
 
 RUN ldconfig
 
+# ---------- hub shared launch helpers ----------
+COPY match_composer/hub/.registry/helios_common.sh \
+     /app/hub/.registry/helios_common.sh
+
 # ---------- hub/Cyrus2D/SoccerSimulationProxy ----------
+COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/metadata.json \
+     /app/hub/Cyrus2D/SoccerSimulationProxy/metadata.json
 COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh \
      /app/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh
 COPY match_composer/hub/Cyrus2D/SoccerSimulationProxy/start_coach.sh \
@@ -164,10 +166,14 @@ COPY --from=ssp-builder /tmp/SoccerSimulationProxy/build/bin/formations-dt \
      /app/hub/Cyrus2D/SoccerSimulationProxy/formations-dt
 
 # ---------- hub/CLSFramework/soccer-simulation-proxy ----------
+COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/metadata.json \
+     /app/hub/CLSFramework/soccer-simulation-proxy/metadata.json
 COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/start_player.sh \
      /app/hub/CLSFramework/soccer-simulation-proxy/start_player.sh
 COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/start_coach.sh \
      /app/hub/CLSFramework/soccer-simulation-proxy/start_coach.sh
+COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/start_trainer.sh \
+     /app/hub/CLSFramework/soccer-simulation-proxy/start_trainer.sh
 COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/player.conf \
      /app/hub/CLSFramework/soccer-simulation-proxy/player.conf
 COPY match_composer/hub/CLSFramework/soccer-simulation-proxy/coach.conf \
@@ -177,10 +183,14 @@ COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/sample_player \
      /app/hub/CLSFramework/soccer-simulation-proxy/sample_player
 COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/sample_coach \
      /app/hub/CLSFramework/soccer-simulation-proxy/sample_coach
+COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/sample_trainer \
+     /app/hub/CLSFramework/soccer-simulation-proxy/sample_trainer
 COPY --from=ssp2-builder /tmp/soccer-simulation-proxy/build/bin/formations-dt \
      /app/hub/CLSFramework/soccer-simulation-proxy/formations-dt
 
 # ---------- hub/HELIOS/helios-base ----------
+COPY match_composer/hub/HELIOS/helios-base/metadata.json \
+     /app/hub/HELIOS/helios-base/metadata.json
 COPY match_composer/hub/HELIOS/helios-base/start_player.sh \
      /app/hub/HELIOS/helios-base/start_player.sh
 COPY match_composer/hub/HELIOS/helios-base/start_coach.sh \
@@ -203,7 +213,8 @@ RUN chmod +x /app/hub/Cyrus2D/SoccerSimulationProxy/start_player.sh \
              /app/hub/HELIOS/helios-base/start_player.sh \
              /app/hub/HELIOS/helios-base/start_coach.sh \
              /app/hub/CLSFramework/soccer-simulation-proxy/start_player.sh \
-             /app/hub/CLSFramework/soccer-simulation-proxy/start_coach.sh
+             /app/hub/CLSFramework/soccer-simulation-proxy/start_coach.sh \
+             /app/hub/CLSFramework/soccer-simulation-proxy/start_trainer.sh
 
 ENV MC_HUB_PATH=/app/hub
 ENV LD_LIBRARY_PATH=/usr/local/lib

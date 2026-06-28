@@ -1,22 +1,22 @@
 ###############################################################################
 # match_composer Dockerfile
 #
-# Only builds the Rust binary. Requires a pre-built mc-hub image as the base
-# image (built separately via hub.Dockerfile, which contains all C++ deps).
+# Only builds the Rust binary. The final runtime image is selected with
+# BASE_IMAGE:
+#   - rcss-mc-base:latest contains runtime dependencies only; provide hub files
+#     with an external MC_HUB_PATH mount.
+#   - rcss-mc-base:bundled-latest already contains /app/hub.
 #
 # Build from workspace root:
 #   docker build -f match_composer/Dockerfile -t match_composer .
 #
-# If the hub base image doesn't exist yet, build it first:
-#   docker build -f match_composer/hub.Dockerfile -t mc-hub:latest .
-#
-# To build against a specific published hub image:
+# To build against a specific published runtime base:
 #   docker build -f match_composer/Dockerfile \
-#     --build-arg HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:nightly \
+#     --build-arg BASE_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:nightly \
 #     -t match_composer .
 ###############################################################################
 
-ARG HUB_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
+ARG BASE_IMAGE=registry.cn-beijing.aliyuncs.com/nexus-prime/rcss-mc-base:latest
 
 # =============================================================================
 # Stage: cargo-chef planner (extracts dependency recipe)
@@ -44,18 +44,21 @@ COPY . .
 RUN cargo build --release --bin match_composer
 
 # =============================================================================
-# Final runtime image — based on the pre-built hub image
+# Final runtime image
 # =============================================================================
-FROM ${HUB_IMAGE}
+FROM ${BASE_IMAGE}
 
 LABEL version="0.1.0"
 LABEL authors="enricliu"
-LABEL description="match_composer with pre-built hub images (SSP + helios-base)"
+LABEL description="match_composer runtime; hub files are resolved via MC_HUB_PATH"
 
 # ---------- match_composer binary ----------
 COPY --from=rust-builder /usr/src/rcss_cluster/target/release/match_composer /app/match_composer
 
 ENV MC_LOG_ROOT=/app/logs
+ENV MC_HUB_PATH=/app/hub
+
+RUN mkdir -p /app/hub /app/logs
 
 EXPOSE 7777/tcp
 
