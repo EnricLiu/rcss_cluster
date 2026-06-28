@@ -25,7 +25,7 @@ impl BaseConfig {
 
 impl Serialize for BaseConfig {
     fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_struct("BaseConfig", 4)?;
+        let mut state = serializer.serialize_struct("BaseConfig", 5)?;
         state.serialize_field("half_time_auto_start", &self.half_time_auto_start)?;
         state.serialize_field("always_log_stdout", &self.always_log_stdout)?;
         state.serialize_field("log_root", &self.log_root())?;
