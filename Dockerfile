@@ -11,9 +11,15 @@ FROM chef AS builder
 WORKDIR /usr/src/rcss_cluster
 
 # Install rcssserver
-RUN apk add --no-cache build-base automake autoconf libtool flex-dev bison boost-dev
-RUN wget https://github.com/rcsoccersim/rcssserver/releases/download/rcssserver-19.0.0/rcssserver-19.0.0.tar.gz
-RUN tar -zvxf rcssserver-19.0.0.tar.gz && \
+RUN apk add --no-cache build-base automake autoconf libtool flex-dev bison boost-dev unzip
+
+RUN wget https://codeload.github.com/EnricLiu/rcssserver/zip/refs/heads/master && mv master rcssserver-modified.zip && \
+    unzip rcssserver-modified.zip
+RUN wget https://github.com/rcsoccersim/rcssserver/releases/download/rcssserver-19.0.0/rcssserver-19.0.0.tar.gz && \
+    tar -zvxf rcssserver-19.0.0.tar.gz
+
+RUN mv -i rcssserver-modified/src/stadium.cpp rcssserver-19.0.0/src/ && \
+    mv -i rcssserver-modified/src/stadium.h rcssserver-19.0.0/src/ && \
     cd rcssserver-19.0.0 && \
     sed -i 's/const double max_msec_waited = 25 \* 50;/const double max_msec_waited = 86400;/' src/stadium.cpp && \
     ./configure --disable-rcssclient && make -j4 && make install
