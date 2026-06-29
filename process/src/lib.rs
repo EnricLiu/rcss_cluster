@@ -2,8 +2,8 @@ mod client;
 mod coached;
 mod process;
 mod test;
-mod trainer;
-mod player;
+pub mod trainer;
+pub mod player;
 mod error;
 
 pub mod addon {
