@@ -13,11 +13,13 @@ WORKDIR /usr/src/rcss_cluster
 # Install rcssserver
 RUN apk add --no-cache build-base automake autoconf libtool flex-dev bison boost-dev unzip
 
-RUN wget https://codeload.github.com/EnricLiu/rcssserver/zip/refs/heads/master && mv master rcssserver.zip
+RUN wget https://codeload.github.com/EnricLiu/rcssserver/zip/refs/heads/master &&  \
+    mv master rcssserver.zip &&  \
+    unzip rcssserver.zip
 
-RUN unzip rcssserver.zip && cd rcssserver && \
-    ./bootstrap && ./configure --disable-rcssclient &&  \
-    make -j"$(nproc)" && make install \
+RUN cd rcssserver-master && \
+    ./bootstrap && ./configure --disable-rcssclient && \
+    make -j"$(nproc)" && make install
 
 # Build dependency crates
 COPY --from=planner /usr/src/rcss_cluster/recipe.json recipe.json
