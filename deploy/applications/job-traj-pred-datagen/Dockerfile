@@ -1,11 +1,26 @@
-FROM rust:alpine AS builder
+FROM rust:alpine AS chef
 
-WORKDIR /usr/src/rcss_cluster
 RUN apk add --no-cache build-base ca-certificates musl-dev openssl-dev pkgconfig
+RUN cargo install cargo-chef --locked
 
-COPY deploy/applications/job-traj-pred-datagen ./deploy/applications/job-traj-pred-datagen
-RUN cargo build --release \
-    --manifest-path deploy/applications/job-traj-pred-datagen/Cargo.toml
+WORKDIR /usr/src/rcss_cluster/deploy/applications/job-traj-pred-datagen
+
+FROM chef AS planner
+
+COPY deploy/applications/job-traj-pred-datagen/Cargo.toml ./
+COPY deploy/applications/job-traj-pred-datagen/Cargo.lock ./
+COPY deploy/applications/job-traj-pred-datagen/src ./src
+RUN cargo chef prepare --recipe-path recipe.json
+
+FROM chef AS builder
+
+COPY --from=planner /usr/src/rcss_cluster/deploy/applications/job-traj-pred-datagen/recipe.json recipe.json
+RUN cargo chef cook --release --recipe-path recipe.json
+
+COPY deploy/applications/job-traj-pred-datagen/Cargo.toml ./
+COPY deploy/applications/job-traj-pred-datagen/Cargo.lock ./
+COPY deploy/applications/job-traj-pred-datagen/src ./src
+RUN cargo build --release --bin job-traj-pred-datagen
 
 FROM alpine:latest
 

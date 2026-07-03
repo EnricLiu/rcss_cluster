@@ -137,7 +137,7 @@ impl GameServerClient {
     async fn try_each_base<T, F, Fut>(&self, op: &'static str, f: F) -> Result<T>
     where
         F: Fn(reqwest::Client, String) -> Fut,
-        Fut: std::future::Future<Output = Result<T>>,
+        Fut: Future<Output = Result<T>>,
     {
         let mut last_error = None;
         for base in &self.base_urls {
@@ -198,6 +198,8 @@ pub struct ServiceObservation {
     pub timestep: Option<u16>,
     #[serde(default)]
     pub process_status: Option<String>,
+    #[serde(default)]
+    pub uptime_ms: Option<i64>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -297,6 +299,7 @@ mod tests {
                 status: "idle".to_string(),
                 timestep: Some(10),
                 process_status: None,
+                uptime_ms: None,
             },
             conn_count: None,
             agones: None,
@@ -309,6 +312,7 @@ mod tests {
                 status: "finished".to_string(),
                 timestep: Some(6000),
                 process_status: None,
+                uptime_ms: None,
             },
             conn_count: None,
             agones: None,

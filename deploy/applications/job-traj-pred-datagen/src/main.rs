@@ -320,7 +320,25 @@ async fn execute_match_with_server(
     }
 
     let finished = wait_for_observation(settings, server, &manifest.match_id, "finish", |obs| {
-        obs.is_finished(settings.match_time_up)
+        let is_finished = obs.is_finished(settings.match_time_up);
+
+        if !is_finished {
+            info!(
+                "[RUNNING] match_id={}: ts={}, uptime={:?}ms",
+                manifest.match_id,
+                obs.service.timestep.unwrap_or(0),
+                obs.service.uptime_ms.unwrap_or(0),
+            )
+        } else {
+            info!(
+                "[FINISHED] match_id={}: ts={}, uptime={:?}ms",
+                manifest.match_id,
+                obs.service.timestep.unwrap_or(0),
+                obs.service.uptime_ms.unwrap_or(0),
+            );
+        }
+
+        is_finished
     })
     .await?;
     manifest.final_observation = Some(finished);
