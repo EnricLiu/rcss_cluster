@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nexus-prime-job-traj-pred-datagen
+  namespace: rcss-gateway-dev
+  labels:
+    app: nexus-prime-job-traj-pred-datagen
+spec:
+  completionMode: Indexed
+  completions: 100 # n shards
+  parallelism: 32 # n paralleled shards
+  backoffLimitPerIndex: 1
+  maxFailedIndexes: 10
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app: nexus-prime-job-traj-pred-datagen
+    spec:
+      restartPolicy: Never
+      volumes:
+        - name: oss-datagen-output
+          persistentVolumeClaim:
+            claimName: oss-nexus-prime-env-allocator-dev
+      containers:
+        - name: datagen
+          image: registry-vpc.cn-beijing.aliyuncs.com/nexus-prime/job-traj-pred-datagen:nightly
+          imagePullPolicy: Always
+          volumeMounts:
+            - name: oss-datagen-output
+              mountPath: /mnt/output
+              subPath: datagen-output
+          env:
+            - name: MATCHES_PER_INDEX # n matches per shard
+              value: "16"
+            - name: RUST_LOG
+              value: info
+            - name: ALLOCATOR_URL
+              value: http://rcss-env-allocator.rcss-gateway-dev.svc.cluster.local/gs/allocate
+            - name: OUTPUT_ROOT
+              value: /mnt/output/datasets/traj-pred
+            - name: DATAGEN_RUN_ID
+              value: traj-pred-20260703-2250
+            - name: JOB_COMPLETION_INDEX
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+            - name: MATCH_INDEX_OFFSET
+              value: "0"
+            - name: MATCH_TIME_UP
+              value: "6000"
+            - name: POLL_INTERVAL_MS
+              value: "2000"
+            - name: MATCH_TIMEOUT_S
+              value: "900"
+            - name: HEARTBEAT_INTERVAL_S
+              value: "60"
+            - name: HTTP_TIMEOUT_S
+              value: "20"
+            - name: PREFER_POD_IP
+              value: "true"
+            - name: POD_HTTP_PORT
+              value: "6666"
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
