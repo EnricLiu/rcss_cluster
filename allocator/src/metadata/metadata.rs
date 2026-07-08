@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "agones")]
 use agones::ObjectMeta;
 
 use common::errors::BuilderError;
@@ -12,6 +13,7 @@ pub struct MetaData {
     pub annotations: Annotations,
 }
 
+#[cfg(feature = "agones")]
 impl TryFrom<ObjectMeta> for MetaData {
     type Error = BuilderError;
 

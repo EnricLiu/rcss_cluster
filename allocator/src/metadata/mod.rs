@@ -4,6 +4,7 @@ mod annotations;
 mod from_v1;
 mod label_serdes;
 
+#[cfg(feature = "agones")]
 pub use agones::Sdk;
 
 pub use metadata::MetaData;

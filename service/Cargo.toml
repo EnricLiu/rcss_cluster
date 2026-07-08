@@ -6,14 +6,14 @@ edition = "2024"
 [features]
 default = []
 standalone = []
-agones = ["dep:agones", "dep:reqwest", "dep:serde_json"]
+agones = ["dep:agones", "dep:reqwest", "dep:serde_json", "match_composer/agones"]
 
 [dependencies]
 common = { path = "../common", features = ["axum"] }
 process = { path = "../process" }
 match_composer = { path = "../match_composer" }
 
-agones = { workspace = true, optional = true }
+agones = { version = "1.56", optional = true }
 reqwest = { workspace = true, optional = true }
 serde.workspace = true
 serde_json = { workspace = true, optional = true }

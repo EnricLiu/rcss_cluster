@@ -1,5 +1,6 @@
 use std::ops::Deref;
 use std::path::PathBuf;
+#[cfg(feature = "agones")]
 use agones::ObjectMeta;
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,7 @@ pub struct MetaData {
     meta: AllocatorMetadata,
 }
 
+#[cfg(feature = "agones")]
 impl TryFrom<ObjectMeta> for MetaData {
     type Error = String;
 
