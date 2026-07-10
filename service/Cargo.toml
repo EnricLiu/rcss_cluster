@@ -11,7 +11,7 @@ agones = ["dep:agones", "dep:reqwest", "dep:serde_json", "match_composer/agones"
 [dependencies]
 common = { path = "../common", features = ["axum"] }
 process = { path = "../process" }
-match_composer = { path = "../match_composer" }
+match_composer = { path = "../match_composer", default-features = false }
 
 agones = { version = "1.56", optional = true }
 reqwest = { workspace = true, optional = true }

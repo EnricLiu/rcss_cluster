@@ -1,5 +1,8 @@
+#[cfg(not(feature = "agones"))]
+compile_error!("Allocator binary requires the 'agones' feature to be enabled. Please enable it in your Cargo.toml or build command.");
+
+#[cfg(feature = "agones")]
 mod k8s;
-mod auth;
 mod args;
 mod utils;
 mod schema;

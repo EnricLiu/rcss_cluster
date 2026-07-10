@@ -1,7 +1,8 @@
+#[cfg(feature = "agones")]
 mod k8s;
-mod auth;
-mod args;
+#[cfg(feature = "agones")]
 mod controller;
+mod args;
 
 pub mod schema;
 pub mod metadata;
@@ -10,4 +11,6 @@ mod utils;
 
 pub use args::AllocateMode;
 pub use metadata::MetaData;
+
+#[cfg(feature = "agones")]
 pub use controller::AppState;
