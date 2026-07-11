@@ -3,8 +3,12 @@ name = "match_composer"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+default = ["agones"]
+agones = ["dep:agones", "allocator/agones"]
+
 [dependencies]
-agones.workspace = true
+agones = { version = "1.56", optional = true }
 
 tokio.workspace = true
 futures.workspace = true
@@ -22,4 +26,4 @@ thiserror.workspace = true
 async-trait = "0.1.89"
 
 common = { path = "../common" }
-allocator = { path = "../allocator" }
+allocator = { path = "../allocator", default-features = false }
